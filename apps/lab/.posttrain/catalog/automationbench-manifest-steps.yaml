@@ -949,7 +949,7 @@ training:
   # engine. Revision 5: 6144-token replies (r2 truncated 21% of episodes, mostly replies cut at 4096).
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "5"  # turn rows; VORTEX curriculum; 6144-token replies
+    revision: "6"  # turn rows; VORTEX curriculum; 6144-token replies in a 28672-token context
     loop:
       max_steps: 400
       max_length: 28672
@@ -962,7 +962,7 @@ training:
       seed: 42
     num_prompts_per_step: 16
     num_generations: 8
-    max_prompt_length: 20480
+    max_prompt_length: 22528
     max_completion_length: 6144
     beta: 0.01
     kl_reference: base
