@@ -478,6 +478,11 @@ environment:
       toolset: limited_zapier
       max_turns: 16
       max_output_tokens: 12288
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
 
   # The 8 GB card's VORTEX check on the 20 Simple training tasks of luna-v2: a 3072-token reply
   # budget (LFM2.5-1.2B-Thinking reasons before its first tool call) and 8192 output tokens per
@@ -772,12 +777,13 @@ training:
   # groups each, so the sequence-level ratio and clip act after the first), 400 updates in
   # all; checkpoints every 25 collections. Revision 2: when more of the 20 generated groups
   # have reward spread than the 16 needed, keep the 16 with the largest learning signal
-  # (retain: learning_signal) instead of the first 16 in task order. The resolved TRL engine does not
-  # admit the adaptive curriculum, so prompts are shuffled. The update context leaves
-  # headroom above vLLM's 24576-token engine limit.
+  # (retain: learning_signal) instead of the first 16 in task order. Revision 3: SAMPO's per-turn
+  # objective (turn-rows), so the ratio and clip act on each sampled turn. Revision 4: VORTEX's
+  # yield-first adaptive curriculum chooses each active round's tasks by domain on the resolved
+  # engine. The update context leaves headroom above vLLM's 24576-token engine limit.
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "3"  # turn-row objective (SAMPO reference default)
+    revision: "4"  # turn-row objective; VORTEX yield-first curriculum by domain
     loop:
       max_steps: 400
       max_length: 28672
@@ -803,6 +809,15 @@ training:
     importance_sampling_clip_min: null
     importance_sampling_clip_max: 2.0
     active_sampling: {max_candidate_batches: 5, oversample: 4, oversample_refill: 4, retain: learning_signal}
+    adaptive_curriculum:
+      class_field: domain
+      policy: yield_first
+      exploration_share: 0.2
+      uncertainty_weight: 4.0
+      evidence_half_life_steps: 20.0
+      yield_prior_strength: 4.0
+      history_groups: 4
+      seed: 172846
     truncation_penalty: 0.1
     shuffle_prompts: true
     mask_truncated_completions: false
