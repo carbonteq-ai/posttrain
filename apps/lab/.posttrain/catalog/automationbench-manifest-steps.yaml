@@ -670,7 +670,7 @@ training:
   # Two resolved SAMPO updates on LFM2.5-1.2B: correctness and gradient-norm checks.
   lfm2.5-1.2b/automationbench-manifest-steps-smoke-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 2
       max_length: 16384
@@ -703,7 +703,7 @@ training:
   # context leaves headroom above the engine limit.
   lfm2.5-1.2b/automationbench-manifest-steps-smoke-vllm-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 2
       max_length: 20480
@@ -737,7 +737,7 @@ training:
 
   lfm2.5-1.2b/automationbench-manifest-steps-smoke-local-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 2
       max_length: 6144
@@ -777,7 +777,7 @@ training:
   # headroom above vLLM's 24576-token engine limit.
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "2"
+    revision: "3"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 400
       max_length: 28672
@@ -817,7 +817,7 @@ training:
   # script), `mean_std` also divides by the group standard deviation (their ALFWorld scripts).
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 8
       max_length: 28672
@@ -853,7 +853,7 @@ training:
 
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-std-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 8
       max_length: 28672
@@ -892,7 +892,7 @@ training:
   # acts on the second update; update context above vLLM's 6144-token limit.
   lfm2.5-1.2b/automationbench-manifest-steps-smoke-local-vllm-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 4
       max_length: 8192
@@ -930,7 +930,7 @@ training:
   # episodes and an 8-group candidate pool; one prompt x 4 attempts, 2 updates per collection.
   lfm2.5-1.2b/automationbench-manifest-steps-luna2-simple-vortex-local-v1:
     selection_type: sampo-settings
-    revision: "1"
+    revision: "2"  # turn-row objective (SAMPO reference default)
     loop:
       max_steps: 8
       max_length: 12288

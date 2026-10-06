@@ -318,7 +318,7 @@ class ResolvedTRLJob:
         if len(self.rows) < self.reservation:
             raise InvalidPolicyUpdate("resolved collection inventory cannot fill distinct complete groups")
         self.capabilities = ExecutionCapabilities(
-            ("grpo@1", "dapo@1", "sampo@1", "sampo-spans@1", "gdpo@1", "capo@1"),
+            ("grpo@1", "dapo@1", "sampo@1", "sampo-turns@1", "sampo-spans@1", "gdpo@1", "capo@1"),
             ("sampled-logp", "old-logp", "reference-logp"),
             self.request.settings.max_prompt_length + self.request.settings.max_completion_length,
             True,

@@ -149,6 +149,14 @@ def update_metrics(
         "train/rl/advantage_zero_fraction": int((np.abs(advantages) <= _ZERO).sum()) / count,
     }
     was_clipped, ratio = clipped[selected], ratios[selected]
+    # One ratio per objective segment (token, turn or episode): its spread shows how far the
+    # policy has moved from the collection's frozen scores relative to the clip bounds.
+    _, first = np.unique(term.ratio_segment[selected], return_index=True)
+    log_ratio = np.log(np.maximum(ratio[np.sort(first)].astype(np.float64), 1e-30))
+    values["train/rl/policy_log_ratio_abs_mean"] = float(np.abs(log_ratio).mean())
+    values["train/rl/policy_log_ratio_min"] = float(log_ratio.min())
+    values["train/rl/policy_log_ratio_max"] = float(log_ratio.max())
+    values["train/rl/policy_ratio_segments"] = float(log_ratio.size)
     values["train/rl/clip_fraction"] = int(was_clipped.sum()) / count
     values["train/rl/clip_fraction_high"] = int((was_clipped & (ratio > 1)).sum()) / count
     values["train/rl/clip_fraction_low"] = int((was_clipped & (ratio < 1)).sum()) / count

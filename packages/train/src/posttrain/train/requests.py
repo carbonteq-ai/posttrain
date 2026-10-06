@@ -218,7 +218,13 @@ def _validate_online_rl(
 # Every admitted selection runs on one device.
 _QUALIFIED_RESOLVED_SELECTIONS: dict[str, frozenset[tuple[str, str]]] = {
     "trl": frozenset(
-        {("grpo", "algorithm"), ("dapo", "algorithm"), ("sampo", "algorithm"), ("sampo", "semantic-spans")}
+        {
+            ("grpo", "algorithm"),
+            ("dapo", "algorithm"),
+            ("sampo", "algorithm"),
+            ("sampo", "turn-rows"),
+            ("sampo", "semantic-spans"),
+        }
     ),
     "verl": frozenset({("sampo", "algorithm")}),
 }
@@ -247,7 +253,8 @@ def _resolved_selection_problem(
         return (
             f"{training.backend} has no qualified resolved policy update executor for {algorithm} "
             f"objective variant {updates.objective_variant!r}; policy_updates requires the native "
-            "integration gates in the engine plan"
+            "integration gates in the engine plan (an unset catalog objective_variant selects SAMPO turn-rows; "
+            "set it explicitly to select another qualified variant)"
         )
     if (
         updates.credit_estimator is not None

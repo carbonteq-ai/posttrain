@@ -73,7 +73,9 @@ class PolicyExecutionBudgetSchema(TrainCatalogSchema):
 class PolicyUpdateSettingsSchema(TrainCatalogSchema):
     schedule: PolicyUpdateScheduleSchema
     execution: PolicyExecutionBudgetSchema
-    objective_variant: Literal["algorithm", "semantic-spans", "turn-rows"] = "algorithm"
+    # Unset selects the algorithm's reference objective (SAMPO: turn rows, as the authors apply
+    # GSPO to each turn row; every other algorithm: its own objective).
+    objective_variant: Literal["algorithm", "semantic-spans", "turn-rows"] | None = None
     policy_selection: ActionSelectionSchema = Field(default_factory=ActionSelectionSchema)
     kl_selection: ActionSelectionSchema = Field(default_factory=ActionSelectionSchema)
     denominator: Literal["selected", "original-eligible"] = "selected"
@@ -82,13 +84,17 @@ class PolicyUpdateSettingsSchema(TrainCatalogSchema):
     credit_estimator: str | None = None
 
 
-def _decode_policy_updates(payload: PolicyUpdateSettingsSchema | None) -> PolicyUpdateSettings | None:
+def _decode_policy_updates(
+    payload: PolicyUpdateSettingsSchema | None,
+    *,
+    reference: Literal["algorithm", "turn-rows"] = "algorithm",
+) -> PolicyUpdateSettings | None:
     if payload is None:
         return None
     return PolicyUpdateSettings(
         schedule=PolicyUpdateSchedule(**payload.schedule.model_dump()),
         execution=PolicyExecutionBudget(**payload.execution.model_dump()),
-        objective_variant=payload.objective_variant,
+        objective_variant=payload.objective_variant or reference,
         policy_selection=ActionSelection(**payload.policy_selection.model_dump()),
         kl_selection=ActionSelection(**payload.kl_selection.model_dump()),
         denominator=payload.denominator,
@@ -504,7 +510,7 @@ def decode_training_selection(
         )
     if isinstance(payload, SAMPOSettingsSchema):
         values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
-        values["policy_updates"] = _decode_policy_updates(payload.policy_updates)
+        values["policy_updates"] = _decode_policy_updates(payload.policy_updates, reference="turn-rows")
         values["active_sampling"] = ActiveGroupSampling(**values["active_sampling"])
         adaptive_curriculum = values.pop("adaptive_curriculum")
         if adaptive_curriculum is not None:

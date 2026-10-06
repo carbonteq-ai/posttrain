@@ -624,6 +624,9 @@ execution packing. SAMPO additionally accepts `objective_variant: turn-rows`,
 resolving `sampo-turns@1` with turn-wide geometric ratios, local token gradients
 and equal-turn token means. This changes the named objective rather than the
 meaning of the optimizer's scheduling unit; existing selections are preserved.
+An unset catalog `objective_variant` selects the algorithm's reference
+objective: `turn-rows` for SAMPO (the authors' per-turn GSPO), `algorithm`
+otherwise; explicit values are unchanged.
 
 Episode/turn/token budgets preserve atomic objective contributions and
 dependency closure. Policy, KL, ratio and reduction support are distinct.

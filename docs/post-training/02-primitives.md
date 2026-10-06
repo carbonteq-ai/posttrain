@@ -486,6 +486,16 @@ Episode and turn scheduling remain independent of execution packs. Existing
 Turn-row semantic masks are initially unsupported. This accepts the explicit
 objective, not backend qualification or replication of the full author recipe.
 
+**Amendment — SAMPO's reference objective is turn rows (2026-10-06):** the
+authors' SAMPO applies GSPO to each turn row (one environment step per row), so
+its importance ratio and clip act on one sampled turn and each turn weighs
+equally. A catalog `policy_updates` that leaves `objective_variant` unset now
+selects each algorithm's reference objective: `turn-rows` (`sampo-turns@1`) for
+SAMPO and `algorithm` for every other technique. An explicit `algorithm` keeps
+SAMPO's episode-wide ratio (`sampo@1`). TRL's resolved engine is qualified for
+SAMPO turn rows; a backend without that qualification rejects the default and
+asks for an explicit variant.
+
 
 Training is selected **per job kind**, but **algorithm**, **how parameters
 update**, **train runtime**, and **rollout runtime** are different seats.

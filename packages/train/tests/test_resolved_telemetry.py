@@ -264,7 +264,10 @@ def _native_population(settings: SAMPOSettings):
 
 def _term(positions) -> Any:
     """The update metrics read only the selected policy positions of a resolved term."""
-    return cast(Any, SimpleNamespace(policy_positions=np.asarray(positions, dtype=np.int64)))
+    selected = np.asarray(positions, dtype=np.int64)
+    # Token-level segments: every position carries its own ratio.
+    segment = np.arange(int(selected.max()) + 1 if selected.size else 0, dtype=np.int64)
+    return cast(Any, SimpleNamespace(policy_positions=selected, ratio_segment=segment))
 
 
 def _clipped(size: int, ratios: dict[int, float]) -> tuple[np.ndarray, np.ndarray]:
@@ -321,6 +324,11 @@ def test_real_sampo_credit_and_update_metrics_equal_hand_computation(normalizati
             "train/rl/advantage_std": math.sqrt(sum((value - mean) ** 2 for value in tokens) / count),
             "train/rl/advantage_nonzero_fraction": sum(abs(value) > ZERO for value in tokens) / count,
             **_credit_fractions(tokens),
+            # One ratio per token segment: 1.5 and 0.6 among unit ratios.
+            "train/rl/policy_log_ratio_abs_mean": (math.log(1.5) - math.log(0.6)) / count,
+            "train/rl/policy_log_ratio_min": math.log(0.6),
+            "train/rl/policy_log_ratio_max": math.log(1.5),
+            "train/rl/policy_ratio_segments": count,
             "train/rl/clip_fraction": 2 / count,
             "train/rl/clip_fraction_high": 1 / count,
             "train/rl/clip_fraction_low": 1 / count,
@@ -427,6 +435,24 @@ def test_update_metrics_count_masked_correction_and_cover_only_selected_actions(
     assert "train/rl/entropy" not in values
     assert "train/rl/sampling_logp_delta_mean" not in values  # no sampled scores supplied
     assert update_metrics(_term([]), credit, episode_of=snapshot.episode_of, ratios=ratios, clipped=clipped) == {}
+
+
+def test_policy_ratio_statistics_count_each_turn_segment_once():
+    settings = _settings("mean", 1.0)
+    snapshot, actions, credit = _native_population(settings)
+    positions = np.arange(len(actions))
+    turn = snapshot.view_of[positions]
+    # Every action of turn 0 shares ratio e^0.002 and every action of turn 1 shares e^-0.005.
+    log_ratio = np.where(turn == turn[0], 0.002, np.where(turn == turn[-1], -0.005, 0.0))
+    term = cast(Any, SimpleNamespace(policy_positions=positions, ratio_segment=turn.astype(np.int64)))
+    values = update_metrics(
+        term, credit, episode_of=snapshot.episode_of, ratios=np.exp(log_ratio), clipped=np.zeros(len(actions), bool)
+    )
+    segments = np.unique(turn)
+    assert values["train/rl/policy_ratio_segments"] == len(segments)
+    assert values["train/rl/policy_log_ratio_max"] == pytest.approx(0.002)
+    assert values["train/rl/policy_log_ratio_min"] == pytest.approx(-0.005)
+    assert values["train/rl/policy_log_ratio_abs_mean"] == pytest.approx(0.007 / len(segments))
 
 
 @pytest.mark.parametrize(("normalization", "weight"), CASES)

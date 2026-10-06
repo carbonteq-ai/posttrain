@@ -45,6 +45,32 @@ def test_catalog_roundtrip_preserves_explicit_settings(algorithm) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("algorithm", "reference"),
+    [("sampo", "turn-rows"), ("grpo", "algorithm"), ("gdpo", "algorithm"), ("capo", "algorithm")],
+)
+def test_unset_catalog_objective_selects_the_algorithm_reference(algorithm, reference) -> None:
+    updates = asdict(update_settings())
+    del updates["objective_variant"]
+    payload = {
+        "selection_type": f"{algorithm}-settings",
+        "id": "reference-objective",
+        "revision": "1",
+        "loop": {"max_steps": 3},
+        "num_prompts_per_step": 4,
+        "num_generations": 2,
+        "policy_updates": updates,
+    }
+    if algorithm == "gdpo":
+        payload.update(component_names=["outcome"], component_weights=[1.0])
+    decoded = decode_training_selection(CatalogRef("training", "reference-objective"), payload, {})
+    assert isinstance(decoded, GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings)
+    assert decoded.policy_updates is not None and decoded.policy_updates.objective_variant == reference
+    explicit = {**payload, "policy_updates": {**updates, "objective_variant": "algorithm"}}
+    selected = decode_training_selection(CatalogRef("training", "reference-objective"), explicit, {})
+    assert selected.policy_updates.objective_variant == "algorithm"  # type: ignore[union-attr]
+
+
 def test_legacy_catalog_retains_batch_equality_without_explicit_settings() -> None:
     loop = TrainingLoop(max_steps=3, per_device_batch_size=2)
     assert GRPOSettings("legacy-grpo", loop).policy_updates is None
@@ -122,6 +148,7 @@ def test_native_request_rejects_unqualified_explicit_executor_before_launch() ->
         ("verl@1", "vllm@1", "SAMPO", "algorithm", True),
         ("trl@1", "vllm@1", "SAMPO", "algorithm", False),
         ("trl@1", "transformers@1", "SAMPO", "semantic-spans", True),
+        ("trl@1", "transformers@1", "SAMPO", "turn-rows", True),
         ("verl@1", "vllm@1", "SAMPO", "semantic-spans", False),
         ("verl@1", "vllm@1", "SAMPO", "turn-rows", False),
         ("verl@1", "vllm@1", "GRPO", "algorithm", False),
