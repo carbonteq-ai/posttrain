@@ -13,7 +13,8 @@ The 2.6B run `manifest-steps-26-sampo-100-g16x8-20261006-r10` trained 100 update
 - [x] (2026-10-06 07:40Z) Work package `apps/lab/.posttrain/work_packages/lfm26_automationbench_manifest_steps_sampo_100_g16x8_ws.yaml` retargeted: environment `automationbench-manifest-steps-luna2-4k16t-v1` (environments `089b67d`, 103 tasks), reward `reward/automationbench-manifest-steps@2` (scorer version 4, `f221a532...`), settings `lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1` revision 3 (objective `turn-rows`, 32-episode updates, 4 per collection, `mean`, clip 0.003/0.004, `retain: learning_signal`). `posttrain job plan --strict` resolves; only finding is the optional TurboQuant recommendation.
 - [x] (2026-10-06 08:30Z) Settings revision 4 adds VORTEX's yield-first adaptive curriculum by domain (as validated locally in r5/r7) and the 103-task environment gains the domain facet. Pre-flight on the resolved catalog: objective `turn-rows`, 32-episode updates (400 in all), curriculum `yield_first`/`domain`, active sampling 5 rounds, oversample 4, refill 4, `retain: learning_signal`, token-truncated sampler correction at 2, truncation penalty 0.1, KL 0.01 to the base; environments `089b67d`, 103 tasks, manifest assessments on; reward projection digest equals the environment's turn-reward digest (`f221a532...`).
 - [x] (2026-10-06 08:35Z) Submitted as `manifest-steps-26-sampo-100-luna2-20261006-r1` (user goal: submit and monitor two collections); queued behind r10's `v4` held-out evaluation on the workstation. The `v4_t05` evaluation is deferred until after this run.
-- [ ] First-collection checks on the new run (below), then the held-out evaluations at checkpoint 100.
+- [x] (2026-10-06 11:50Z) Two-collection checks on r5 (see Outcomes).
+- [ ] Task-specific manifest coverage for email_sf_log_task, asana_dark_mode_from_email and quarterly_termination_queue.
 
 ## Surprises & Discoveries
 
@@ -41,7 +42,7 @@ None yet for this run; the defects that motivate it are recorded in `docs/plan/a
 
 ## Outcomes & Retrospective
 
-None yet.
+(2026-10-06 ~11:50Z) `manifest-steps-26-sampo-100-luna2-20261006-r5` completed two collections (8 updates) cleanly and continues. Verified from the run itself: recorded config fp16 trainer and vLLM, task mix luna-v2 (103 tasks), `turn-rows`, `retain: learning_signal`, yield-first curriculum; both collections chose candidates through the curriculum (20 unique tasks, one active round) and dropped only the lowest-signal groups; per-turn ratios over 182-296 turns per update with clipping 0.0008-0.0039 on non-first updates; sampler correction mean 1.0, never clamped; gradient norms 0.007-0.032; collection-grain and device-memory telemetry at the collection step; Trackio dev35 accepts traces with environment metrics. Rewards: goal credit on 257 of 403 episodes and 76 of 91 full successes (r2: 27 of 80), harm debits in 83; no assessment, credit or trace errors; 14,377 decided findings. Truncation 10-17% (r2 17-21%) with 6144-token replies in the 24576-token context. Remaining reward gaps are task-specific manifest coverage: `simple.email_sf_log_task` (1 of 8 successes credited), `simple.asana_dark_mode_from_email` (4 of 7), `hr.quarterly_termination_queue` (5 of 10); abstentions otherwise are `obligation_not_required`.
 
 ## Context and Orientation
 
