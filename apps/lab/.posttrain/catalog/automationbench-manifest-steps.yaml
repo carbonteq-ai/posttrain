@@ -491,7 +491,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: b135f8d5384e6bf2bcb23e59a0d184647832b5b8
+      revision: 24e1fc9211b64eecf958264b93d56dae00df8f4d
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -949,7 +949,7 @@ training:
   # engine. Revision 5: 6144-token replies (r2 truncated 21% of episodes, mostly replies cut at 4096).
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "6"  # turn rows; VORTEX curriculum; 6144-token replies in a 28672-token context
+    revision: "7"  # turn rows; VORTEX curriculum; 6144-token replies in a 24576-token context
     loop:
       max_steps: 400
       max_length: 28672
@@ -962,7 +962,7 @@ training:
       seed: 42
     num_prompts_per_step: 16
     num_generations: 8
-    max_prompt_length: 22528
+    max_prompt_length: 18432
     max_completion_length: 6144
     beta: 0.01
     kl_reference: base
@@ -1405,6 +1405,43 @@ inference:
       gpu_memory_utilization: 0.68
       tensor_parallel_size: 1
       max_model_len: 28672
+      max_num_seqs: 180
+      max_num_batched_tokens: 65536
+      kv_cache_memory_bytes: 51539607552
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      speculative_config:
+        method: dspark
+        model: LiquidAI/LFM2.5-2.6B-DSpark
+        revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
+        num_speculative_tokens: 9
+      dtype: float16
+    sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    startup_timeout_seconds: 900
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # @2: 6144-token replies in the proven 24576-token context; @1's 28672-token context let the
+  # trainer's per-turn scoring run out of memory on the longest turns (r4, collection 2).
+  inference/lfm2.5-2.6b-vllm-manifest-ws-c180-6k-t08-fp16@2:
+    revision: "2"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.68
+      tensor_parallel_size: 1
+      max_model_len: 24576
       max_num_seqs: 180
       max_num_batched_tokens: 65536
       kv_cache_memory_bytes: 51539607552

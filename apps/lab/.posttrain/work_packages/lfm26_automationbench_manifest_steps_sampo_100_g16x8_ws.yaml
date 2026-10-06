@@ -25,7 +25,7 @@ bindings:
   settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1}
   reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@2}
   training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-manifest-ws-g128-r4-fp16@1}
-  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-manifest-ws-c180-6k-t08-fp16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-manifest-ws-c180-6k-t08-fp16@2}
 enabled_optional_jobs: []
 metadata:
   comparison_family: lfm26-automationbench-vortex-20-local-v1
