@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: train/lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-ws
 stage: train
-description: One resolved SAMPO run on LFM2.5-2.6B from the base model with cont100's settings (16 turns, 4096-token replies, LR 6e-5, KL 0.01 to the base), task mix automationbench-manifest-luna-v2 (Simple 20), 16 prompt groups x 8 attempts and 100 collections of 4 updates, SAMPO's per-turn objective (sampo-turns@1), manifest step credit including record goals and live finalization (environments 089b67d), and colocated async vLLM rollouts on the RTX PRO 6000 workstation, for comparison with the older SAMPO system.
+description: One resolved SAMPO run on LFM2.5-2.6B from the base model with cont100's settings (16 turns, 6144-token replies, LR 6e-5, KL 0.01 to the base), task mix automationbench-manifest-luna-v2 (Simple 20), 16 prompt groups x 8 attempts and 100 collections of 4 updates, SAMPO's per-turn objective (sampo-turns@1), manifest step credit including record goals and live finalization (environments 089b67d), and colocated async vLLM rollouts on the RTX PRO 6000 workstation, for comparison with the older SAMPO system.
 recipe:
   type: inline
   id: recipes/lfm2.5-2.6b-automationbench-manifest-steps-sampo-100-g16x8-ws@1
@@ -21,11 +21,11 @@ recipe:
   expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, training summary]
 bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
-  environment: {type: ref, family: environment, id: automationbench-manifest-steps-luna2-4k16t-v1}
+  environment: {type: ref, family: environment, id: automationbench-manifest-steps-luna2-6k16t-v1}
   settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1}
   reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@2}
   training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-manifest-ws-g128-r4-fp16@1}
-  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-manifest-ws-c180-4k-t08-fp16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-manifest-ws-c180-6k-t08-fp16@1}
 enabled_optional_jobs: []
 metadata:
   comparison_family: lfm26-automationbench-vortex-20-local-v1

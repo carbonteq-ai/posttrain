@@ -484,6 +484,172 @@ environment:
       facets:
         - {field: domain, dimension: domain, label: Domain}
 
+  # luna-v2 with 6144-token replies and 18432 output tokens per episode, at the environments
+  # revision whose training toolset captures calls in the form manifest evidence reads.
+  automationbench-manifest-steps-luna2-6k16t-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: d76698238518f5e2ae7d210e417afebfa2ada00e
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-manifest-luna-v2: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v2.json).
+          task_names:
+            - finance.cash_flow_forecast
+            - finance.cost_center_allocation
+            - finance.dept_expense_rollup
+            - finance.employee_reimbursement
+            - finance.financial_close_checklist
+            - finance.petty_cash_reconciliation
+            - finance.profit_margin_analysis
+            - finance.vendor_statement_reconciliation
+            - finance.wave_expense_categorization
+            - finance.year_end_audit_prep
+            - hr.data_migration_validation
+            - hr.docusign_offer_letters
+            - hr.i9_verification_tracking
+            - hr.intern_cohort_onboarding
+            - hr.performance_feedback_logging
+            - hr.performance_review_cycle
+            - hr.quarterly_termination_queue
+            - hr.recruitment_dedup_alert
+            - hr.twilio_emergency_notification
+            - marketing.ad_platform_audit
+            - marketing.campaign_handoff
+            - marketing.campaign_roi_analysis
+            - marketing.competitor_product_launch
+            - marketing.content_expiration_alert
+            - marketing.content_performance
+            - marketing.email_blast_suppression
+            - marketing.email_campaign_analytics
+            - marketing.hashtag_performance
+            - marketing.keyword_cannibalization
+            - marketing.market_trend
+            - marketing.multi_touch_attribution
+            - marketing.news_digest_dedup
+            - marketing.partner_content_approval
+            - marketing.seo_audit
+            - marketing.social_roi
+            - marketing.trial_extension_processing
+            - operations.access_request_validation
+            - operations.asana_safety_walk_log
+            - operations.calendar_airtable_gmail_maintenance_notice
+            - operations.contract_renewal_pipeline
+            - operations.facebook_roas_monitoring
+            - operations.facility_incident_triage
+            - operations.fire_extinguisher_inspection_schedule
+            - operations.fleet_vehicle_maintenance
+            - operations.hazmat_shipping_compliance
+            - operations.housekeeping_schedule
+            - operations.mailroom_package_routing
+            - operations.office_supply_budget_monitoring
+            - operations.safety_certification_gap_analysis
+            - operations.sla_breach_early_warning
+            - operations.trello_vendor_hold_email
+            - operations.zoom_training_setup
+            - sales.apply_project_label
+            - sales.calendar_crm_meeting
+            - sales.chatgpt_email_sentiment_routing
+            - sales.chatgpt_proposal_customization
+            - sales.create_draft_reply
+            - sales.cross_modal_renewal_processing
+            - sales.five_level_conditional
+            - sales.recency_selection
+            - sales.slack_deal_notification
+            - sales.unreliable_label_account_review
+            - sales.zoom_calendar_conflict
+            - sales.zoom_customer_health
+            - simple.asana_dark_mode_from_email
+            - simple.email_calendar_meeting_reply
+            - simple.email_sf_contact_email_update
+            - simple.email_sf_log_task
+            - simple.gcal_partnership_call_from_email
+            - simple.gmail_reply_customer_inquiry
+            - simple.gmail_reply_pricing_inquiry
+            - simple.hs_update_deal_stage
+            - simple.jira_rotate_api_keys
+            - simple.jira_search_filter_story
+            - simple.new_customer_sf_onboard_email
+            - simple.sf_create_event
+            - simple.sf_create_lead_from_card
+            - simple.sf_opp_type_update
+            - simple.slack_dm_meeting_reminder
+            - simple.zendesk_feature_request
+            - simple.zoom_calendar_sync
+            - simple.zoom_client_call_from_email
+            - simple.zoom_engineering_sync
+            - simple.zoom_vendor_onboarding_with_slack
+            - support.gorgias_inventory_routing
+            - support.gorgias_refund_processing
+            - support.helpcrunch_engagement_scoring
+            - support.helpscout_customer_effort
+            - support.helpscout_daily_digest
+            - support.hiver_inbox_report
+            - support.hiver_quality_coaching
+            - support.hiver_response_sla
+            - support.hiver_slack_digest
+            - support.hiver_team_performance
+            - support.hiver_workload_forecast
+            - support.intercom_reactivation_campaign
+            - support.reamaze_cross_platform_dedup
+            - support.zendesk_customer_360
+            - support.zendesk_gdpr_purge
+            - support.zendesk_intercom_company_sync
+            - support.zendesk_sf_case_sync
+            - support.zoho_desk_customer_journey
+            - support.zoho_multitenant_isolation
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 16
+            capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 2}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 16
+          max_output_tokens: 18432
+    sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
+    num_tasks: 103
+    num_rollouts: 8
+    max_concurrent: 180
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: automationbench-manifest-luna-v2
+      task_mix_sha256: 4201d4a551041743abecf7ef11d43c148ccc8b86bcc4f5cd68f28ea88e89d9a2
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 16
+      max_output_tokens: 18432
+    observation:
+      primary_metric: partial_credit
+      pass_rate_metric: task_completed_correctly
+      facets:
+        - {field: domain, dimension: domain, label: Domain}
+
   # The 8 GB card's VORTEX check on the 20 Simple training tasks of luna-v2: a 3072-token reply
   # budget (LFM2.5-1.2B-Thinking reasons before its first tool call) and 8192 output tokens per
   # episode within the 12k local context; the domain facet feeds the curriculum's evidence.
@@ -780,10 +946,10 @@ training:
   # (retain: learning_signal) instead of the first 16 in task order. Revision 3: SAMPO's per-turn
   # objective (turn-rows), so the ratio and clip act on each sampled turn. Revision 4: VORTEX's
   # yield-first adaptive curriculum chooses each active round's tasks by domain on the resolved
-  # engine. The update context leaves headroom above vLLM's 24576-token engine limit.
+  # engine. Revision 5: 6144-token replies (r2 truncated 21% of episodes, mostly replies cut at 4096).
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "4"  # turn-row objective; VORTEX yield-first curriculum by domain
+    revision: "5"  # turn rows; VORTEX curriculum; 6144-token replies
     loop:
       max_steps: 400
       max_length: 28672
@@ -797,7 +963,7 @@ training:
     num_prompts_per_step: 16
     num_generations: 8
     max_prompt_length: 20480
-    max_completion_length: 4096
+    max_completion_length: 6144
     beta: 0.01
     kl_reference: base
     discount_gamma: 0.95
@@ -1220,6 +1386,43 @@ inference:
         num_speculative_tokens: 9
       dtype: float16
     sampling: {max_tokens: 4096, temperature: 0.8, top_p: 1.0}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    startup_timeout_seconds: 900
+    purpose: [rollout]
+    capabilities: [tool-calling]
+
+  # The cont100 engine with 6144-token replies and a 28672-token context (the trainer's update
+  # context): single replies no longer stop mid-thought at 4096 tokens (r2: 15 of 23 truncations).
+  inference/lfm2.5-2.6b-vllm-manifest-ws-c180-6k-t08-fp16@1:
+    revision: "1"
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      mode: colocate
+      request_mode: async
+      sleep_during_optimization: true
+      gpu_memory_utilization: 0.68
+      tensor_parallel_size: 1
+      max_model_len: 28672
+      max_num_seqs: 180
+      max_num_batched_tokens: 65536
+      kv_cache_memory_bytes: 51539607552
+      weight_sync_mode: lora
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+      speculative_config:
+        method: dspark
+        model: LiquidAI/LFM2.5-2.6B-DSpark
+        revision: 458cedab07d0f7b2b05700c77e1aa463d43d6f04
+        num_speculative_tokens: 9
+      dtype: float16
+    sampling: {max_tokens: 6144, temperature: 0.8, top_p: 1.0}
     target: targets/carbonteq-rtx-pro-6000-96gb
     startup_timeout_seconds: 900
     purpose: [rollout]
