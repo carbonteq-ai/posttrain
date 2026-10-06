@@ -183,6 +183,22 @@ catalog and evaluation source bindings pin the full
 resolved wheel closure, so run lineage describes the code that actually loaded
 the task population.
 
+### Deterministic simulation runtime (2026-10-06)
+
+Fork commit `afb92ec` (branch `codex/deterministic-sim-runtime`, not yet merged
+into the selected revision) routes every simulator clock, identifier and random
+read through `automationbench.sim_runtime`. Outside a simulated call it is the
+standard library, so tasks, tools and scoring behave as before. The environment
+repository vendors it byte-identically at `51ca09c` and exposes it as the task
+option `deterministic_world`: each tool call is seeded by the world before it and
+the call, and the world clock starts at the task's `meta.current_time` (UTC
+midnight of the setup day when absent) and advances one second per call that
+changed the world. Equal calls on equal worlds then return identical results, so
+SAMPO's observation anchors can compare those turns. Training environment
+`automationbench-manifest-steps-luna2-6k16t-v1` selects it; evaluation
+environments do not. Rationale and measurements:
+`docs/plan/automationbench-sampo-2p6b-v2-run.md`.
+
 ## Supported integration boundary
 
 The Verifiers v1 adapter is published as the standalone `automationbench-v1`
