@@ -365,7 +365,7 @@ multimodal = [
 
 [[package]]
 name = "carbonteq-trackio"
-version = "0.31.5.post14.dev33"
+version = "0.31.5.post14.dev35"
 source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "boto3" },
@@ -382,9 +382,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/1b8/ef0db089ca966/carbonteq_trackio-0.31.5.post14.dev33.tar.gz", hash = "sha256:1b8ef0db089ca966aacf0953a0535b56eebd6a3bbac7e8702b05e78ae0360749" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/fc2/4885e7331b1b6/carbonteq_trackio-0.31.5.post14.dev35.tar.gz", hash = "sha256:fc24885e7331b1b637b47e2fea77c0f08394630ed30ce4def5f0b237a7c14ce9" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/431/e452b29a59c5d/carbonteq_trackio-0.31.5.post14.dev33-py3-none-any.whl", hash = "sha256:431e452b29a59c5d0b78f7b01c7c888c15ecdc0ef5a74c3ad974fcf881534df3" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/553/42622ccd256f6/carbonteq_trackio-0.31.5.post14.dev35-py3-none-any.whl", hash = "sha256:55342622ccd256f6d5a64bb500d568ddbb5b4c14ba060e4457c255237d1e426e" },
 ]
 
 [[package]]
@@ -3241,7 +3241,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev33", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev35", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
 ]
