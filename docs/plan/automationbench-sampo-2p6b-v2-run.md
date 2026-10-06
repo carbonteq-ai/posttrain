@@ -15,7 +15,9 @@ The 2.6B run `manifest-steps-26-sampo-100-g16x8-20261006-r10` trained 100 update
 - [x] (2026-10-06 08:35Z) Submitted as `manifest-steps-26-sampo-100-luna2-20261006-r1` (user goal: submit and monitor two collections); queued behind r10's `v4` held-out evaluation on the workstation. The `v4_t05` evaluation is deferred until after this run.
 - [x] (2026-10-06 11:50Z) Two-collection checks on r5 (see Outcomes).
 - [x] (2026-10-06) Evaluations prepared for r5's checkpoints (not submitted while r5 holds the workstation): new suite `lfm26_automationbench_luna2_heldout_eval_6k16t_t05.yaml` (gate `lfm26-luna2-heldout-6k16t-t05`; luna-v2's 20 held-out tasks, environments `24e1fc9`, r5's budgets of 16 turns, 6144-token replies and 18432 per episode, temperature 0.5, 5 attempts, manifest findings recorded) and the older matched suites `..._64k_v4.yaml` / `..._64k_v4_t05.yaml` re-pinned to `24e1fc9` with action capture. All three resolve with `job plan`; `--strict` stops only on `BATCH_INVARIANCE_OFF_FOR_EVALUATION`, left off because every earlier evaluation of these suites ran without it.
-- [ ] Task-specific manifest coverage for email_sf_log_task, asana_dark_mode_from_email and quarterly_termination_queue.
+- [x] (2026-10-06) Task-specific manifest coverage (environments `793b2c5`): ordered joins decide on projected receipts (receipt positions skip harness events), read goals accept re-reads, the quarterly hold notice accepts 'pause'. Replayed on r5 full successes: email_sf_log 6/6 credited (was 1/6), asana_dark_mode 4/6 (was 2/6), quarterly 6/6 (was 3/6).
+- [x] (2026-10-06 17:57Z) r5 cancelled after update 207 to free the workstation; the cancel-time save left `trainer/.cancel-checkpoint` empty, so the resume point is checkpoint 200 (collection 50). Open: why the cancel save did not complete.
+- [x] (2026-10-06) Deterministic simulated worlds (environments `c02546d`, vendored refresh `51ca09c`; AutomationBench fork `afb92ec` on `codex/deterministic-sim-runtime`). The 2.6B training environment `automationbench-manifest-steps-luna2-6k16t-v1` pins `51ca09c` with `deterministic_world: true`. Evaluation environments stay on `24e1fc9`.
 
 ## Surprises & Discoveries
 
@@ -33,6 +35,10 @@ The 2.6B run `manifest-steps-26-sampo-100-g16x8-20261006-r10` trained 100 update
 The defects that motivated this run are recorded in `docs/plan/automationbench-simple-manifests.md` and `docs/plan/vortex-resolved-engine.md`.
 
 ## Decision Log
+
+- Decision: make the simulator deterministic per call instead of masking volatile values in Posttrain's anchor key.
+  Rationale: on six r5 groups (286 turns) 57.3% of turns were singleton anchors. Tool results carried wall-clock timestamps and OS-random ids, so equal calls on equal worlds looked like different states. Masking timestamps and long hex ids in the key gave 45.8%, but it also merged turns after genuinely different actions (different email bodies sent, distinguished only by the new message id). Seeding each call by the world before it and the call keeps the key exact: replaying the same groups' recorded calls gives 56.6% on the wall clock and 50.0% deterministic. The world clock starts at the task's `meta.current_time` (UTC midnight of the setup day when absent, 503 of 800 tasks) and advances one second per call that changed the world.
+  Date/Author: 2026-10-06, Claude.
 
 - Decision: retarget the existing 2.6B work package instead of adding a parallel one.
   Rationale: the user asked to resubmit the experiment, not resume r10; r10's run record keeps its own resolved configuration.

@@ -486,12 +486,15 @@ environment:
 
   # luna-v2 with 6144-token replies and 18432 output tokens per episode, at the environments
   # revision whose training toolset captures calls in the form manifest evidence reads.
+  # Environments 51ca09c: deterministic simulated worlds (on six r5 groups, singleton
+  # anchor turns 56.6% -> 50.0% on replay), ordered joins on projected receipts, re-read
+  # tolerant read goals and the quarterly hold notice accepting 'pause'.
   automationbench-manifest-steps-luna2-6k16t-v1:
     category: agentic-tool-use
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 24e1fc9211b64eecf958264b93d56dae00df8f4d
+      revision: 51ca09c16e4270ce95a86af282d7e088f841b79c
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -610,6 +613,9 @@ environment:
             search_top_k: 20
             turn_budget: 16
             capture_actions: true
+            # Fixed world clock, ids and random choices per call, so equal actions on equal
+            # worlds give equal tool results and SAMPO can compare those turns.
+            deterministic_world: true
             # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
             # Verifiers fixes this default at import time, so the serialized task
             # config otherwise depends on whether VF_FORK_SERVER was set first.
