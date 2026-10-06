@@ -17,6 +17,9 @@ The 2.6B run `manifest-steps-26-sampo-100-g16x8-20261006-r10` trained 100 update
 
 ## Surprises & Discoveries
 
+- Observation: r10's checkpoint-100 held-out evaluation could not run on the suites' pinned environments revision `0bad6187`, which requires Verifiers `e6a3d9bb` while the current evaluation job pins `58df1306`. With the user's choice, both matched suites were re-pinned to `089b67d` on branch `wip/r10-heldout-eval-089b67d` (`ef3fd158`); 15 benchmark-core files changed in between, so scores are not strictly comparable with earlier systems.
+- Observation: the first re-pinned evaluation (`heldout-matched-64k-v4-r10-c100-089b67d-20261006-b`) scored 0 on all 60 rollouts because every tool call returned `linked tool execution requires capture enabled`: since `427e802` AutomationBench executes tools only for tasks with `capture_actions: true`, which the held-out task config lacked. Fixed in `081e1288` (both re-pinned suites capture actions). The two evaluations rerun after this training run frees the workstation.
+
 None yet for this run; the defects that motivate it are recorded in `docs/plan/automationbench-simple-manifests.md` and `docs/plan/vortex-resolved-engine.md`.
 
 ## Decision Log
