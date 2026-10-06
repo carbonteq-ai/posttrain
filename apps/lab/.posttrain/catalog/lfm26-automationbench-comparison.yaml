@@ -1989,7 +1989,10 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 0bad6187f40e23666150234ade99efd35ac567a0
+      # Re-pinned 2026-10-06 from 0bad6187: that revision requires Verifiers e6a3d9bb, which the
+      # current evaluation job cannot load. 089b67d contains 0bad6187; 15 benchmark-core files
+      # (task worlds and tools) changed since, so scores are not strictly comparable with earlier runs.
+      revision: 089b67def1ebb91d3d7989c8bfb6147be02ae3f3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -2035,7 +2038,10 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 0bad6187f40e23666150234ade99efd35ac567a0
+      # Re-pinned 2026-10-06 from 0bad6187: that revision requires Verifiers e6a3d9bb, which the
+      # current evaluation job cannot load. 089b67d contains 0bad6187; 15 benchmark-core files
+      # (task worlds and tools) changed since, so scores are not strictly comparable with earlier runs.
+      revision: 089b67def1ebb91d3d7989c8bfb6147be02ae3f3
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
