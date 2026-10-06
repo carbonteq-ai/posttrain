@@ -25,7 +25,7 @@ fork_revision = "8e513f3bf3bfccb4c413846b5eb184e0b42ea9d8"
 release_tag = "carbonteq-v0.9.0.post9"
 release_wheel_sha256 = "13930e0f7699fd043beeb2ab2c0b4814499fa195611b4d08f93a798a5fd89c40"
 release_sdist_sha256 = "726f02c69bbbc6ad8e182cd599ff81a3df946ab02f9510a9a3a7da4abe730587"
-dependency_lock_sha256 = "fba7a3783a0fd0200bda893c19edc2d9bcdc83f8eebbfcf704f9a1a456477b28"
+dependency_lock_sha256 = "2e8c22b986684f402b4cb9612ca4eec081a87e4e332f2cb1009c7cf25219e6cd"
 backend_constraints_sha256 = "8f5c1bfe15e4300516a49164e9d1cad57cce0ea976417a4ddf562e6c409921a5"
 [dependencies]
 torch = "2.13.0+cu130"
