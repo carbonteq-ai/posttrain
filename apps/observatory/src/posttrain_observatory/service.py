@@ -128,6 +128,7 @@ from .telemetry import (
 )
 from .traces import (
     filtered_trace_summary_page,
+    newer_trace_summaries,
     prompt_group_reward_view,
     rollout_behavior_view,
     trace_evaluation_view,
@@ -1426,7 +1427,8 @@ class ObservatoryService:
         # Reads model configs for the settings calculator; None keeps reviews to rule findings.
         self._architecture_loader = architecture_loader
         self._trace_read_contexts: dict[tuple[str, str], _TraceReadContext] = {}
-        self._trace_summary_cache: dict[tuple[str, str], tuple[float, tuple[TraceSummary, ...], bool]] = {}
+        # (expires at, summaries newest first, live, last full read at)
+        self._trace_summary_cache: dict[tuple[str, str], tuple[float, tuple[TraceSummary, ...], bool, float]] = {}
         self._trace_summary_locks: dict[tuple[str, str], asyncio.Lock] = {}
         self._rollout_behavior_cache: dict[tuple[str, str], tuple[float, RolloutBehaviorView]] = {}
         self._rollout_behavior_locks: dict[tuple[str, str], asyncio.Lock] = {}
@@ -2399,31 +2401,58 @@ class ObservatoryService:
         locator: RunLocator,
         context: _TraceReadContext,
     ) -> tuple[tuple[TraceSummary, ...], bool]:
+        """Every summary of a run, for exact run-wide filters.
+
+        A finished run's population is read once and kept. A live run's cache is
+        refreshed after 15 seconds by reading only the traces newer than it holds,
+        with a full re-read every 10 minutes; before, every refresh re-read the
+        whole run (minutes for a large RL run, whose payloads Trackio reads whole).
+        """
+
         key = (locator.source_id, locator.run_id)
         cached = self._trace_summary_cache.get(key)
-        if cached is not None and cached[0] > time.monotonic():
+        now = time.monotonic()
+        if cached is not None and cached[0] > now:
             return cached[1], cached[2]
         lock = self._trace_summary_locks.setdefault(key, asyncio.Lock())
         async with lock:
             cached = self._trace_summary_cache.get(key)
-            if cached is not None and cached[0] > time.monotonic():
+            now = time.monotonic()
+            if cached is not None and cached[0] > now:
                 return cached[1], cached[2]
             detail = context.detail
-            summaries, live = await trace_summary_population(
-                self.registry.resolve(locator),
-                locator.run_id,
-                trace_type=context.trace_type,
-                newest_first=detail.summary.job_kind.startswith("train."),
-                metadata=(
-                    _evaluation_metadata(detail.resolved_inputs)
-                    if detail.summary.job_kind.startswith("eval.")
-                    else None
-                ),
+            source = self.registry.resolve(locator)
+            running = detail.summary.status == "running"
+            newest_first = detail.summary.job_kind.startswith("train.")
+            metadata = (
+                _evaluation_metadata(detail.resolved_inputs) if detail.summary.job_kind.startswith("eval.") else None
             )
+            if cached is not None and newest_first and now - cached[3] < 600.0:
+                newer, live = await newer_trace_summaries(
+                    source,
+                    locator.run_id,
+                    trace_type=context.trace_type,
+                    metadata=metadata,
+                    known=frozenset(item.external_id for item in cached[1]),
+                )
+                summaries, full_at = (*newer, *cached[1]), cached[3]
+            else:
+                summaries, live = await trace_summary_population(
+                    source,
+                    locator.run_id,
+                    trace_type=context.trace_type,
+                    newest_first=newest_first,
+                    metadata=metadata,
+                )
+                full_at = now
+            # Freshness counts from when the read finished: a full read of a large run takes longer
+            # than the live refresh interval.
+            self._trace_summary_cache.pop(key, None)
             self._trace_summary_cache[key] = (
-                time.monotonic() + (15.0 if detail.summary.status == "running" else 120.0),
+                time.monotonic() + (15.0 if running else 3600.0),
                 summaries,
                 live,
+                full_at,
             )
             if len(self._trace_summary_cache) > 4:
                 self._trace_summary_cache.pop(next(iter(self._trace_summary_cache)))

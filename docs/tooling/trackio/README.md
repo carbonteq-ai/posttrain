@@ -1,5 +1,18 @@
 # Trackio fork and maintenance
 
+Candidate `0.31.5.post14.dev35` (fork branch `codex/observatory-read-path`,
+commit `83663d4a`, built on the dev34 tag `29815340`; pushed, not yet released
+or pinned) shortens two Observatory reads without a schema change: a run's
+artifact links carry each version's description, metadata and manifest digest,
+so `Run.artifacts()` makes one request instead of one per artifact (r10: 145
+requests in 13.7 s → 1 in 0.07 s, identical output), and Doris counts trace
+steps in SQL. Only the server and the Observatory's client need it; job images
+do not. Checked read-only against the production database from a local dev35
+server on 2026-10-06; the Observatory measurements are in
+`docs/plan/collection-grain-telemetry.md`. Remaining gates: GitHub release
+with retained hashes, `carbonteq/dev` publication, pin and lock update here,
+then a server deploy (no Doris migration; schema stays at version 6).
+
 The framework pin on branch `codex/trackio-next` is `0.31.5.post14.dev32`, fork
 commit `d71cf2a5cbcc561bd72e3932d8032200a791d79c` on fork branch
 `codex/next-release` (dev31 plus f3be77d7 and the episode-ending change), tag
