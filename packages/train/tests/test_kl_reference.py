@@ -181,6 +181,7 @@ def test_reward_contract_digest_changes_with_the_kl_reference() -> None:
     legacy["active_sampling"] = {"max_candidate_batches": legacy["active_sampling"]["max_candidate_batches"]}
     # Nor goal-relative turn credit, nor the projection's turn outcome selection.
     legacy.pop("goal_credit")
+    legacy.pop("goal_credit_scale")
     legacy_projection = asdict(projection)
     legacy_projection.pop("turn_goal_prefix")
     legacy_projection.pop("turn_harm_key")

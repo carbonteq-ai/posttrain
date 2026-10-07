@@ -46,6 +46,8 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
     # Goal-relative turn credit changes credit; its absence is what runs did before it existed.
     if settings.get("goal_credit") == "none":
         settings.pop("goal_credit")
+    if settings.get("goal_credit_scale") == 1.0:
+        settings.pop("goal_credit_scale")
     projection_identity = asdict(projection)
     for key in ("turn_goal_prefix", "turn_harm_key"):
         if projection_identity.get(key) is None:

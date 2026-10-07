@@ -102,3 +102,59 @@ def test_turn_goal_credits_are_validated():
         AgenticTurn(0, 2, "key", goal_credits=(("g", 0.0),))
     with pytest.raises(ValueError, match="harm debit"):
         AgenticTurn(0, 2, "key", harm_debit=-0.1)
+
+
+def _signed(*rollouts, scale=4.0):
+    settings = _settings(goal_credit="verified-sign", goal_credit_scale=scale)
+    return compute_sampo_advantages(settings, ("task-1",) * len(rollouts), rollouts)
+
+
+def test_verified_goal_turn_is_never_pushed_negative_by_its_attempts_failure():
+    goal = (("record:task-written", 0.25),)
+    result = _signed(
+        _rollout("loser", reward=0.0, second=goal),
+        _rollout("b", reward=1.0, second=goal),
+        _rollout("c", reward=1.0),
+        _rollout("d", reward=1.0),
+    )
+    # The losing attempt's episode advantage is -0.75; its goal turn keeps max(-0.75, 0) plus
+    # 4 * 0.25 * (1 - 2/4) = 0.5, and its other turn keeps the episode signal.
+    first, second = (sum(result.token_advantages[0][i : i + 2]) / 2 for i in (0, 4))
+    assert first == pytest.approx(-0.75)
+    assert second == pytest.approx(0.5)
+    assert result.sign_protected_turns[0] == (False, True)
+    assert result.verified_turns[0] == (False, True)
+
+
+def test_harmful_turn_is_never_pushed_positive_by_its_attempts_success_even_with_a_goal():
+    result = _signed(
+        _rollout("winner", reward=1.0, second=(("record:task-written", 0.25),), harm=0.1),
+        _rollout("b", reward=0.0),
+        _rollout("c", reward=0.0),
+        _rollout("d", reward=0.0),
+    )
+    second = result.token_advantages[0][4]
+    assert second == pytest.approx(-0.1)  # min(0.75 + 4 * 0.25 * 0.75, 0) - 0.1
+    assert result.token_advantages[0][0] == pytest.approx(0.75)  # the clean turn keeps its episode credit
+
+
+def test_verified_sign_scales_the_goal_term_and_reports_protection():
+    goal = (("record:task-written", 0.25),)
+    rollouts = (
+        _rollout("a", reward=1.0, second=goal),
+        _rollout("b", reward=0.0),
+        _rollout("c", reward=0.0),
+        _rollout("d", reward=0.0),
+    )
+    small, large = _signed(*rollouts, scale=1.0), _signed(*rollouts, scale=4.0)
+    assert large.token_advantages[0][4] - small.token_advantages[0][4] == pytest.approx(3 * 0.25 * 0.75)
+    evidence = large.hierarchy_evidence(1.0)
+    assert evidence["train/rl/verified_turn_fraction"][0] == pytest.approx(1 / 8)
+    assert "train/rl/sign_protected_turn_fraction" in evidence
+
+
+def test_goal_credit_scale_requires_goal_credit_and_a_positive_value():
+    with pytest.raises(ValueError, match="requires goal credit"):
+        _settings(goal_credit="none", goal_credit_scale=2.0)
+    with pytest.raises(ValueError, match="finite and positive"):
+        _settings(goal_credit="verified-sign", goal_credit_scale=0.0)

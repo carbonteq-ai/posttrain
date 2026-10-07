@@ -382,7 +382,12 @@ class SAMPOSettings:
     # goal's weight times (1 - the share of its group's attempts that achieved the goal),
     # and a turn that caused a harm loses its harm debit, whether or not the turn has an
     # anchor sibling. Requires a reward projection with turn_goal_prefix and turn_harm_key.
-    goal_credit: Literal["none", "group-relative"] = "none"
+    # verified-sign: as group-relative with the goal term scaled by goal_credit_scale, and the
+    # turn's verified outcome decides its sign: a turn that first achieved a goal is never
+    # negative (max(episode + anchor, 0) + goal), a turn that caused a harm is never positive
+    # (min(episode + anchor + goal, 0) - harm); other turns keep episode + anchor.
+    goal_credit: Literal["none", "group-relative", "verified-sign"] = "none"
+    goal_credit_scale: float = 1.0
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = 0.003
     clip_epsilon_high: float = 0.004
@@ -412,6 +417,10 @@ class SAMPOSettings:
         _validate_settings(self.id, self.revision)
         if self.num_prompts_per_step < 1 or self.num_generations < 2:
             raise ValueError("SAMPO requires positive prompt groups and at least two generations")
+        if not math.isfinite(self.goal_credit_scale) or self.goal_credit_scale <= 0:
+            raise ValueError("SAMPO goal_credit_scale must be finite and positive")
+        if self.goal_credit == "none" and self.goal_credit_scale != 1.0:
+            raise ValueError("SAMPO goal_credit_scale requires goal credit")
         expected_batch = self.num_prompts_per_step * self.num_generations
         effective_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
         if self.policy_updates is not None:

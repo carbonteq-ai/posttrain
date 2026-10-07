@@ -94,6 +94,7 @@ def test_goal_credit_off_and_unselected_turn_outcomes_preserve_the_recovery_dige
 
     legacy = dataclasses.asdict(settings)
     legacy.pop("goal_credit")
+    legacy.pop("goal_credit_scale")
     legacy.pop("policy_updates")
     legacy["loop"].pop("max_steps")
     legacy.pop("kl_reference") if legacy.get("kl_reference") == "start" else None

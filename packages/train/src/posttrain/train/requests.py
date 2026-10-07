@@ -115,7 +115,7 @@ class SAMPORequest:
             )
         projection = getattr(self.bridge, "reward_projection", None)
         selects_outcomes = getattr(projection, "turn_goal_prefix", None) is not None
-        if (self.settings.goal_credit == "group-relative") != selects_outcomes:
+        if (self.settings.goal_credit != "none") != selects_outcomes:
             raise ValueError(
                 "SAMPO goal-relative turn credit and a reward projection with turn_goal_prefix and "
                 "turn_harm_key are selected together"

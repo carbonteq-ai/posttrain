@@ -326,7 +326,8 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     beta: float = Field(default=0.0, ge=0)
     discount_gamma: float = Field(default=0.95, gt=0, le=1, allow_inf_nan=False)
     step_advantage_weight: float = Field(default=1.0, ge=0, allow_inf_nan=False)
-    goal_credit: Literal["none", "group-relative"] = "none"
+    goal_credit: Literal["none", "group-relative", "verified-sign"] = "none"
+    goal_credit_scale: float = Field(default=1.0, gt=0, allow_inf_nan=False)
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = Field(default=0.003, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float = Field(default=0.004, gt=0, allow_inf_nan=False)

@@ -692,6 +692,14 @@ observation, so a turn with a singleton anchor still receives the credit its own
 verified outcomes earned. The episode advantage is unchanged, and goal and harm
 credit do not enter the anchor returns.
 
+Amendment (2026-10-07): `goal_credit: verified-sign` keeps that goal term, scales
+it by `goal_credit_scale`, and lets the turn's own verified outcome decide its
+sign. A turn that first achieved a goal receives `max(episode + anchor, 0)` plus
+its goal term, so its attempt's failure cannot push it negative. A turn that
+caused a harm receives `min(episode + anchor + goal, 0)` minus its harm debit, so
+its attempt's success cannot push it positive. Every other turn keeps the episode
+and anchor credit, so all turns stay covered.
+
 ```text
 train.distill seats
   student: models/qwen-0.8b@bf16

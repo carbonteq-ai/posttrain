@@ -31,6 +31,10 @@ class SAMPOAdvantages:
     sampled_token_advantages: tuple[float, ...]
     # Goal-relative turn credit (settings.goal_credit); zeros when it is off.
     goal_advantages: tuple[tuple[float, ...], ...] = ()
+    # verified-sign: turns that first achieved a goal, and turns whose sign the verified
+    # outcome changed relative to episode + anchor credit.
+    verified_turns: tuple[tuple[bool, ...], ...] = ()
+    sign_protected_turns: tuple[tuple[bool, ...], ...] = ()
 
     def hierarchy_evidence(self, step_advantage_weight: float) -> dict[str, tuple[float, int]]:
         """Per-update (mean, count) pairs that show where SAMPO's credit comes from.
@@ -81,6 +85,11 @@ class SAMPOAdvantages:
                 sum(value < -_INFORMATIVE for value in goal_values) / len(goal_values),
                 len(goal_values),
             )
+        verified = [flag for flags in self.verified_turns for flag in flags]
+        if verified:
+            evidence["train/rl/verified_turn_fraction"] = (sum(verified) / len(verified), len(verified))
+            protected = [flag for flags in self.sign_protected_turns for flag in flags]
+            evidence["train/rl/sign_protected_turn_fraction"] = (sum(protected) / len(protected), len(protected))
         if episode_credit + turn_credit + goal_credit > 0:
             evidence["train/rl/turn_credit_share"] = (
                 (turn_credit + goal_credit) / (episode_credit + turn_credit + goal_credit),
@@ -216,7 +225,10 @@ def compute_sampo_advantages(
             anchor_group_sizes[rollout_index][turn_index] = len(members)
 
     goal_advantages = [[0.0] * len(rollout.turns) for rollout in rollouts]
-    if settings.goal_credit == "group-relative":
+    verified_turns = [[False] * len(rollout.turns) for rollout in rollouts]
+    sign_protected = [[False] * len(rollout.turns) for rollout in rollouts]
+    if settings.goal_credit in {"group-relative", "verified-sign"}:
+        scale = settings.goal_credit_scale
         for indices in grouped_indices:
             # p_g: the share of the group's attempts in which some turn first achieved goal g.
             reached: dict[str, int] = defaultdict(int)
@@ -225,10 +237,25 @@ def compute_sampo_advantages(
                     reached[key] += 1
             for rollout_index in indices:
                 for turn_index, turn in enumerate(rollouts[rollout_index].turns):
-                    goal_advantages[rollout_index][turn_index] = (
-                        math.fsum(weight * (1.0 - reached[key] / len(indices)) for key, weight in turn.goal_credits)
-                        - turn.harm_debit
+                    goal = scale * math.fsum(
+                        weight * (1.0 - reached[key] / len(indices)) for key, weight in turn.goal_credits
                     )
+                    if settings.goal_credit == "group-relative":
+                        goal_advantages[rollout_index][turn_index] = goal - turn.harm_debit
+                        continue
+                    # verified-sign: the turn's own verified outcome decides its sign.
+                    base = episode[rollout_index] + (
+                        settings.step_advantage_weight * turn_advantages[rollout_index][turn_index]
+                    )
+                    if turn.harm_debit > 0:
+                        total = min(base + goal, 0.0) - turn.harm_debit
+                    elif turn.goal_credits:
+                        total = max(base, 0.0) + goal
+                    else:
+                        total = base
+                    goal_advantages[rollout_index][turn_index] = total - base
+                    verified_turns[rollout_index][turn_index] = bool(turn.goal_credits)
+                    sign_protected[rollout_index][turn_index] = (total > 0) != (base > 0) and total != 0.0
     elif any(turn.goal_credits or turn.harm_debit for rollout in rollouts for turn in rollout.turns):
         raise ValueError("SAMPO turns carry goal or harm credit but goal_credit is off")
 
@@ -252,8 +279,12 @@ def compute_sampo_advantages(
         turn_advantages=tuple(tuple(values) for values in turn_advantages),
         anchor_group_sizes=tuple(tuple(values) for values in anchor_group_sizes),
         used_sparse_rewards=tuple(sparse_flags),
-        goal_advantages=(
-            tuple(tuple(values) for values in goal_advantages) if settings.goal_credit == "group-relative" else ()
+        goal_advantages=(tuple(tuple(values) for values in goal_advantages) if settings.goal_credit != "none" else ()),
+        verified_turns=(
+            tuple(tuple(flags) for flags in verified_turns) if settings.goal_credit == "verified-sign" else ()
+        ),
+        sign_protected_turns=(
+            tuple(tuple(flags) for flags in sign_protected) if settings.goal_credit == "verified-sign" else ()
         ),
         sampled_token_advantages=tuple(
             value
