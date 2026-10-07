@@ -72,6 +72,9 @@ class AgenticTurn:
     # turn_harm_key): (goal key, weight) for each goal it first achieved, and its harm debit.
     goal_credits: tuple[tuple[str, float], ...] = ()
     harm_debit: float = 0.0
+    # Environment-declared state key (reward projection turn_state_key): attempts at the same
+    # point of the task share it even when their observations differ. None when undeclared.
+    state_key: str | None = None
 
     def __post_init__(self) -> None:
         if self.completion_start < 0 or self.completion_end <= self.completion_start:
@@ -80,6 +83,8 @@ class AgenticTurn:
             raise ValueError("agentic turn anchor-state key cannot be empty")
         if self.step_reward is not None and not math.isfinite(self.step_reward):
             raise ValueError("agentic turn reward must be finite")
+        if self.state_key is not None and not self.state_key.strip():
+            raise ValueError("agentic turn state key cannot be empty")
         if not math.isfinite(self.harm_debit) or self.harm_debit < 0:
             raise ValueError("agentic turn harm debit must be finite and non-negative")
         keys = [key for key, _ in self.goal_credits]

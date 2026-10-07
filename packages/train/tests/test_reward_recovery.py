@@ -95,6 +95,7 @@ def test_goal_credit_off_and_unselected_turn_outcomes_preserve_the_recovery_dige
     legacy = dataclasses.asdict(settings)
     legacy.pop("goal_credit")
     legacy.pop("goal_credit_scale")
+    legacy.pop("anchor_fallback")
     legacy.pop("policy_updates")
     legacy["loop"].pop("max_steps")
     legacy.pop("kl_reference") if legacy.get("kl_reference") == "start" else None
@@ -104,6 +105,7 @@ def test_goal_credit_off_and_unselected_turn_outcomes_preserve_the_recovery_dige
     old_projection = dataclasses.asdict(projection)
     old_projection.pop("turn_goal_prefix")
     old_projection.pop("turn_harm_key")
+    old_projection.pop("turn_state_key")
     expected = hashlib.sha256(
         json.dumps(
             {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -35,6 +35,8 @@ class SAMPOAdvantages:
     # outcome changed relative to episode + anchor credit.
     verified_turns: tuple[tuple[bool, ...], ...] = ()
     sign_protected_turns: tuple[tuple[bool, ...], ...] = ()
+    # anchor_fallback: turns grouped by their environment state key.
+    fallback_anchor_turns: tuple[tuple[bool, ...], ...] = ()
 
     def hierarchy_evidence(self, step_advantage_weight: float) -> dict[str, tuple[float, int]]:
         """Per-update (mean, count) pairs that show where SAMPO's credit comes from.
@@ -84,6 +86,12 @@ class SAMPOAdvantages:
             evidence["train/rl/harm_debited_turn_fraction"] = (
                 sum(value < -_INFORMATIVE for value in goal_values) / len(goal_values),
                 len(goal_values),
+            )
+        fallback_flags = [flag for flags in self.fallback_anchor_turns for flag in flags]
+        if fallback_flags:
+            evidence["train/rl/fallback_anchor_turn_fraction"] = (
+                sum(fallback_flags) / len(fallback_flags),
+                len(fallback_flags),
             )
         verified = [flag for flags in self.verified_turns for flag in flags]
         if verified:
@@ -143,6 +151,28 @@ class SAMPOAdvantages:
                 count,
             ),
         }
+
+
+def anchor_identities(rollouts: Sequence[EnvironmentRollout], *, fallback: bool) -> list[list[str]]:
+    """Effective anchor identity of every turn of one prompt group's rollouts.
+
+    Without fallback this is the exact observation key. With fallback, a turn whose exact key
+    no other turn of the group shares, and that declares an environment state key, is grouped by
+    that state key instead (only with other such turns).
+    """
+
+    if not fallback:
+        return [[turn.anchor_state_key for turn in rollout.turns] for rollout in rollouts]
+    exact = Counter(turn.anchor_state_key for rollout in rollouts for turn in rollout.turns)
+    return [
+        [
+            f"environment-state:{turn.state_key}"
+            if exact[turn.anchor_state_key] == 1 and turn.state_key is not None
+            else turn.anchor_state_key
+            for turn in rollout.turns
+        ]
+        for rollout in rollouts
+    ]
 
 
 def compute_sampo_advantages(
@@ -206,12 +236,15 @@ def compute_sampo_advantages(
         returns_by_rollout.append(_discounted_returns(rewards, settings.discount_gamma))
 
     anchors: dict[tuple[int, str], list[tuple[int, int, float]]] = defaultdict(list)
+    fallback = settings.anchor_fallback == "environment-state"
+    fallback_turns = [[False] * len(rollout.turns) for rollout in rollouts]
     for group_index, indices in enumerate(grouped_indices):
-        for rollout_index in indices:
-            rollout = rollouts[rollout_index]
+        identities = anchor_identities([rollouts[index] for index in indices], fallback=fallback)
+        for rollout_index, turn_identities in zip(indices, identities, strict=True):
             returns = returns_by_rollout[rollout_index]
-            for turn_index, (turn, value) in enumerate(zip(rollout.turns, returns, strict=True)):
-                anchors[(group_index, turn.anchor_state_key)].append((rollout_index, turn_index, value))
+            for turn_index, (identity, value) in enumerate(zip(turn_identities, returns, strict=True)):
+                anchors[(group_index, identity)].append((rollout_index, turn_index, value))
+                fallback_turns[rollout_index][turn_index] = identity.startswith("environment-state:")
 
     turn_advantages = [[0.0] * len(rollout.turns) for rollout in rollouts]
     anchor_group_sizes = [[0] * len(rollout.turns) for rollout in rollouts]
@@ -280,6 +313,7 @@ def compute_sampo_advantages(
         anchor_group_sizes=tuple(tuple(values) for values in anchor_group_sizes),
         used_sparse_rewards=tuple(sparse_flags),
         goal_advantages=(tuple(tuple(values) for values in goal_advantages) if settings.goal_credit != "none" else ()),
+        fallback_anchor_turns=(tuple(tuple(flags) for flags in fallback_turns) if fallback else ()),
         verified_turns=(
             tuple(tuple(flags) for flags in verified_turns) if settings.goal_credit == "verified-sign" else ()
         ),

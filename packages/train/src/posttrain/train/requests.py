@@ -120,6 +120,8 @@ class SAMPORequest:
                 "SAMPO goal-relative turn credit and a reward projection with turn_goal_prefix and "
                 "turn_harm_key are selected together"
             )
+        if (self.settings.anchor_fallback != "none") != (getattr(projection, "turn_state_key", None) is not None):
+            raise ValueError("SAMPO anchor fallback and a reward projection with turn_state_key are selected together")
         _validate_online_rl(
             "SAMPO",
             self.policy,

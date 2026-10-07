@@ -9,6 +9,7 @@ from collections.abc import Mapping
 import numpy as np
 
 from .online_rl import EnvironmentRollout
+from .sampo_advantages import anchor_identities
 from .update_credit import NativeCreditRows
 from .update_records import (
     ConditioningView,
@@ -33,6 +34,7 @@ def population_from_rollouts(
     num_generations: int,
     selector_digest: str,
     spans: tuple[SemanticSpan, ...] = (),
+    anchor_fallback: bool = False,
 ) -> tuple[PopulationSnapshot, NativeCreditRows]:
     """Require complete admitted groups and original native conditioning maps.
 
@@ -63,6 +65,11 @@ def population_from_rollouts(
             raise InvalidPolicyUpdate("fresh native population cannot collect one task in multiple prompt groups")
         seen_tasks.add(task)
     rollouts = tuple(rollout for members in grouped.values() for rollout in members)
+    # Anchor relations record the same groups SAMPO's credit uses (sampo_advantages.anchor_identities).
+    identities_of: dict[int, list[str]] = {}
+    for members in grouped.values():
+        for rollout, identities in zip(members, anchor_identities(members, fallback=anchor_fallback), strict=True):
+            identities_of[id(rollout)] = identities
     views: list[ConditioningView] = []
     rows: list[np.ndarray] = []
     prompt_members: dict[str, list[str]] = defaultdict(list)
@@ -140,7 +147,7 @@ def population_from_rollouts(
             position += len(indices)
             prompt_members[group_id].append(view_id)
             if rollout.turns:
-                anchor_members[(group_id, rollout.turns[turn_index].anchor_state_key)].append(view_id)
+                anchor_members[(group_id, identities_of[id(rollout)][turn_index])].append(view_id)
         if [bool(value) for value in rollout.env_mask] != [index >= 0 for index in row.tolist()]:
             raise InvalidPolicyUpdate("native credit coordinates must match original sampled eligibility")
         row.setflags(write=False)

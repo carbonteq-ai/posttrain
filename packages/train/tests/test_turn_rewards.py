@@ -254,3 +254,16 @@ def test_turn_goals_need_positive_weights_and_a_harm_debit():
 def test_turn_goals_and_harms_are_selected_together():
     with pytest.raises(InvalidRewardEvidence, match="together"):
         outcome_selection(turn_harm_key=None)
+
+
+def test_turn_state_keys_are_selected_per_native_turn():
+    observation_ = outcome_observation(
+        (RewardValue("manifest_harm_debit", "valid", 0.0),), (RewardValue("manifest_harm_debit", "valid", 0.0),)
+    )
+    selection_ = outcome_selection(turn_state_key="turn_state_keys")
+    assert selection_.project_turn_state_keys(observation_, ("assistant-0", "assistant-1")) == (None, None)
+    observation_.payload["info"]["ratings"]["turn_state_keys"] = {"assistant-0": "k0", "assistant-1": "k1"}
+    assert selection_.project_turn_state_keys(observation_, ("assistant-0", "assistant-1")) == ("k0", "k1")
+    observation_.payload["info"]["ratings"]["turn_state_keys"] = {"assistant-0": "k0"}
+    with pytest.raises(InvalidRewardEvidence, match="every native turn"):
+        selection_.project_turn_state_keys(observation_, ("assistant-0", "assistant-1"))

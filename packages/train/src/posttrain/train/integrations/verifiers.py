@@ -1295,6 +1295,9 @@ class VerifiersEnvironmentRolloutBridge:
                 turns = tuple(
                     replace(turn, step_reward=reward) for turn, reward in zip(turns, local_rewards, strict=True)
                 )
+            state_keys = self.reward_projection.project_turn_state_keys(observation, turn_ids)
+            if state_keys is not None:
+                turns = tuple(replace(turn, state_key=key) for turn, key in zip(turns, state_keys, strict=True))
             outcomes = self.reward_projection.project_turn_outcomes(observation, turn_ids)
             if outcomes is not None:
                 turns = tuple(

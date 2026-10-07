@@ -700,6 +700,12 @@ caused a harm receives `min(episode + anchor + goal, 0)` minus its harm debit, s
 its attempt's success cannot push it positive. Every other turn keeps the episode
 and anchor credit, so all turns stay covered.
 
+Amendment (2026-10-07): `anchor_fallback: environment-state` groups a turn whose
+exact-observation anchor has no sibling in its prompt group with the group's
+other such turns that share its environment-declared state key (reward
+projection `turn_state_key`). Exact anchor groups are unchanged. The population
+snapshot records the same anchor groups that the credit uses.
+
 ```text
 train.distill seats
   student: models/qwen-0.8b@bf16

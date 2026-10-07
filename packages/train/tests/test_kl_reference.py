@@ -182,9 +182,11 @@ def test_reward_contract_digest_changes_with_the_kl_reference() -> None:
     # Nor goal-relative turn credit, nor the projection's turn outcome selection.
     legacy.pop("goal_credit")
     legacy.pop("goal_credit_scale")
+    legacy.pop("anchor_fallback")
     legacy_projection = asdict(projection)
     legacy_projection.pop("turn_goal_prefix")
     legacy_projection.pop("turn_harm_key")
+    legacy_projection.pop("turn_state_key")
     payload = {
         "schema": "posttrain.reward-contract.v1",
         "settings": legacy,

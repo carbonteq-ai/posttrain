@@ -174,6 +174,7 @@ def resolve_rollout_population(
         num_generations=settings.num_generations,
         selector_digest=selector_digest,
         spans=spans,
+        anchor_fallback=isinstance(settings, SAMPOSettings) and settings.anchor_fallback == "environment-state",
     )
     if isinstance(settings, GRPOSettings):
         required = tuple(relation.id for relation in snapshot.relations if relation.kind == "prompt-group")

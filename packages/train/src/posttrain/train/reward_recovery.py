@@ -48,8 +48,10 @@ def reward_contract_digest(request: GDPORequest | CAPORequest | SAMPORequest) ->
         settings.pop("goal_credit")
     if settings.get("goal_credit_scale") == 1.0:
         settings.pop("goal_credit_scale")
+    if settings.get("anchor_fallback") == "none":
+        settings.pop("anchor_fallback")
     projection_identity = asdict(projection)
-    for key in ("turn_goal_prefix", "turn_harm_key"):
+    for key in ("turn_goal_prefix", "turn_harm_key", "turn_state_key"):
         if projection_identity.get(key) is None:
             projection_identity.pop(key, None)
     payload = {

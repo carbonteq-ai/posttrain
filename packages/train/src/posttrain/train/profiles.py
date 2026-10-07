@@ -388,6 +388,10 @@ class SAMPOSettings:
     # (min(episode + anchor + goal, 0) - harm); other turns keep episode + anchor.
     goal_credit: Literal["none", "group-relative", "verified-sign"] = "none"
     goal_credit_scale: float = 1.0
+    # environment-state: a turn whose exact-observation anchor has no sibling is grouped with
+    # the group's other such turns that share its environment state key (goals achieved so
+    # far, world state, reads). Requires a reward projection with turn_state_key.
+    anchor_fallback: Literal["none", "environment-state"] = "none"
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = 0.003
     clip_epsilon_high: float = 0.004

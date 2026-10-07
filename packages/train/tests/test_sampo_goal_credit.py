@@ -158,3 +158,64 @@ def test_goal_credit_scale_requires_goal_credit_and_a_positive_value():
         _settings(goal_credit="none", goal_credit_scale=2.0)
     with pytest.raises(ValueError, match="finite and positive"):
         _settings(goal_credit="verified-sign", goal_credit_scale=0.0)
+
+
+def _keyed(suffix, reward, state, *, first_exact=None):
+    rollout = _rollout(suffix, reward=reward)
+    first, second = rollout.turns
+    return replace_turns(
+        rollout,
+        (
+            AgenticTurn(
+                first.completion_start,
+                first.completion_end,
+                first_exact or first.anchor_state_key,
+                0.0,
+                state_key=state,
+            ),
+            AgenticTurn(
+                second.completion_start,
+                second.completion_end,
+                second.anchor_state_key,
+                reward,
+                state_key=f"{state}-later",
+            ),
+        ),
+    )
+
+
+def replace_turns(rollout, turns):
+    from dataclasses import replace
+
+    return replace(rollout, turns=turns)
+
+
+def test_anchor_fallback_compares_would_be_singletons_that_share_a_state():
+    rollouts = (_keyed("a", 1.0, "s1"), _keyed("b", 0.0, "s1"), _keyed("c", 0.5, "s2"), _keyed("d", 0.5, "s3"))
+    off = compute_sampo_advantages(_settings(goal_credit="none"), ("task-1",) * 4, rollouts)
+    on = compute_sampo_advantages(
+        _settings(goal_credit="none", anchor_fallback="environment-state"), ("task-1",) * 4, rollouts
+    )
+    assert all(value == 0 for values in off.turn_advantages for value in values)  # every exact anchor is a singleton
+    # a and b reached state s1 by different routes; their first turns are now compared.
+    assert on.turn_advantages[0][0] > 0 > on.turn_advantages[1][0]
+    assert on.anchor_group_sizes[0][0] == 2 and on.anchor_group_sizes[2][0] == 1
+    assert on.fallback_anchor_turns[0] == (True, True)
+    assert on.hierarchy_evidence(1.0)["train/rl/fallback_anchor_turn_fraction"][0] == 1.0
+
+
+def test_anchor_fallback_leaves_exact_groups_alone():
+    rollouts = (
+        _keyed("a", 1.0, "s1", first_exact="shared"),
+        _keyed("b", 0.0, "s1", first_exact="shared"),
+        _keyed("c", 0.5, "s1"),
+        _keyed("d", 0.5, "s9"),
+    )
+    on = compute_sampo_advantages(
+        _settings(goal_credit="none", anchor_fallback="environment-state"), ("task-1",) * 4, rollouts
+    )
+    # a and b share an exact anchor and stay a pair; c's first turn has no exact sibling and no
+    # other fallback turn with state s1, so it stays alone rather than joining the exact pair.
+    assert on.anchor_group_sizes[0][0] == 2 and on.anchor_group_sizes[1][0] == 2
+    assert on.anchor_group_sizes[2][0] == 1
+    assert on.fallback_anchor_turns[0][0] is False and on.fallback_anchor_turns[2][0] is True

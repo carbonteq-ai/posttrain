@@ -328,6 +328,7 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     step_advantage_weight: float = Field(default=1.0, ge=0, allow_inf_nan=False)
     goal_credit: Literal["none", "group-relative", "verified-sign"] = "none"
     goal_credit_scale: float = Field(default=1.0, gt=0, allow_inf_nan=False)
+    anchor_fallback: Literal["none", "environment-state"] = "none"
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = Field(default=0.003, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float = Field(default=0.004, gt=0, allow_inf_nan=False)
@@ -400,6 +401,7 @@ class RewardProjectionSchema(TrainCatalogSchema):
     turn_reward_includes_terminal_outcome: bool | None = None
     turn_goal_prefix: str | None = None
     turn_harm_key: str | None = None
+    turn_state_key: str | None = None
 
 
 type TrainingSelectionSchema = Annotated[
@@ -462,6 +464,7 @@ def decode_training_selection(
             payload.turn_reward_includes_terminal_outcome,
             payload.turn_goal_prefix,
             payload.turn_harm_key,
+            payload.turn_state_key,
         )
     if isinstance(payload, GDPOSettingsSchema | CAPOSettingsSchema):
         settings_type = GDPOSettings if isinstance(payload, GDPOSettingsSchema) else CAPOSettings
