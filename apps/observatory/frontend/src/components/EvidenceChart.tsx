@@ -295,7 +295,37 @@ type EvidenceChartProps = {
   seriesType?: 'line' | 'bar';
   /** Name and categories for a logical x axis other than the training step. */
   xAxis?: ChartXAxis;
+  /**
+   * Series recorded once per span of the axis (a collection's population values) whose value
+   * holds across the positions leading up to each point: the interval after the previous point
+   * (one span before the first point) up to and including the point itself. They are drawn as
+   * steps, and their value is repeated at every other series' position in that interval, so the
+   * tooltip at an update shows the collection that update trained on.
+   */
+  heldSeries?: readonly string[];
 };
+
+type PlottedPoint = MetricSeries['points'][number] & { held?: boolean };
+
+/** Expand one held series over the positions the chart's other series record (see ``heldSeries``). */
+export function holdAcross(points: readonly MetricSeries['points'][number][], positions: readonly number[]): PlottedPoint[] {
+  const own = points.filter((point) => typeof point.step === 'number' && Number.isFinite(point.step));
+  if (!own.length) return [...points];
+  const steps = own.map((point) => point.step as number);
+  const span = steps.length > 1 ? steps[1] - steps[0] : 1;
+  const expanded: PlottedPoint[] = [];
+  let previous = steps[0] - span;
+  own.forEach((point, index) => {
+    const step = steps[index];
+    if (index === 0) expanded.push({ ...point, step: previous, held: true });
+    for (const position of positions) {
+      if (position > previous && position < step) expanded.push({ ...point, step: position, held: true });
+    }
+    expanded.push(point);
+    previous = step;
+  });
+  return expanded;
+}
 
 export function EvidenceChart({
   series,
@@ -314,13 +344,15 @@ export function EvidenceChart({
   xRange,
   seriesType = 'line',
   xAxis,
+  heldSeries = [],
 }: EvidenceChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null);
   const applyingSharedHoverRef = useRef(false);
   const pointerInsideRef = useRef(false);
   const configuredXOriginMs = useMemo(() => xOrigin == null ? null : Date.parse(xOrigin), [xOrigin]);
-  const plottedSeries = useMemo(
+  const heldKey = heldSeries.join('\u0000');
+  const sortedSeries = useMemo(
     () => series
       .filter((item) => item.points.length > 0)
       .map((item) => ({
@@ -336,6 +368,17 @@ export function EvidenceChart({
       })),
     [series, xDomain],
   );
+  const plottedSeries = useMemo((): { name: string; points: PlottedPoint[]; held: boolean }[] => {
+    const held = new Set(heldKey ? heldKey.split('\u0000') : []);
+    if (!held.size || xDomain !== 'logical-step') return sortedSeries.map((item) => ({ ...item, held: false }));
+    const positions = [...new Set(sortedSeries
+      .filter((item) => !held.has(item.name))
+      .flatMap((item) => item.points.flatMap((point) => typeof point.step === 'number' ? [point.step] : [])))]
+      .sort((left, right) => left - right);
+    return sortedSeries.map((item) => (held.has(item.name)
+      ? { ...item, points: holdAcross(item.points, positions), held: true }
+      : { ...item, held: false }));
+  }, [heldKey, sortedSeries, xDomain]);
   const observedXOriginMs = Math.min(
     ...plottedSeries.flatMap((item) => item.points.map((point) => Date.parse(point.observed_at ?? ''))),
   );
@@ -536,7 +579,9 @@ export function EvidenceChart({
           type: seriesType,
           xAxisIndex: useSmallMultiples ? panelGroupIndex : 0,
           yAxisIndex,
-          showSymbol: item.points.length < 12,
+          // A held series marks only its recorded points; the repeated values draw its steps.
+          showSymbol: item.held ? item.points.filter((point) => !point.held).length < 12 : item.points.length < 12,
+          step: item.held ? ('start' as const) : undefined,
           symbolSize: 5,
           smooth: false,
           lineStyle: seriesType === 'line' ? { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] } : undefined,
@@ -558,13 +603,15 @@ export function EvidenceChart({
                 point.value,
                 Date.parse(point.observed_at ?? ''),
               ]
+            : point.held
+            ? { value: [point.step ?? pointIndex, point.value], symbol: 'none' }
             : [point.step ?? pointIndex, point.value]),
         };
       }),
     });
     if (onPointSelect) {
       chart.on('click', (event) => {
-        const data = event.data;
+        const data = Array.isArray(event.value) ? event.value : event.data;
         if (Array.isArray(data) && typeof data[0] === 'number') onPointSelect(data[0]);
       });
     }
