@@ -38,7 +38,7 @@ Native record-ID projection is being implemented separately. This review does no
 
 ## Provenance
 
-Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-04.json`  
+Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-04.json`
 Exact SHA-256: `08fa811e527fb7cf01213ae2f3424e9ec2dcdcb6f33618e74f4f3499aee963c8`
 
 Exact pack hash and ordered task identities match the index. All ten public-input hashes pass. The exact-byte selection hash and canonical-JSON selection hash were independently verified; they are intentionally different schemes.

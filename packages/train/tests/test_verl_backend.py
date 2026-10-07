@@ -619,7 +619,8 @@ def test_verl_policy_generator_takes_lfm25_python_calls_from_the_renderer_like_t
             call_index=0,
         )
         restored = vf.WireTrace.model_validate(trace.to_record())
-        projection = vf.project_subject(subject, source, restored)
+        # A restored wire trace is the trace shape project_subject reads.
+        projection = vf.project_subject(subject, source, cast(Any, restored))
         assert projection.status == "exact_call"
         assert [(item.start, item.end) for item in projection.intervals] == [(0, 2)]
         assert restored.nodes[index].token_ids == [3, 4]

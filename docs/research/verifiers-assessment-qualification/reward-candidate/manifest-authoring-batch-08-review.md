@@ -36,7 +36,7 @@ This is a bounded historical harm check. It covers the exact title representatio
 
 ## Provenance
 
-Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-08.json`  
+Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-08.json`
 Exact SHA-256: `e6cd7cb2ef731eb9510bb8b3cf475b2773e5d03a64bbddb640e9e45a3e860505`
 
 Pack hash and ordered identities match the index. All ten public-input hashes pass. Exact-byte and canonical-JSON selection digests were independently recomputed using their distinct documented schemes.

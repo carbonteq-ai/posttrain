@@ -262,8 +262,9 @@ def test_turn_state_keys_are_selected_per_native_turn():
     )
     selection_ = outcome_selection(turn_state_key="turn_state_keys")
     assert selection_.project_turn_state_keys(observation_, ("assistant-0", "assistant-1")) == (None, None)
-    observation_.payload["info"]["ratings"]["turn_state_keys"] = {"assistant-0": "k0", "assistant-1": "k1"}
+    ratings = cast(dict[str, Any], cast(dict[str, Any], observation_.payload["info"])["ratings"])
+    ratings["turn_state_keys"] = {"assistant-0": "k0", "assistant-1": "k1"}
     assert selection_.project_turn_state_keys(observation_, ("assistant-0", "assistant-1")) == ("k0", "k1")
-    observation_.payload["info"]["ratings"]["turn_state_keys"] = {"assistant-0": "k0"}
+    ratings["turn_state_keys"] = {"assistant-0": "k0"}
     with pytest.raises(InvalidRewardEvidence, match="every native turn"):
         selection_.project_turn_state_keys(observation_, ("assistant-0", "assistant-1"))

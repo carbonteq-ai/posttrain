@@ -32,7 +32,7 @@ Each adapter remains a reusable service capability. Each task's identities, thre
 
 ## Validation and provenance
 
-Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-03.json`  
+Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-03.json`
 Exact SHA-256: `689535bbc1dec2ab553ceae4f7ae60f1eb4e88e2f356a64c59e10b3b21f5ff15`
 
 Exact SHA and task order match the batch index; all ten public-input digests match. Both selection hash schemes were independently checked: the index hashes exact file bytes and the pack hashes canonical JSON contents.

@@ -36,7 +36,7 @@ One ContractSpec validates and roundtrips. All **13 public bindings** match, and
 
 ## Provenance and validation
 
-Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-05.json`  
+Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-05.json`
 Exact SHA-256: `8f93b47f1584ee58c553a50db4c800966f4e74ebb28d3600df2695d86de590e1`
 
 Exact pack hash and ordered task identities match the frozen index. All ten public-input hashes pass. The exact-byte selection hash and canonical-JSON selection hash were independently recomputed and match their respective records.

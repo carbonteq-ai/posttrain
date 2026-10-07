@@ -38,7 +38,7 @@ These are six grouped capability families in the JSON, not a proposal to build a
 
 ## Provenance and limits
 
-Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-02.json`  
+Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-02.json`
 Exact SHA-256: `eea8b69e67adae6bbef920168d57006e1d4f761896d09f7492907ae3c2e80222`
 
 The exact pack hash and task order match the batch index. The index's selection hash covers exact selection-file bytes; the pack's selection hash covers canonical JSON contents. Both were independently recomputed from `cross-category-selection.json`: `13d326e...` for bytes and `4a793692...` for canonical contents. They are distinct hash schemes, not a selection mismatch.

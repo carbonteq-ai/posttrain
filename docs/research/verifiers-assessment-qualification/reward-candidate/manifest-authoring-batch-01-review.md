@@ -2,7 +2,7 @@
 
 Reviewed 2026-10-04. Ten public task inputs reviewed; **two partial component manifests proposed, zero accepted, zero whole tasks qualified**. The JSON companion contains the actual schema-shaped proposals, each task's goals, prohibitions, public authorities, unresolved interpretations, capability needs and adversarial cases. No catalog or task Python changed.
 
-Batch: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-01.json`  
+Batch: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-01.json`
 SHA-256: `d865aacbaac51c83441f852941b06116303d18bf3973bc1c8b265144c1c8e50d`
 
 Only public prompts, initial worlds and named tools supplied policy. Retained episode references are copied for later qualification; their contents and hidden assertions/answers were not used. Positive unit-test results establish the operator boundaries described below, not learned behavior.
