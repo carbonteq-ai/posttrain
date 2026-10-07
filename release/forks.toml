@@ -54,7 +54,7 @@ required = true
 id = "automationbench"
 scope = "environment-package-vendor"
 repository = "https://github.com/carbonteq-ai/AutomationBench"
-release_tag = "carbonteq-v1.0.5.post1"
+release_tag = "carbonteq-v1.0.5.post3"
 required = true
 
 [[fork]]

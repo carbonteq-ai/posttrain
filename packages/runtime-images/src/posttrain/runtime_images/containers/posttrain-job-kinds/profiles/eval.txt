@@ -1,4 +1,4 @@
 -r serve.txt
 datasets==4.6.1
 transformers==5.14.1
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@58df1306afff9b6bef5ce74701efeb19cf1e9042
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@74dd3fbf176d60cb0070f2408bc8a597bbfc099e

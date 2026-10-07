@@ -84,7 +84,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: a7c8e6186ba9e7028d60fa4d31c4b106ef7b8870d007652ecd5dbb042620e19a
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
   training/qwen3.5-0.8b-trl-grpo-precision-fp16@1:
     selection_type: training-binding
     revision: "1"
@@ -104,7 +104,7 @@ training:
       training_precision: fp16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: a7c8e6186ba9e7028d60fa4d31c4b106ef7b8870d007652ecd5dbb042620e19a
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   # LFM2.5-2.6B SAMPO precision canaries on the RTX PRO 6000
   # (docs/plan/fp16-training-precision.md, "Workstation runbook"): the
@@ -176,7 +176,7 @@ training:
       training_precision: fp16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: a7c8e6186ba9e7028d60fa4d31c4b106ef7b8870d007652ecd5dbb042620e19a
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   # LFM2.5-2.6B SAMPO from the base model (fresh LoRA adapter) in fp16 on the
   # trainer and the rollout engine (docs/plan/lfm26-sampo-fp16-base.md; evidence in
@@ -256,7 +256,7 @@ training:
       logits_float32: true
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: a7c8e6186ba9e7028d60fa4d31c4b106ef7b8870d007652ecd5dbb042620e19a
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   # veRL precision qualification on the local 8 GB GPU with the veRL runtime
   # (fork 0.9.0.post8, ef1c3771; post4 added the loss scale, skipped steps and
