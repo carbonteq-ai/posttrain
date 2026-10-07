@@ -480,7 +480,6 @@ def _online_rl_runtime_attributes(
         "logits_chunk_size": request.training.backend_options.get("logits_chunk_size"),
         "gradient_checkpointing_min_tokens": request.training.backend_options.get("gradient_checkpointing_min_tokens"),
         "compile_decoder_layers": request.training.backend_options.get("compile_decoder_layers", False),
-        "activation_offload_budget_gib": request.training.backend_options.get("activation_offload_budget_gib"),
         "importance_sampling_from_training_logps": request.training.backend_options.get(
             "importance_sampling_from_training_logps", False
         ),

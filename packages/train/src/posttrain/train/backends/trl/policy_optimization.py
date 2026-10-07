@@ -246,16 +246,8 @@ def _run_online_rl(
         dataset = imports["Dataset"].from_list(
             [{"resolved_update": index} for index in range(request.settings.loop.max_steps)]
         )
-        offload_budget = request.training.backend_options.get("activation_offload_budget_gib")
-        if offload_budget is not None and (
-            isinstance(offload_budget, bool) or not isinstance(offload_budget, int | float) or offload_budget < 0
-        ):
-            raise ValueError("activation_offload_budget_gib must be a nonnegative number of GiB")
         trainer_type = resolved_policy_trainer_type(
-            trainer_type,
-            resolved_job.run,
-            recovery_runtime_identity=runtime_identity,
-            activation_offload_budget_gib=None if offload_budget is None else float(offload_budget),
+            trainer_type, resolved_job.run, recovery_runtime_identity=runtime_identity
         )
         context.event(
             "resolved_policy_job_configured",
@@ -265,7 +257,6 @@ def _run_online_rl(
                 "template_revision": template_revision,
                 "score_contract": "posttrain.causal-text-tempered-logsoftmax-fp32@1",
                 "max_overflow_retries": retries,
-                "activation_offload_budget_gib": offload_budget,
             },
         )
     checkpoint_publisher = CheckpointPublisher(

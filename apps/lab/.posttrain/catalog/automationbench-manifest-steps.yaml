@@ -1403,31 +1403,6 @@ training:
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
       dependency_lock_sha256: a7c8e6186ba9e7028d60fa4d31c4b106ef7b8870d007652ecd5dbb042620e19a
 
-  # @1 plus host-memory spill of saved activations past 60 GiB (r1 of the verified-sign run
-  # died at 88 GiB allocated during a resolved update's scoring).
-  training/lfm2.5-2.6b-trl-lora-manifest-ws-g128-r4-fp16@2:
-    selection_type: training-binding
-    revision: "2"
-    backend: trl@1.12.0.post14
-    renderer: {id: lfm2.5-tools-thinking@2, model_family: lfm2.5, implementation: default, reasoning_mode: native}
-    update: {kind: lora, rank: 4, alpha: 8, target_modules: all-linear}
-    target: targets/carbonteq-rtx-pro-6000-96gb
-    parallelism: {sequence_length_divisor: 2}
-    runtime: {global_batch_size: 128, devices_per_node: 1, timeout_seconds: 86400}
-    backend_options:
-      rollout_execution: {env_workers: 12, episodes_per_worker: 15, worker_native_threads: 1, memory_budget_gb: 40}
-      use_liger_kernel: false
-      logits_chunk_size: 128
-      training_precision: fp16
-      fp16_initial_loss_scale: 1024
-      logits_float32: true
-      # Saved activations past 60 GiB of allocated device memory wait for backward in host
-      # memory, so large resolved updates no longer run the 95 GiB card out of memory.
-      activation_offload_budget_gib: 60
-      dependency_lock: trl-fork@current
-      source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: a7c8e6186ba9e7028d60fa4d31c4b106ef7b8870d007652ecd5dbb042620e19a
-
 inference:
   inference/lfm2.5-1.2b-vllm-manifest-ws@1:
     revision: "1"

@@ -150,7 +150,15 @@ class ResolvedTRLPopulation:
     def global_attempts(self) -> int:
         return self.attempt_offset + self.attempts
 
-    def loss(self, model: Any, index: int, device: Any, *, before_current: Callable[[], None] | None = None) -> Any:
+    def loss(
+        self,
+        model: Any,
+        index: int,
+        device: Any,
+        *,
+        before_current: Callable[[], None] | None = None,
+        backward: Callable[[Any], None] | None = None,
+    ) -> Any:
         from ..policy_update_execution import compute_resolved_loss
         from ..policy_update_scoring import freeze_population_scores
 
@@ -207,11 +215,12 @@ class ResolvedTRLPopulation:
             score_temperature=self.score_temperature,
             score_contract=self.score_contract,
             sampler_correction=self.sampler_correction,
+            backward=backward,
         )
         if not evaluation.loss.requires_grad:
             raise InvalidPolicyUpdate("empty resolved native update cannot count as an applied optimizer step")
-        # Only the returned loss carries the graph, so it ends with the trainer's
-        # step. A kept graph would hold every leaf of the update past backward,
+        # Only the returned loss carries the graph (none when ``backward`` ran
+        # per pack), so it ends with the trainer's step. A kept graph would hold every leaf of the update past backward,
         # including the gradient-tracked input embeddings (and their gradients)
         # that gradient checkpointing creates for each scored context.
         self.last_evaluation = replace(
@@ -273,13 +282,8 @@ def resolved_policy_trainer_type(
     population: ResolvedTRLPopulation | ResolvedTRLRun,
     *,
     recovery_runtime_identity: str | None = None,
-    activation_offload_budget_gib: float | None = None,
 ) -> type:
-    """Adapt native GRPOTrainer without replacing its optimizer lifecycle.
-
-    With ``activation_offload_budget_gib``, saved activations beyond that much allocated device
-    memory wait for backward in host memory (backends/activation_offload.py).
-    """
+    """Adapt native GRPOTrainer without replacing its optimizer lifecycle."""
 
     def active_population() -> ResolvedTRLPopulation:
         return population.active() if isinstance(population, ResolvedTRLRun) else population
@@ -460,14 +464,16 @@ def resolved_policy_trainer_type(
             )
             if self.state.global_step != active.global_applied_updates:
                 raise InvalidPolicyUpdate("native TRL run-global counter differs from the active population boundary")
-            if activation_offload_budget_gib is None:
-                return active.loss(model, index, self.accelerator.device, before_current=self._capture_current_rng)
-            from ..activation_offload import offload_overflow
-
-            with offload_overflow(model, int(activation_offload_budget_gib * 2**30)) as offload:
-                loss = active.loss(model, index, self.accelerator.device, before_current=self._capture_current_rng)
-            self._activation_offload_bytes = offload.bytes
-            return loss
+            # Backward runs per score pack inside the loss (through the native
+            # accelerator and its loss scaler), so one update never holds every
+            # pack's graph; the returned loss is then a gradient-free leaf.
+            return active.loss(
+                model,
+                index,
+                self.accelerator.device,
+                before_current=self._capture_current_rng,
+                backward=self.accelerator.backward,
+            )
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)

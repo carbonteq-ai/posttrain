@@ -55,9 +55,10 @@ def resolved(identity):
     return snapshot, source, credit, spec, update, capabilities
 
 
+@pytest.mark.parametrize("packwise", [False, True])
 @pytest.mark.parametrize("identity", ["grpo@1", "sampo@1"])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16, torch.float16])
-def test_two_applied_transitions_match_monolithic_oracle_across_packs(identity, dtype):
+def test_two_applied_transitions_match_monolithic_oracle_across_packs(identity, dtype, packwise):
     torch.manual_seed(11)
     snapshot, source, credit, spec, update, capabilities = resolved(identity)
     initial = CausalModel().to(dtype)
@@ -111,8 +112,12 @@ def test_two_applied_transitions_match_monolithic_oracle_across_packs(identity, 
                 reference=None,
                 score_contract="causal@1",
                 sampler_correction=None,
+                backward=(lambda loss: loss.backward()) if packwise else None,
                 **kwargs,
             )
+            # Pack-wise backward has already applied every pack's gradient and
+            # returns a gradient-free leaf, so the trainer's backward adds nothing.
+            assert actual.loss.requires_grad and actual.loss.is_leaf == packwise
             # Loss arithmetic is compared at identical parameters. Independent
             # half-parameter optimizer histories can differ by rounding after
             # separate graph accumulation; gradients and states are compared below.
@@ -149,3 +154,17 @@ def test_missing_dependency_pack_rejected_before_model_execution():
             sampler_correction=None,
             **kwargs,
         )
+
+
+def test_packwise_backward_requires_every_ratio_segment_inside_one_pack():
+    from posttrain.train.backends.policy_update_execution import _segments_within_packs
+
+    _, _, credit, spec, update, capabilities = resolved("sampo@1")
+    term = resolve_objective_term(update, spec, credit)
+    split = plan_packs(update, PolicyExecutionBudget(1, 100, 10000), capabilities)
+    joined = plan_packs(update, PolicyExecutionBudget(2, 100, 10000), capabilities)
+    assert _segments_within_packs(update, term, split) and _segments_within_packs(update, term, joined)
+    # One sequence ratio over both episodes cannot be split across two packs.
+    spanning = replace(term, ratio_segment=np.where(term.ratio_segment >= 0, 0, -1), segment_count=1)
+    assert not _segments_within_packs(update, spanning, split)
+    assert _segments_within_packs(update, spanning, joined)
