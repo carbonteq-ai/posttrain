@@ -1840,6 +1840,9 @@ function GenericOverview({
       : series)),
   };
   const chartXAxis = useMemo(() => ({ name: 'Step', formatValue: axis.label }), [axis]);
+  // A collection's population values describe the rollouts its updates trained on: hold each across
+  // those updates (from the previous collection up to its own number) instead of a point at the end.
+  const heldSeries = useMemo(() => (axis.remapped ? [...collectionNames] : []), [axis.remapped, collectionNames]);
   const lead = summary[0];
   const leadPoints = charts
     .flatMap((item) => item.series)
@@ -2056,7 +2059,7 @@ function GenericOverview({
                 <span className="font-medium text-ink">{selectedStep == null ? 'Step —' : axis.label(selectedStep)}</span>
                 {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
-              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} xAxis={chartXAxis} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} xAxis={chartXAxis} heldSeries={heldSeries} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
               {unrecordedSeries.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.

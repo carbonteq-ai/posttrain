@@ -295,9 +295,37 @@ type EvidenceChartProps = {
   seriesType?: 'line' | 'bar';
   /** Name and categories for a logical x axis other than the training step. */
   xAxis?: ChartXAxis;
-  /** Series whose value holds until its next point (per-collection values across their updates). */
-  steppedSeries?: readonly string[];
+  /**
+   * Series recorded once per span of the axis (a collection's population values) whose value
+   * holds across the positions leading up to each point: the interval after the previous point
+   * (one span before the first point) up to and including the point itself. They are drawn as
+   * steps, and their value is repeated at every other series' position in that interval, so the
+   * tooltip at an update shows the collection that update trained on.
+   */
+  heldSeries?: readonly string[];
 };
+
+type PlottedPoint = MetricSeries['points'][number] & { held?: boolean };
+
+/** Expand one held series over the positions the chart's other series record (see ``heldSeries``). */
+export function holdAcross(points: readonly MetricSeries['points'][number][], positions: readonly number[]): PlottedPoint[] {
+  const own = points.filter((point) => typeof point.step === 'number' && Number.isFinite(point.step));
+  if (!own.length) return [...points];
+  const steps = own.map((point) => point.step as number);
+  const span = steps.length > 1 ? steps[1] - steps[0] : 1;
+  const expanded: PlottedPoint[] = [];
+  let previous = steps[0] - span;
+  own.forEach((point, index) => {
+    const step = steps[index];
+    if (index === 0) expanded.push({ ...point, step: previous, held: true });
+    for (const position of positions) {
+      if (position > previous && position < step) expanded.push({ ...point, step: position, held: true });
+    }
+    expanded.push(point);
+    previous = step;
+  });
+  return expanded;
+}
 
 export function EvidenceChart({
   series,
@@ -316,16 +344,16 @@ export function EvidenceChart({
   xRange,
   seriesType = 'line',
   xAxis,
-  steppedSeries = [],
+  heldSeries = [],
 }: EvidenceChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   // Content key, so a new array with the same names does not rebuild the chart.
-  const steppedKey = steppedSeries.join('\u0000');
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null);
   const applyingSharedHoverRef = useRef(false);
   const pointerInsideRef = useRef(false);
   const configuredXOriginMs = useMemo(() => xOrigin == null ? null : Date.parse(xOrigin), [xOrigin]);
-  const plottedSeries = useMemo(
+  const heldKey = heldSeries.join('\u0000');
+  const sortedSeries = useMemo(
     () => series
       .filter((item) => item.points.length > 0)
       .map((item) => ({
@@ -341,6 +369,17 @@ export function EvidenceChart({
       })),
     [series, xDomain],
   );
+  const plottedSeries = useMemo((): { name: string; points: PlottedPoint[]; held: boolean }[] => {
+    const held = new Set(heldKey ? heldKey.split('\u0000') : []);
+    if (!held.size || xDomain !== 'logical-step') return sortedSeries.map((item) => ({ ...item, held: false }));
+    const positions = [...new Set(sortedSeries
+      .filter((item) => !held.has(item.name))
+      .flatMap((item) => item.points.flatMap((point) => typeof point.step === 'number' ? [point.step] : [])))]
+      .sort((left, right) => left - right);
+    return sortedSeries.map((item) => (held.has(item.name)
+      ? { ...item, points: holdAcross(item.points, positions), held: true }
+      : { ...item, held: false }));
+  }, [heldKey, sortedSeries, xDomain]);
   const observedXOriginMs = Math.min(
     ...plottedSeries.flatMap((item) => item.points.map((point) => Date.parse(point.observed_at ?? ''))),
   );
@@ -383,7 +422,6 @@ export function EvidenceChart({
   useEffect(() => {
     if (!elementRef.current) return;
     const chart = echarts.init(elementRef.current, undefined, { renderer: 'canvas' });
-    const stepped = new Set(steppedKey ? steppedKey.split('\u0000') : []);
     chartRef.current = chart;
     const groupSeries = panelGroups.map((group) => plottedSeries.filter((item) => panelGroup(item.name, metricUnits) === group));
     const groupAxisGroups = groupSeries.map((items) => [...new Set(items.map((item) => scaleGroup(item.name, metricUnits)))]);
@@ -542,10 +580,11 @@ export function EvidenceChart({
           type: seriesType,
           xAxisIndex: useSmallMultiples ? panelGroupIndex : 0,
           yAxisIndex,
-          showSymbol: item.points.length < 12 && !stepped.has(item.name),
+          // A held series marks only its recorded points; the repeated values draw its steps.
+          showSymbol: item.held ? item.points.filter((point) => !point.held).length < 12 : item.points.length < 12,
+          step: item.held ? ('start' as const) : undefined,
           symbolSize: 5,
           smooth: false,
-          step: stepped.has(item.name) ? ('end' as const) : undefined,
           lineStyle: seriesType === 'line' ? { width: 1.9, type: lineTypes[indexWithinGroup % lineTypes.length] } : undefined,
           barMaxWidth: seriesType === 'bar' ? 28 : undefined,
           emphasis: { focus: 'series' },
@@ -565,13 +604,15 @@ export function EvidenceChart({
                 point.value,
                 Date.parse(point.observed_at ?? ''),
               ]
+            : point.held
+            ? { value: [point.step ?? pointIndex, point.value], symbol: 'none' }
             : [point.step ?? pointIndex, point.value]),
         };
       }),
     });
     if (onPointSelect) {
       chart.on('click', (event) => {
-        const data = event.data;
+        const data = Array.isArray(event.value) ? event.value : event.data;
         if (Array.isArray(data) && typeof data[0] === 'number') onPointSelect(data[0]);
       });
     }
@@ -597,7 +638,7 @@ export function EvidenceChart({
       chart.dispose();
       if (chartRef.current === chart) chartRef.current = null;
     };
-  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, steppedKey, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
+  }, [compact, elapsedMaximum, metricLabels, metricUnits, onHoverStep, onPointSelect, panelGroups, plottedSeries, renderedHeight, scaleGroups, selectedStep, seriesType, showLegend, showZoom, useSmallMultiples, xAxis, xDomain, xMaximum, xMinimum, xOriginMs]);
 
   useEffect(() => {
     const chart = chartRef.current;
