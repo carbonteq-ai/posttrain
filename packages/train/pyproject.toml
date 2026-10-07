@@ -16,7 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 verifiers = [
-    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@74dd3fbf176d60cb0070f2408bc8a597bbfc099e",
+    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@9d95aeb31965d6c945e2621259ac78f9d5e97c76",
 ]
 trl = [
     "torch>=2.13,<2.14",

@@ -904,6 +904,86 @@ environment:
       max_turns: 16
       max_output_tokens: 18432
 
+  # The luna-v2 held-out tasks under the earlier held-out evals' budgets (20 turns, 8192-token
+  # replies, 32768 per episode, 64K context). Concurrency 60 (3x the server's 20 sequences)
+  # and three ProviderError retries keep the eval client's 5 s connect timeout from dropping
+  # episodes until the Verifiers client retries connections itself.
+  automationbench-manifest-luna2-eval-64k20t-t05-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: 24e1fc9211b64eecf958264b93d56dae00df8f4d
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-manifest-luna-v2: installed manifests that bind and agree with
+          # Luna's recorded episodes (scripts/qualification/fixtures/automationbench_manifest_luna_v2.json).
+          task_names:
+            - finance.ap_turnover_analysis
+            - finance.monday_project_billing
+            - finance.overdue_invoice_followup
+            - finance.qb_estimate_conversion
+            - finance.travel_advance_settlement
+            - hr.airtable_recruitment_analytics
+            - hr.equipment_provisioning
+            - hr.workforce_planning_forecast
+            - marketing.content_scoring
+            - marketing.social_content_calendar
+            - operations.calendly_equipment_inspection
+            - operations.equipment_lease_processing
+            - operations.perishable_inventory_expiry
+            - operations.procurement_card_reconciliation
+            - sales.chatgpt_lead_classification_pipeline
+            - sales.zoom_webinar_lead_scoring
+            - simple.email_airtable_customer_welcome
+            - simple.email_zendesk_ack_reply
+            - support.gorgias_quality_audit
+            - support.zendesk_hubspot_org_sync
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 20
+            capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 3, include: [ProviderError]}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling: {max_tokens: 8192, temperature: 0.5, top_p: 1.0, top_k: 50, repetition_penalty: 1.1}
+    num_tasks: 20
+    num_rollouts: 5
+    max_concurrent: 60
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: automationbench-manifest-luna-v2-eval
+      task_mix_sha256: 4201d4a551041743abecf7ef11d43c148ccc8b86bcc4f5cd68f28ea88e89d9a2
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+
 training:
   # SAMPO step rewards: the live per-turn partial-credit progress (version-2 rule,
   # 0.02 per tool mistake) plus manifest step credit (goal share 0.5, harm 0.1 capped at
@@ -1305,7 +1385,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
+      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
 
   # The workstation binding with colocated async vLLM rollouts and native rollout
   # workers: qualifies resolved TRL policy updates with vLLM sampler correction.
@@ -1325,7 +1405,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
+      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
 
   training/lfm2.5-1.2b-trl-lora-manifest-local-vllm@1:
     selection_type: training-binding
@@ -1343,7 +1423,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
+      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
 
   # The VORTEX local check's binding: one prompt x 4 attempts per collection.
   training/lfm2.5-1.2b-trl-lora-manifest-vortex-local@1:
@@ -1362,7 +1442,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
+      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
 
   training/lfm2.5-1.2b-trl-lora-manifest-local@1:
     selection_type: training-binding
@@ -1379,7 +1459,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
+      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
 
   # cont100's fp16 rank-4 workstation binding for 128-episode updates with 12 rollout
   # workers x 15 episodes (180 slots for the largest (16 + 4) x 8 = 160-episode round).
@@ -1401,7 +1481,7 @@ training:
       logits_float32: true
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
+      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
 
 inference:
   inference/lfm2.5-1.2b-vllm-manifest-ws@1:
@@ -1642,5 +1722,24 @@ evaluation:
         kind: full
     measurement:
       automationbench-manifest-luna2-eval-6k16t-t05-v1:
+        estimator: task_mean
+        missing: strict
+
+  # luna-v2's 20 held-out tasks at the earlier held-out budgets (64K context, 20 turns).
+  automationbench-manifest-luna2-heldout-64k20t-t05:
+    revision: "1"
+    kind: general
+    environments: [automationbench-manifest-luna2-eval-64k20t-t05-v1]
+    success:
+      automationbench-manifest-luna2-eval-64k20t-t05-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-manifest-luna2-eval-64k20t-t05-v1:
+        kind: full
+    measurement:
+      automationbench-manifest-luna2-eval-64k20t-t05-v1:
         estimator: task_mean
         missing: strict
