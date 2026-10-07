@@ -19,7 +19,9 @@ After this change a population is a first-class record called a **collection**. 
 - [x] (2026-10-06 05:10Z) Read path (Milestone 3c). Run lookup uses Trackio's bulk `run_configs` instead of one summary request per run, and Trackio discovery keeps each project's reader across refreshes so its caches survive (r10 run detail 21.6 s → 2.0 s). The rollout population used by run-wide filters refreshes from its newest end (`traces.newer_trace_summaries`) instead of re-reading the run every 15 s, and a finished run's population is kept for an hour. Trackio fork branch `codex/observatory-read-path` (commit `83663d4a`, `0.31.5.post14.dev35`, pushed, not released) returns manifest fields with a run's artifact links and counts trace steps in SQL.
 - [x] (2026-10-06 00:45Z) Trackio dev35 released (tag `carbonteq-v0.31.5.post14.dev35`, `carbonteq/dev` workflow `37394807327`) and deployed to the shared server (00:39Z, ai-infra `91e706d`; qualification passed). This branch pins dev35 (pin, release metadata and `uv.lock` entries only; job-kind locks wait for the routine pin update). 279 Observatory and adapter tests pass on the locked dev35 client.
 - [x] (2026-10-06 01:05Z) Observatory deployed from this branch (source `b249056f`, image `posttrain-observatory@sha256:c325a6f7…`, ai-infra `91e706d`, `scripts/deploy-observatory`); deployment and retained-run qualification passed. Live: run list 0.7 s, r10 view 5.7 s first and 1.3 s warm (31 collections, collection time per collection), Oct 2 view 2.5 s, Compare 1.4 s with the nine differing inputs listed.
-- [ ] Merge this branch into the working branch and run the full validation ladder there (the import-boundary check needs every workspace package installed).
+- [x] (2026-10-07 04:30Z) Population values hold across their updates on the collection axis (`e5b158c1`). On a run with four updates per collection (`manifest-steps-26-sampo-100-packwise-20261007-r1`) the run chart put a collection's reward at its number while its updates sat at fractions before it, so reward appeared to start late, the newest collection ran past the update lanes, and the axis began at 0.25. `EvidenceChart` now takes `heldSeries`: each such series is a step that holds a collection's value from the previous collection up to its number (the first from one collection earlier, so the axis starts at 0), repeated at every update position so the tooltip at an update shows the collection it trained on. Checked in a local Observatory against the production Trackio; 125 frontend tests pass and `npm run build` succeeds.
+- [x] (2026-10-07 04:35Z) Merged this branch into `wip/automationbench-reward-redesign-2026-10-04` (`1dad08c2`); the working branch's unused `steppedSeries` option gave way to `heldSeries`. 125 frontend tests pass and the build succeeds there.
+- [ ] Deploy `e5b158c1` and check the packwise run on the live site; full validation ladder on the merged branch (the import-boundary check needs every workspace package installed).
 
 ## Surprises & Discoveries
 
@@ -47,6 +49,10 @@ After this change a population is a first-class record called a **collection**. 
 - Decision: record algorithm settings additively in the run snapshot (new keys only, `policy_updates` only when declared) rather than replacing the hand-picked subsets with a full dump.
   Rationale: existing readers keep their keys, existing bindings keep their snapshot digests, and the values that decide how collections become updates and how SAMPO builds credit become queryable.
   Date/Author: 2026-10-06, Claude.
+
+- Decision: bring the held staircase back on the collection axis instead of plotting a population value only at its collection's number.
+  Rationale: Milestone 3b dropped the staircase when steps became collections, leaving one point per collection at the end of the updates it fed. A collection's population is sampled before its updates, so a lone point at the end reads as late and makes the update lanes look shifted. Holding the value over (n - 1, n] keeps the collection axis and its labels, ties every update to the population it trained on (also in the tooltip), and leaves one-update runs unchanged.
+  Date/Author: 2026-10-07, Claude.
 
 ## Outcomes & Retrospective
 
