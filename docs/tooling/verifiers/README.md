@@ -180,6 +180,21 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 
 ## Install / pin
 
+Posttrain 0.4.15 selects the released fork commit
+`carbonteq-ai/verifiers@74dd3fbf176d60cb0070f2408bc8a597bbfc099e`
+([`carbonteq-v0.3.2.dev102`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev102),
+release branch `codex/carbonteq-verifiers-latest`; wheel SHA-256
+`ce3bb4031f6a64566a9a552fed341cbbf7659f963d14b83643e909cff804489c`). It is
+`58df1306` (the manifest-steps selection described next) plus the repository's
+own formatting, required by the fork's push checks, with no behavior change.
+Every workspace package, job-kind profile and lock, and the veRL backend lock
+name it. The environment packages select it from
+`verifiers-environments@17e0cd0228eab18d664c2b6ff82f4aec991f4523`, released as
+[`carbonteq-2026.10.07`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.10.07)
+on that repository's `main` (automationbench-v1 0.5.0, gsm8k-v1 0.3.1, the
+other packages 0.1.1). The online-RL TRL, online-RL veRL and eval kind images
+were republished for it. Plan: `docs/plan/posttrain-0.4.15-release.md`.
+
 The AutomationBench manifest-steps catalog
 (`apps/lab/.posttrain/catalog/automationbench-manifest-steps.yaml`) and the
 workspace packages select

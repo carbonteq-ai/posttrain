@@ -182,7 +182,7 @@ def test_automationbench_grpo_environment_is_category_and_budget_driven() -> Non
     assert isinstance(environment.source, EnvironmentSource)
     assert environment.source.package == "automationbench-v1"
     assert environment.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-    assert environment.source.revision == "11f4d712806d292c6c6a752af046f4e16c4f037e"
+    assert environment.source.revision == "17e0cd0228eab18d664c2b6ff82f4aec991f4523"
     assert environment.source.subdirectory == "environments/automationbench_v1"
     assert environment.parameters["domains"] == ["simple"]
     assert environment.parameters["sampling_seed"] == 17
@@ -628,7 +628,7 @@ def test_general_capability_catalog_and_library_qualification_are_pinned() -> No
     for item in plan.environments:
         assert isinstance(item.source, EnvironmentSource)
         assert item.source.repository == "https://github.com/carbonteq-ai/verifiers-environments"
-        assert item.source.revision == "11f4d712806d292c6c6a752af046f4e16c4f037e"
+        assert item.source.revision == "17e0cd0228eab18d664c2b6ff82f4aec991f4523"
 
 
 def test_project_overlay_directory_can_publish_a_new_selection(tmp_path: Path) -> None:

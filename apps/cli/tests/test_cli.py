@@ -942,12 +942,12 @@ def test_init_grpo_template_declares_environment_and_selected_extras(
     pyproject = (project / "pyproject.toml").read_text(encoding="utf-8")
     work_package = (project / ".posttrain" / "work_packages" / "grpo.yaml").read_text(encoding="utf-8")
     assert '"posttrain[observatory,trackio,trl,verifiers]' in pyproject
-    assert "carbonteq-ai/verifiers.git@58df1306" in pyproject
-    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@11f4d712" in pyproject
+    assert "carbonteq-ai/verifiers.git@74dd3fbf" in pyproject
+    assert "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd02" in pyproject
     environment = (project / ".posttrain" / "catalog" / "environments.yaml").read_text(encoding="utf-8")
     assert "starter-gsm8k-train" in work_package
     assert "package: gsm8k-v1" in environment
-    assert "revision: 11f4d712806d292c6c6a752af046f4e16c4f037e" in environment
+    assert "revision: 17e0cd0228eab18d664c2b6ff82f4aec991f4523" in environment
     from posttrain.catalog import load_project_layout
     from posttrain.project import load_project_pack_config
 

@@ -149,47 +149,52 @@ The post-training framework uses the CarbonTeq AutomationBench fork at
 `https://github.com/carbonteq-ai/AutomationBench` so Zapier AutomationBench
 1.0.5 can share the platform's qualified Python 3.12 trainer runtime.
 
-## Distribution transition
+## Distribution and selected revision
 
-The fork builds as `carbonteq-automation-bench==1.0.5.post1`, preserving the
-`automationbench` import package and `auto-bench` command. The manually
-published
-[`carbonteq-v1.0.5.post1`](https://github.com/carbonteq-ai/AutomationBench/releases/tag/carbonteq-v1.0.5.post1)
-release is bound to commit `908db2abd4a868acc37ab0850474bff653bea25c` and
-retains the wheel SHA-256
-`bd80b4947fbdd60706d9545e79635b79931d89dfc294ed45b01df6886c1f1509` and source
+Posttrain 0.4.15 selects the fork release
+[`carbonteq-v1.0.5.post3`](https://github.com/carbonteq-ai/AutomationBench/releases/tag/carbonteq-v1.0.5.post3)
+(`carbonteq-automation-bench==1.0.5.post3`, preserving the `automationbench`
+import package and `auto-bench` command). It is bound to merge commit
+`9bfbdd703bba4a8c06c831b35f55ce442347cf12` on the fork's `main` and retains the
+wheel SHA-256
+`682f9852280ae0bd75152f35b1a833437a7ac6bf28d53b36774fc7023f8ab870` and source
 distribution SHA-256
-`04ccef85e2a83bd26777a10a08702b4fb6a47169352777ab8564fa1bbba9acf6`.
-No fork release runner is retained or used.
+`036dc954f533a0809d731a922eb670d7e7b598ea4742b535d0146e7777bb3763`. No fork
+release runner is retained or used; Posttrain's retained-asset publisher copies
+those exact files to `carbonteq/dev` and the promotion workflow to
+`carbonteq/stable`. `release/forks.toml` and
+`apps/release/src/posttrain_release/fork_ledger.py` record the tag, commit and
+hashes.
 
-The distribution is published on the internal stable index from merge revision
-`908db2abd4a868acc37ab0850474bff653bea25c`. The adapter depends on the exact
-registry version instead of repeating a transitive Git URL, so environment
-packing can resolve and hash the complete portable dependency closure.
+Over `1.0.5.post1` (Python 3.12 packaging) the release adds the Zapier tool
+fidelity fixes, the deterministic simulation runtime, QuickBooks vendor payment
+terms, Jira destinations for three tasks, persisted Jira issue state, the
+LinkedIn company round-trip, DocuSign prompts and clock, Gmail query grouping,
+sorted Mailchimp tags (`1.0.5.post2`) and Buffer scheduled-post `due_at`
+(`1.0.5.post3`). Some of these change task data where a task could not be
+solved as written; assertions and scoring are unchanged. The fork ledger
+`CARBONTEQ_FORK.md` lists each delta with its regression tests.
 
-## Selected revision
+The AutomationBench v1 environment vendors this source byte for byte (only the
+environment's own `tools/api/schemas/index.txt` data file is extra) rather than
+depending on the registry distribution. Framework catalog and evaluation
+bindings pin the environment repository at
+`17e0cd0228eab18d664c2b6ff82f4aec991f4523`, released as
+[`carbonteq-2026.10.07`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.10.07)
+(`automationbench-v1` 0.5.0), so run lineage names the code that actually
+loaded the tasks. Simulator fixes change some task outcomes: re-baseline
+evaluations on this revision. The lab's held-out suites stay on environment
+`24e1fc9` for comparability with earlier runs.
 
-The selected immutable revision is
-`908db2abd4a868acc37ab0850474bff653bea25c`, based on upstream Zapier commit
-`a321764ace3cfbe42289e6a13abef2f0f4f56fad`. The maintained delta lowers the
-declared Python floor to 3.12, regenerates the fork lockfile, and documents the
-fork. It does not change benchmark tasks, tools, simulated application state,
-routes, runner behavior, or scoring.
-
-The executable fork pin lives in the external environment repository's
-`environments/automationbench_v1/pyproject.toml` and `uv.lock`. Framework
-catalog and evaluation source bindings pin the full
-`carbonteq-ai/verifiers-environments` commit and the root `uv.lock` carries the
-resolved wheel closure, so run lineage describes the code that actually loaded
-the task population.
+The previous selection was `1.0.5.post1` at
+`908db2abd4a868acc37ab0850474bff653bea25c` through environment `11f4d712`.
 
 ### Deterministic simulation runtime (2026-10-06)
 
-Fork commit `afb92ec` (branch `codex/deterministic-sim-runtime`, not yet merged
-into the selected revision) routes every simulator clock, identifier and random
+Released in `1.0.5.post2` (fork commit `afb92ec`), this routes every simulator clock, identifier and random
 read through `automationbench.sim_runtime`. Outside a simulated call it is the
 standard library, so tasks, tools and scoring behave as before. The environment
-repository vendors it byte-identically at `51ca09c` and exposes it as the task
+repository vendors it and exposes it as the task
 option `deterministic_world`: each tool call is seeded by the world before it and
 the call, and the world clock starts at the task's `meta.current_time` (UTC
 midnight of the setup day when absent) and advances one second per call that

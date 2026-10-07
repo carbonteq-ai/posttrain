@@ -12,14 +12,19 @@ After this release a user installing Posttrain 0.4.15 from `carbonteq/stable` ge
 
 - [x] (2026-10-07 10:40Z) Working branch validated: full ladder green after fixing two unformatted files, research-note whitespace and two type errors (`a8793bf2`); 2,830 tests pass; `posttrain-release check` and `readiness` pass; committed `published.toml` matches the dependency locks.
 - [x] (2026-10-07 11:00Z) Inventory of forks and environments (see Context). GitHub CLI re-authenticated as `carbon-teq`.
-- [ ] Milestone 1: AutomationBench fork release `carbonteq-v1.0.5.post2`.
-- [ ] Milestone 2: Verifiers fork release for `58df1306`.
-- [ ] Milestone 3: `verifiers-environments` `main` carries the environment work and the vendored simulator equals the fork release.
-- [ ] Milestone 4: Posttrain pins, ledger, docs, CHANGELOG and version 0.4.15 on a `codex/release-0.4.15` branch; local ladder and readiness green.
+- [x] (2026-10-07 13:30Z) Milestone 1: AutomationBench `carbonteq-v1.0.5.post2` (merge `106d7924`, PRs #3/#4), then `carbonteq-v1.0.5.post3` (merge `9bfbdd70`, PRs #5/#6) carrying the Buffer `due_at` fix that existed only in the environment's vendored copy. Wheel `682f9852…`, sdist `036dc954…`.
+- [x] (2026-10-07 14:00Z) Milestone 2: Verifiers `carbonteq-v0.3.2.dev102` at `74dd3fbf` (`58df1306` plus repository formatting, required by the fork's push hooks); release branch `codex/carbonteq-verifiers-latest` fast-forwarded; ledger records the release.
+- [x] (2026-10-07 17:20Z) Milestone 3: environments PR #3 (vendored simulator equals post3, Verifiers dev102 in all six packages; automationbench_v1 4218 tests pass) and PR #4 (package versions); released as `carbonteq-2026.10.07` at `17e0cd02` with per-package tags.
+- [x] (2026-10-07 17:40Z) Milestone 4: Posttrain on `codex/release-0.4.15`: Verifiers `74dd3fbf` in every pin, lock and job-kind profile (uv 0.12.3, vLLM line kept); veRL lock digests; catalog lock digest and lab catalogs; AutomationBench post3 in `release/forks.toml` and the ledger code; environments `17e0cd02` in constraints, base catalog, eval programs, CLI starter, CI and tests; three kind images republished locally (`published.toml`); both consumer pages; CHANGELOG; version 0.4.15. Ladder green (2,830 tests, pyright 0), `check` and `readiness` pass.
 - [ ] Milestone 5: Release PR, CI, retained-asset publication of the fork to `carbonteq/dev`, Prepare candidate, qualification.
 - [ ] Milestone 6: Merge, promote forks to stable, Publish release, tag `v0.4.15`, after-release checks.
 
 ## Surprises & Discoveries
+
+- Observation: the environment's vendored simulator had a Buffer `due_at` fix that the fork never had, so post2 could not be vendored byte for byte; post3 moved the fix into the fork.
+  Evidence: `diff -r` of the post2 tag against `environments/automationbench_v1/src/automationbench` showed only `tools/zapier/buffer/posts.py` (and the environment-only `tools/api/schemas/index.txt`).
+- Observation: `58df1306` failed the Verifiers fork's own pre-push format and lint hooks; the release commit `74dd3fbf` adds formatting only. The hooks also need uv 0.12.3 on `PATH` and `UV_SYSTEM_CERTS=1`.
+- Observation: GitHub rejected all object writes for the organization for about ten minutes (git push and the blob API returned HTTP 500 while ref creation worked); retrying succeeded.
 
 - Observation: the release constraints already conflict. `release/github-constraints.txt` selects Verifiers `58df1306` but environment packages at `11f4d712`, whose `automationbench_v1` and siblings require Verifiers `e6a3d9bb`.
   Evidence: `git show 11f4d712:environments/automationbench_v1/pyproject.toml` lists `verifiers @ …@e6a3d9bb…`. Moving the environment pin is therefore required, not optional.
