@@ -22,6 +22,7 @@ class AdmissionSettlement(Protocol):
         admission_key: str,
         provider_id: str | None,
         note: str,
+        from_state: str = "terminal_pending_evidence",
     ) -> bool: ...
 
 
@@ -53,13 +54,21 @@ class AdmissionSettlePurgeExecutor:
             raise ContractError("admission settle action has an invalid target")
         return run_id, admission_key, provider_id, purge_id
 
+    @staticmethod
+    def _from_state(action: PurgeAction) -> str:
+        state = (action.precondition or {}).get("state", "terminal_pending_evidence")
+        if state not in {"terminal_pending_evidence", "submitted"}:
+            raise ContractError("admission settle action has an invalid precondition state")
+        return str(state)
+
     def revalidate(self, action: PurgeAction) -> None:
         run_id, admission_key, provider_id, _note = self._target(action)
+        from_state = self._from_state(action)
         entry = self._admission.get(run_id)
         if entry.state == "completed":
             return
-        if entry.state != "terminal_pending_evidence":
-            raise ContractError(f"admission run {run_id!r} is {entry.state!r}, not terminal_pending_evidence")
+        if entry.state != from_state:
+            raise ContractError(f"admission run {run_id!r} is {entry.state!r}, not {from_state}")
         if entry.admission_key != admission_key or entry.plan.native_plan_id != provider_id:
             raise ContractError(f"admission run {run_id!r} changed after the purge preview")
 
@@ -68,7 +77,13 @@ class AdmissionSettlePurgeExecutor:
         entry = self._admission.get(run_id)
         if entry.state == "completed":
             return
-        self._admission.settle_orphaned(run_id, admission_key=admission_key, provider_id=provider_id, note=note)
+        self._admission.settle_orphaned(
+            run_id,
+            admission_key=admission_key,
+            provider_id=provider_id,
+            note=note,
+            from_state=self._from_state(action),
+        )
 
 
 __all__ = ["SETTLE_ADMISSION_KIND", "AdmissionSettlePurgeExecutor"]

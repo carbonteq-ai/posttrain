@@ -96,22 +96,31 @@ def candidate_catalog(
         provider_terminal_without_tracking = bool(cleaned is not None and cleanup_evidence_state == "provider-terminal")
         if cleaned is not None:
             state = cleaned.record.state
+        snapshot = store.run_root(submission.run_id) / "reconciliation.json"
+        snapshot_payload: dict[str, Any] | None = None
+        if snapshot.is_file():
+            try:
+                payload = json.loads(snapshot.read_text(encoding="utf-8"))
+                snapshot_payload = payload if isinstance(payload, dict) else None
+            except (OSError, json.JSONDecodeError):
+                snapshot_payload = None
+            if snapshot_payload is not None:
+                value = snapshot_payload.get("tracking_provider_run_id")
+                tracking_provider_run_id = value if isinstance(value, str) and value.strip() else None
+        if tracking_provider_run_id is not None:
+            # A later reconciliation found the exact tracking run, so cleanup's
+            # "no tracking run" record is stale: that run must be purged too.
+            provider_terminal_without_tracking = False
         if provider_terminal_without_tracking:
             # Cleanup already performed the guarded remote lookup and retained
             # the fact that no tracking run exists. Treat that plane as
             # completed so purge does not turn the source id into a fictitious
             # provider run id.
             reconciled = True
-        snapshot = store.run_root(submission.run_id) / "reconciliation.json"
-        if snapshot.is_file():
-            try:
-                payload = json.loads(snapshot.read_text(encoding="utf-8"))
-                if isinstance(payload, dict):
-                    reconciled = reconciled or _reconciliation_allows_purge(payload)
-                    value = payload.get("tracking_provider_run_id")
-                    tracking_provider_run_id = value if isinstance(value, str) else None
-            except (OSError, json.JSONDecodeError):
-                reconciled = False
+        if snapshot_payload is not None:
+            reconciled = reconciled or _reconciliation_allows_purge(snapshot_payload, cleaned=cleaned is not None)
+        elif snapshot.is_file():
+            reconciled = False
         if refresh_status_for is None or submission.run_id in refresh_status_for:
             try:
                 state = execution_service_for_run(layout, submission.run_id).status(submission.run_id).state
@@ -210,7 +219,7 @@ def candidate_catalog(
     return candidates
 
 
-def _reconciliation_allows_purge(payload: dict[str, Any]) -> bool:
+def _reconciliation_allows_purge(payload: dict[str, Any], *, cleaned: bool = False) -> bool:
     """Prove both run authorities are terminal without erasing diagnostics.
 
     Provider cleanup can report ``cancelled`` after Trackio has already
@@ -220,6 +229,11 @@ def _reconciliation_allows_purge(payload: dict[str, Any]) -> bool:
     Trackio run is known.  Purge may therefore proceed through its independent
     ownership and lineage gates.  Successful, lost, partial, or unidentified
     disagreements remain fail-closed.
+
+    A terminal provider run whose exact Trackio run was never finalized (still
+    ``running``) is also purgeable once cleanup has removed the provider
+    workspace: no workload can still write to that run, and purge deletes it
+    rather than relying on its status.
     """
 
     if payload.get("state") == "consistent":
@@ -227,13 +241,16 @@ def _reconciliation_allows_purge(payload: dict[str, Any]) -> bool:
     provider_record = payload.get("provider_record")
     provider_state = provider_record.get("state") if isinstance(provider_record, dict) else None
     tracking_provider_run_id = payload.get("tracking_provider_run_id")
-    return (
-        payload.get("state") == "inconsistent"
-        and provider_state in {"failed", "cancelled"}
-        and payload.get("tracking_status") in {"failed", "cancelled"}
+    if not (
+        provider_state in {"failed", "cancelled"}
         and isinstance(tracking_provider_run_id, str)
         and bool(tracking_provider_run_id.strip())
-    )
+    ):
+        return False
+    tracking_status = payload.get("tracking_status")
+    if payload.get("state") == "inconsistent" and tracking_status in {"failed", "cancelled"}:
+        return True
+    return cleaned and payload.get("state") == "pending" and tracking_status == "running"
 
 
 def _completed_purge_planes(
@@ -278,6 +295,16 @@ def _populate_trackio_lineage(
     *,
     discover_run_ids: tuple[str, ...] | None = None,
 ) -> None:
+    for run_id, candidate in tuple(candidates.items()):
+        if candidate.evidence_provider == "trackio" and "tracking" in candidate.completed_planes:
+            # No tracking run remains, so it can have no lineage consumers.
+            candidates[run_id] = _replace_lineage(
+                candidate,
+                consumers=(),
+                external_consumers=(),
+                lineage_complete=True,
+                lineage_blockers=(),
+            )
     trackio_candidates = {
         run_id: candidate
         for run_id, candidate in candidates.items()
@@ -311,15 +338,6 @@ def _populate_trackio_lineage(
             run_id: candidate for run_id, candidate in trackio_candidates.items() if run_id in requested
         }
     for run_id, candidate in tuple(trackio_candidates.items()):
-        if "tracking" in candidate.completed_planes:
-            candidates[run_id] = _replace_lineage(
-                candidate,
-                consumers=(),
-                external_consumers=(),
-                lineage_complete=True,
-                lineage_blockers=(),
-            )
-            continue
         try:
             plan = admin.plan_run_purge(
                 project=candidate.evidence_project,
@@ -629,7 +647,9 @@ def _orphan_admission(layout: Any, local_config: Any, entry: AdmissionEntry) -> 
                 status = "absent"
             else:
                 receipts = ExecutionSubmissionStore(control_store)
-                status = "has-receipt" if receipts.run_root(entry.run_id).exists() else "no-receipt"
+                # A run directory can outlive its receipt (partial cleanup); only
+                # the submission receipt itself proves the owner controls the run.
+                status = "has-receipt" if receipts.submission_path(entry.run_id).is_file() else "no-receipt"
     except Exception:
         status = "unknown"
     provider_id = entry.plan.native_plan_id

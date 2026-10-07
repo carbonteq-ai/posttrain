@@ -293,9 +293,18 @@ def _assess_orphan(
     if admission is not None and admission.state not in _SETTLED_ADMISSION_STATES:
         label = f"machine admission entry {admission.state}"
         before = len(blockers)
-        if admission.state != "terminal_pending_evidence":
+        # A ``submitted`` entry normally becomes terminal_pending_evidence on a
+        # status refresh, which needs the submission receipt. Without that
+        # receipt it can only be settled here, and only once the provider
+        # execution it names is proven terminal or absent (checked below).
+        receiptless_submitted = admission.state == "submitted" and admission.control_store_status in {
+            "absent",
+            "no-receipt",
+        }
+        if admission.state != "terminal_pending_evidence" and not receiptless_submitted:
             blockers.append(
-                f"orphan run {run!r} has an unsettled {label}; only terminal_pending_evidence can be settled"
+                f"orphan run {run!r} has an unsettled {label}; only terminal_pending_evidence (or a submitted "
+                "entry whose receipt is gone) can be settled"
             )
         if admission.control_store_status == "has-receipt":
             blockers.append(
@@ -470,7 +479,7 @@ def build_orphan_run_purge_plan(
                 },
                 depends_on=(tracking_id,),
                 precondition={
-                    "state": "terminal_pending_evidence",
+                    "state": admission.state,
                     "control_store": admission.control_store_status,
                     "provider_state": admission.provider_state,
                 },
