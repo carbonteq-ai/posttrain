@@ -125,15 +125,25 @@ class ActiveGroupSampling:
     refill rounds without changing how the update is assembled. The first round,
     ``(num_prompts_per_step + oversample) * num_generations`` episodes, is the largest
     concurrent rollout load and must fit the rollout concurrency.
+
+    ``retain`` chooses which groups with reward spread are kept when more finish than
+    the update needs: ``first`` keeps candidate order (above); ``learning_signal``
+    keeps the groups whose shaped rewards differ most from their group mean (the mean
+    absolute deviation, which is the episode advantage magnitude under ``mean``
+    normalization), ties in candidate order. Only the resolved policy-update engine
+    implements ``learning_signal``.
     """
 
     max_candidate_batches: int = 10
     oversample: int = 0
     oversample_refill: int = 0
+    retain: Literal["first", "learning_signal"] = "first"
 
     def __post_init__(self) -> None:
         if self.max_candidate_batches < 1:
             raise ValueError("active sampling max candidate batches must be positive")
+        if self.retain not in {"first", "learning_signal"}:
+            raise ValueError("active sampling retain must be first or learning_signal")
         if self.oversample < 0 or self.oversample_refill < 0:
             raise ValueError("active sampling oversample and oversample_refill must be non-negative prompt groups")
 
@@ -313,6 +323,8 @@ class GRPOSettings:
             raise ValueError("OLMo 3 requires active group sampling")
         if self.active_sampling is not None:
             self.active_sampling.validate_reservation(self.num_prompts_per_step)
+            if self.active_sampling.retain != "first" and self.policy_updates is None:
+                raise ValueError("learning-signal group retention requires explicit policy_updates")
         if self.overlong_buffer_tokens is not None:
             if self.algorithm != "dapo":
                 raise ValueError("soft overlong punishment requires the DAPO algorithm")
@@ -366,6 +378,20 @@ class SAMPOSettings:
     beta: float = 0.0
     discount_gamma: float = 0.95
     step_advantage_weight: float = 1.0
+    # group-relative: a turn that first achieved an environment-verified goal earns the
+    # goal's weight times (1 - the share of its group's attempts that achieved the goal),
+    # and a turn that caused a harm loses its harm debit, whether or not the turn has an
+    # anchor sibling. Requires a reward projection with turn_goal_prefix and turn_harm_key.
+    # verified-sign: as group-relative with the goal term scaled by goal_credit_scale, and the
+    # turn's verified outcome decides its sign: a turn that first achieved a goal is never
+    # negative (max(episode + anchor, 0) + goal), a turn that caused a harm is never positive
+    # (min(episode + anchor + goal, 0) - harm); other turns keep episode + anchor.
+    goal_credit: Literal["none", "group-relative", "verified-sign"] = "none"
+    goal_credit_scale: float = 1.0
+    # environment-state: a turn whose exact-observation anchor has no sibling is grouped with
+    # the group's other such turns that share its environment state key (goals achieved so
+    # far, world state, reads). Requires a reward projection with turn_state_key.
+    anchor_fallback: Literal["none", "environment-state"] = "none"
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = 0.003
     clip_epsilon_high: float = 0.004
@@ -395,6 +421,10 @@ class SAMPOSettings:
         _validate_settings(self.id, self.revision)
         if self.num_prompts_per_step < 1 or self.num_generations < 2:
             raise ValueError("SAMPO requires positive prompt groups and at least two generations")
+        if not math.isfinite(self.goal_credit_scale) or self.goal_credit_scale <= 0:
+            raise ValueError("SAMPO goal_credit_scale must be finite and positive")
+        if self.goal_credit == "none" and self.goal_credit_scale != 1.0:
+            raise ValueError("SAMPO goal_credit_scale requires goal credit")
         expected_batch = self.num_prompts_per_step * self.num_generations
         effective_batch = self.loop.per_device_batch_size * self.loop.gradient_accumulation_steps
         if self.policy_updates is not None:
@@ -428,6 +458,8 @@ class SAMPOSettings:
         if self.kl_reference not in {"base", "start"}:
             raise ValueError("KL reference must be 'base' or 'start'")
         self.active_sampling.validate_reservation(self.num_prompts_per_step)
+        if self.active_sampling.retain != "first" and self.policy_updates is None:
+            raise ValueError("learning-signal group retention requires explicit policy_updates")
         bounds = (self.importance_sampling_clip_min, self.importance_sampling_clip_max)
         if any(value is not None and (not math.isfinite(value) or value <= 0) for value in bounds):
             raise ValueError("SAMPO importance-sampling bounds must be finite and positive")

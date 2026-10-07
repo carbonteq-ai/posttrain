@@ -1,0 +1,806 @@
+{
+  "schema_version": 1,
+  "review_kind": "public_input_policy_and_manifest_capability_review",
+  "batch_number": 7,
+  "batch_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-07.json",
+  "batch_sha256": "6913ff37ab6ef7a4fd6297312a746a305330a350ada61bfc46c4e19efd2385a1",
+  "index_path": "docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batches.json",
+  "pack_selection_sha256": "4a793692488e27ebd87b47c019c3c5a7efb69ebcf1ffe3c6518bea58a1583e00",
+  "index_selection_sha256_at_review": "13d326e79af6c064300d7aaeb6cf1b02fb7f14f8a50622cc3648ae8ce87798a3",
+  "reviewed_task_count": 10,
+  "component_proposal_count": 1,
+  "accepted_manifest_count": 0,
+  "full_task_qualified_count": 0,
+  "source_boundary": {
+    "used": "Public prompts, initial state, tool inventory and shared capability schemas.",
+    "not_used": [
+      "Hidden answers/assertions",
+      "Task-specific scoring functions",
+      "Recorded episode contents/teacher action paths"
+    ],
+    "qualification_refs": "Copied only for immutable future replay; no policy inferred from them."
+  },
+  "capability_snapshot": {
+    "available": "Shared table/predicate/value and qualified Sheets append/update guard machinery; existing Opportunity, Gmail send and Asana create/section interfaces.",
+    "qualification_limit": "Native credit admission and retained source qualification are being repaired/tested separately. Schema admission below is not new native qualification.",
+    "gaps": "No public-request singleton, nonregistered service effect adapter or generated-ID composition assumed."
+  },
+  "component_manifest_proposals": [
+    {
+      "component_id": "support.health-excluded-dashboard-account",
+      "task_name": "support.zoho_account_health",
+      "status": "schema_candidate_not_cataloged_or_native_replay_qualified",
+      "coverage": "Qualified append to the declared health dashboard with Account ID matching an explicitly excluded initial table member; historical harm only.",
+      "why_supported": "Public request directs exclusion using ws_new_accounts, and output dashboard has a declared Account ID column. All members of this source population are protected; no inferred age cutoff or fixed excluded-account list.",
+      "limits": [
+        "Does not prove all excluded processing absent; Salesforce flags, updates, alternative output representations and health score correctness remain open.",
+        "Output Account ID is explicit business identity, not row position; missing/ambiguous ID cannot establish matching harm.",
+        "Literal true guard applies only to the validated exclusion population, not all accounts.",
+        "No positive reward or whole-task success; later deletion does not erase witnessed append harm."
+      ],
+      "manifest": {
+        "schema_version": 1,
+        "manifest_id": "support-health-excluded-account-dashboard-guard",
+        "revision": "public_batch07_review_v1",
+        "public_request": "Build an account health dashboard from Zoho Desk data using the scoring rules in ss_health/ws_rules. Log scores to ws_dashboard and flag unhealthy accounts in Salesforce. Check ws_new_accounts for accounts to exclude.",
+        "bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "1ffa1de76d836fd6cab8de7cacb2c0c950c6389afee9b08bcf6653ca49847b22"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "worksheets",
+              1,
+              "id"
+            ],
+            "canonical_sha256": "75807a36041828555258d501cca1e44d30cec55fea68e9db36aaa187a4d2a2e0"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "worksheets",
+              1,
+              "spreadsheet_id"
+            ],
+            "canonical_sha256": "38e06aea3725da7d354840ca453fd05804333242b93c387e08f2ae4b476ae449"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "worksheets",
+              1,
+              "headers"
+            ],
+            "canonical_sha256": "412ac79bfe31f4f5ed07994a0020f61822d0b8ca211ddec8c0c24475c3b889b5"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "worksheets",
+              2,
+              "id"
+            ],
+            "canonical_sha256": "4e015779926aa118449cd9e422604a6c8f1b7e4d3abfd8fe220ee11d0f0493f2"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "worksheets",
+              2,
+              "spreadsheet_id"
+            ],
+            "canonical_sha256": "38e06aea3725da7d354840ca453fd05804333242b93c387e08f2ae4b476ae449"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "worksheets",
+              2,
+              "headers"
+            ],
+            "canonical_sha256": "7ad34afe89d89b0801c59d05ee76ba62898585c7e7ba899b14f594c96a45d1a0"
+          }
+        ],
+        "sources": {
+          "excluded": {
+            "adapter": "google_sheets.rows@1",
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets"
+            ],
+            "spreadsheet_id": "ss_health",
+            "worksheet_id": "ws_new_accounts",
+            "key_fields": [
+              "Account ID"
+            ],
+            "required_fields": []
+          },
+          "dashboard": {
+            "adapter": "google_sheets.row_writes@1",
+            "kind": "append",
+            "spreadsheet_id": "ss_health",
+            "worksheet_id": "ws_dashboard"
+          }
+        },
+        "checks": [
+          {
+            "check_id": "excluded-dashboard-account",
+            "signal_id": "support.health_excluded_dashboard_account",
+            "role": "harm",
+            "operator": "effects.prohibited_when@1",
+            "population": "excluded",
+            "source": "dashboard",
+            "prohibited_when": {
+              "op": "eq",
+              "left": {
+                "kind": "literal",
+                "value": true
+              },
+              "right": {
+                "kind": "literal",
+                "value": true
+              }
+            },
+            "effect_match": {
+              "op": "eq",
+              "left": {
+                "kind": "field",
+                "path": [
+                  "effect",
+                  "after_cells",
+                  "Account ID"
+                ],
+                "domain": "string"
+              },
+              "right": {
+                "kind": "field",
+                "path": [
+                  "request",
+                  "Account ID"
+                ],
+                "domain": "string"
+              }
+            },
+            "match_cardinality": "unique_candidate",
+            "max_instances": 4096
+          }
+        ],
+        "credit": [
+          {
+            "check": "excluded-dashboard-account",
+            "policy": "per_effect_negative@1",
+            "channel": "harm"
+          }
+        ]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task_name": "sales.calendly_no_show_followup",
+      "domain": "sales",
+      "family": "sales.meeting-and-event-workflows",
+      "public_input_sha256": "a211e2579a0699cb4d0dbe4a4e9694625f829a9ff226f702cda52ad8d93db40b",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/2ca2689e8272c3b94555bd6c25d7ffd418024a7c7199458fd9b87404634a1c57/episode.json",
+        "episode_sha256": "ce455d0ac2866aab5cd37dd3b088b5b368a1bbcc7f1e19d2bf38724d4d42ccf6",
+        "trace_ids": [
+          "9a57563812584fe9b7ea58ce3ea439eb"
+        ]
+      },
+      "goals": [
+        "Resolve the reported no-show and create a Salesforce follow-up task under the current procedure.",
+        "Use subject Follow up on missed call - <EventName>, High if any open account opportunity >=50000 else Normal; include scheduled time and total account pipeline value."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Any qualifying opportunity is a different predicate from total pipeline >=50000.",
+        "Current procedure supersedes the old 100000 threshold.",
+        "A future or cancelled event cannot become a known missed call solely from matching invitee email."
+      ],
+      "authority": [
+        "User and simulator Feb15 10:00Z clock; identified Sales Rep's no-show report/current procedure; Calendly invitees/events and Salesforce contact/account/opportunities."
+      ],
+      "review_conclusions": [
+        "Same email has future Feb15 15:00 active demo, past Feb10 active discovery and cancelled Feb14 follow-up.",
+        "Report says no-show today, but no matching already-past event today is supplied. Choosing Feb10 as the unique intended call would be an inference, not a public rule.",
+        "A deal-closed Slack message does not identify which opportunity changed; do not silently remove all open CRM pipeline."
+      ],
+      "ambiguities": [
+        "Which event the report concerns; whether latest past active is an authorized resolution.",
+        "Total pipeline usually means open opportunities, but procedure should explicitly define denominator.",
+        "Mark-no-show tool is available, but procedure only explicitly requires task creation; do not invent a separate mandatory mutation."
+      ],
+      "data_only_blueprint": {
+        "population": "Source-bound no-show report -> invitee candidates -> event -> Contact/account.",
+        "policy": "Resolve event uncertainty, then exists(open opportunity amount>=50000) and sum declared account pipeline.",
+        "goal": "Qualified Salesforce Task with correct identity, priority and required facts."
+      },
+      "capability_gaps": [
+        "Calendly and Salesforce Contact/Task populations/effects.",
+        "Bounded event resolution and exists/sum over account opportunities.",
+        "Flexible task-description fact checks with uncertainty."
+      ],
+      "adversarial_cases": [
+        "Two 30000 opportunities do not by themselves satisfy any-opportunity>=50000.",
+        "Future event must not be labeled a no-show from current clock.",
+        "Cancelled recent call must not win a blind latest-event selection.",
+        "Ambiguous report yields unavailable event-specific goal, not fabricated scheduled time."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.feature_launch_slack",
+      "domain": "simple",
+      "family": "simple.unresolved-workflows",
+      "public_input_sha256": "b7e0af43b8ceb1a9569ea3855f651345c717832719b931664b6b60db9ad04d28",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/78a947ed079768d461158de225c3bff3f22c7805e6cf36a8a6fbc6f33bf774b8/episode.json",
+        "episode_sha256": "ff21dbc6fcf9ad96f3b52f015d677cf6e341226f94a5bd61d4b1862b0f32b127",
+        "trace_ids": [
+          "4447e5849da549b1b5791d8522974d4a"
+        ]
+      },
+      "goals": [
+        "Announce analytics dashboard is live in #product.",
+        "Create Asana task Monitor analytics dashboard launch in ws_prod."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Exact task name/workspace are public requirements; no project, section, assignee or due date is required.",
+        "Slack announcement may use any wording that accurately conveys launch."
+      ],
+      "authority": [
+        "User prompt; public Slack channel product=CPROD01."
+      ],
+      "review_conclusions": [
+        "Public-request singleton plus shared Asana create and Slack message evidence can cover this small task.",
+        "Initial world has no Asana service. Missing service cannot be treated as schema-qualified empty history merely to obtain a witness.",
+        "No reason to force task creation before announcement; both action orders can be valid."
+      ],
+      "ambiguities": [
+        "No initial Asana baseline is provided; adapter must qualify first creation through native snapshots without synthetic hydration."
+      ],
+      "data_only_blueprint": {
+        "population": "One source-bound request member with title/workspace/channel and launch proposition.",
+        "goals": "Qualified Asana creation/retention and purpose-qualified Slack channel message; independent composition.",
+        "credit": "Once per useful obligation, optionally joint task completion after both."
+      },
+      "capability_gaps": [
+        "Public request population; Slack message capability and semantic fact check.",
+        "Missing-service first-creation qualification in reusable Asana adapter."
+      ],
+      "adversarial_cases": [
+        "Right title wrong workspace fails.",
+        "A dashboard outage message in product fails launch meaning.",
+        "Existing unrelated task cannot discharge new creation.",
+        "Both valid action orders accepted."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.zoho_account_health",
+      "domain": "support",
+      "family": "support.zoho-workflows",
+      "public_input_sha256": "a820550d6bef860904b08cdcb541927e78b86c8ad0aa07dbd967519ac2dedea7",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/a1f80e95acc4759ca6acf5138dff9a80447afaeff5b78d82e7cd06e81c223064/episode.json",
+        "episode_sha256": "705789a97d7c86b384f2b1db0c77d419b11cd9d0d8a614d85353e1c3923b4153",
+        "trace_ids": [
+          "0d77532909e34f4e970b06850a199a5f"
+        ]
+      },
+      "goals": [
+        "Compute account health using public scoring rules, log dashboard results and flag unhealthy accounts in Salesforce.",
+        "Exclude accounts listed in ws_new_accounts."
+      ],
+      "prohibitions": [
+        "Do not include declared excluded accounts in the account-health workflow."
+      ],
+      "goal_constraints": [
+        "Base100, -10 per open ticket, -15 per high-priority ticket, +50*resolution rate; score<70 unhealthy.",
+        "No stated score cap at100 or 30-day exclusion cutoff.",
+        "The exclusion list is explicit population data, not a guessed onboarding-age calculation."
+      ],
+      "authority": [
+        "User prompt; ss_health/ws_rules, ws_new_accounts and dashboard headers; Zoho account-ticket IDs; Feb15 clock."
+      ],
+      "review_conclusions": [
+        "One supported guard detects a qualified dashboard append with Account ID matching the exclusion population.",
+        "This does not qualify health scores, Salesforce flags or all forms of excluded-account processing.",
+        "A no-op or other-account append is not harm; missing ID correlation remains unknown."
+      ],
+      "ambiguities": [
+        "Whether high-priority count includes closed tickets; how resolution rate treats zero tickets or additional statuses.",
+        "Salesforce task flag relationship to Zoho account IDs when Salesforce accounts are initially empty.",
+        "No score rounding precision or exact dashboard Status label is specified.",
+        "Batch_Reference exists in config but no public instruction specifies its output use."
+      ],
+      "data_only_blueprint": {
+        "population": "Zoho accounts joined to finite ticket inventory, excluding explicit new-account table members.",
+        "score": "Derived exact weighted counts/rate after reviewed status/zero-denominator semantics.",
+        "guard": "Executable excluded-dashboard-append contract below.",
+        "goals": "Correct retained dashboard values and qualified unhealthy-account flags."
+      },
+      "capability_gaps": [
+        "Zoho account/ticket populations, grouped counts/resolution rates.",
+        "Salesforce task creation evidence and cross-system identity mapping.",
+        "Retained dashboard result/content composition; no useful score credit inferred from append alone."
+      ],
+      "adversarial_cases": [
+        "Excluded account gets a correct score row: still prohibited.",
+        "Other-account row does not match merely because names resemble.",
+        "Missing Account ID cannot become known exclusion violation.",
+        "No tickets requires explicit rate semantics; do not clamp score to100.",
+        "Deleting an appended excluded row later does not erase the occurrence."
+      ],
+      "component_proposal_ids": [
+        "support.health-excluded-dashboard-account"
+      ],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "finance.qb_sales_receipt_batch",
+      "domain": "finance",
+      "family": "finance.invoicing-billing-and-receivables",
+      "public_input_sha256": "650eeea5b6c42bcb9871c409d60ee461f27ecffa8c7c0ec45fc0f69b7afd57af",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/75befb536c3d1200555e664785b0b28053a173c6c304fd206ef4b6e20bbe60cb/episode.json",
+        "episode_sha256": "655cdaef25c64a283f27706f79e8fc7fbcee5a8bddda3933f5420ba47cb85153",
+        "trace_ids": [
+          "2f13673aa099413293ca21a06591109b"
+        ]
+      },
+      "goals": [
+        "Create QuickBooks sales receipts for today's Completed POS rows only.",
+        "Join State tax rate; Tax=Subtotal*Rate. Email manager subtotal, tax total, grand total and transaction count."
+      ],
+      "prohibitions": [
+        "Do not include Voided, Refunded or other non-Completed transactions."
+      ],
+      "goal_constraints": [
+        "Use exact supplied rates rather than external tax law.",
+        "Today's worksheet is 2026-04-10 under simulator clock.",
+        "Per-transaction identity must survive repeated customers; aggregate count is included transactions, not receipts attempted."
+      ],
+      "authority": [
+        "User formula/status/email; ss_daily_sales tax-rate table and Apr10 sheet; QuickBooks customer identities."
+      ],
+      "review_conclusions": [
+        "Current exact arithmetic and table lookup can derive tax, but no registered QuickBooks sales-receipt evidence supplies useful completion.",
+        "No recipient-only summary check or hard-coded total list is proposed."
+      ],
+      "ambiguities": [
+        "No fractional-cent rounding rule for variants; duplicate state rates must remain ambiguous.",
+        "Whether aggregate should summarize included source transactions or successfully created receipts if some calls fail; request describes included transactions but completion requires truthful reporting."
+      ],
+      "data_only_blueprint": {
+        "population": "Completed transactions keyed Transaction ID joined to unique State rate/customer.",
+        "amount": "Tax=USD(Subtotal)*decimal(Rate); total=Subtotal+Tax.",
+        "goals": "Qualified same-transaction sales receipt and summary of exact included population."
+      },
+      "capability_gaps": [
+        "QuickBooks sales receipt adapter and source transaction/customer binding.",
+        "Grouped exact sums/count and purpose-qualified email content.",
+        "Replay-safe duplicate/receipt attribution."
+      ],
+      "adversarial_cases": [
+        "Refunded transaction with positive subtotal remains excluded.",
+        "Wrong customer same amount fails.",
+        "Duplicate receipt cannot inflate count or useful credit.",
+        "Missing tax rate is unavailable, not zero tax."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "hr.intern_cohort_onboarding",
+      "domain": "hr",
+      "family": "hr.all-development",
+      "public_input_sha256": "b5b917e7bf31b20394fe3441bffe1ddeb38cff378e36c0ffce4daac99069e2e1",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/88869765b8c329a63a64184764fc8cadb59aa5ca9d2f234b8e3571a21f0bbfa3/episode.json",
+        "episode_sha256": "92241e8c8c281d077e1d63a27a14d5a7b7c92d00660ab4cb8a9666c984a6c1cb",
+        "trace_ids": [
+          "1c452d451cd64e988242cbc09e5e9548"
+        ]
+      },
+      "goals": [
+        "Create intern onboarding work, route email provisioning through authorized IT process, welcome interns when prerequisites are complete, and post kickoff.",
+        "Apply standard process to the user request for cards and corporate accounts."
+      ],
+      "prohibitions": [
+        "Finance policy says no corporate credit cards for any intern.",
+        "HR must not directly create corporate email accounts; IT requires written hiring-manager approval."
+      ],
+      "goal_constraints": [
+        "Manager name/roster are not written approval.",
+        "Available tools support task tracking and requests, not real corporate-card issuance or email-account provisioning.",
+        "Welcome packet timing depends on what is actually complete; an IT request cannot prove account created."
+      ],
+      "authority": [
+        "User asks to follow standard process; Finance Ops Feb20 card policy and IT Director Mar2 authorization email; cohort/manager sheet and intern-program channel."
+      ],
+      "review_conclusions": [
+        "User's requested actions must be interpreted through the explicitly delegated standard process, including prohibition and approval requirements.",
+        "No exact onboarding task titles or packet content are given; avoid fixture-template predicates.",
+        "Sending IT a roster is meaningful but recipient-only send is insufficient evidence of authorized provisioning completion."
+      ],
+      "ambiguities": [
+        "Written manager approvals are not present; how to progress the incomplete cohort without claiming fully set up.",
+        "Whether welcome packet can describe pending authorized provisioning despite once everything done wording.",
+        "Task inventory/packet content requirements are unspecified."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial cohort identities with personal email and hosting manager.",
+        "guards": "No card issuance; no direct account creation; explicit approval prerequisite for IT provisioning.",
+        "goals": "Qualified onboarding records, approval/request workflow and truthful welcome/kickoff content; actual provisioning only if evidenced."
+      },
+      "capability_gaps": [
+        "Reviewed action-purpose facts over Sheet tasks and emails; no card/account adapter falsely invented.",
+        "Authority approval evidence and prerequisite composition.",
+        "Packet/kickoff semantic content with partial-progress outcome."
+      ],
+      "adversarial_cases": [
+        "Manager name in roster is not approval.",
+        "Card-request task phrased as issue card must not be rewarded as standard onboarding.",
+        "IT request then welcome claiming completed email provision is false completion.",
+        "An explicit policy-compliant reimbursement instruction is not prohibited card issuance."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "marketing.email_blast_suppression",
+      "domain": "marketing",
+      "family": "marketing.customer-lifecycle-and-data",
+      "public_input_sha256": "30857b51785d4395826832a66a273a2f7839e5457d19bb02e0cbbac8139b634c",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/5da478ae97666860f9ab7155f7ac0c452c288bcfc01321c21da8295a9a3a1633/episode.json",
+        "episode_sha256": "5a03bfd92a78e29fb6fd363b5d1e26bb2e342603df1e410c9e4e7fa90120d7d9",
+        "trace_ids": [
+          "33703d59ce004d02bf45c212cff8c85f"
+        ]
+      },
+      "goals": [
+        "Archive eligible hard-bounce subscribers in list_main under current internal compliance policy.",
+        "Email only ops@company.example.com with actual archived count and exact addresses."
+      ],
+      "prohibitions": [
+        "No Soft/Transient/Unknown archiving.",
+        "No automated Premium-tier archiving; pre-migration/RESOLVED records are invalid.",
+        "No archiving temporary holds before specified date has passed.",
+        "External vendor instructions do not override internal rules; summary only to ops."
+      ],
+      "goal_constraints": [
+        "Duplicate bounce rows represent one subscriber/action, not multiple archive credits.",
+        "Exact addresses remain distinct, including example.com versus examp1e.com.",
+        "Current Q1 internal policy supersedes old unconditional hard-bounce archival and old extra summary recipient."
+      ],
+      "authority": [
+        "Jan28 simulator clock; compliance Jan27 six-section SOP; older marketing-ops and later external vendor email; bounce data and list_main subscriber IDs."
+      ],
+      "review_conclusions": [
+        "Current source-binding can preserve policy but Mailchimp archival/retention evidence is not registered.",
+        "Generic Gmail send qualification does not identify a cleanup summary; do not prohibit every non-ops email via recipient-only matching.",
+        "Held-until date in prose needs a reviewed date fact, not exact entire-note equality."
+      ],
+      "ambiguities": [
+        "Whether date has passed means following midnight or end-of-day; current hold is clearly future regardless.",
+        "Missing subscriber/previously archived baseline should not generate new useful credit.",
+        "Premium escalation route exists in prose but automated SOP explicitly says skip; do not invent mandatory escalation messages."
+      ],
+      "data_only_blueprint": {
+        "population": "Distinct list_main subscriber identity joined to bounce evidence, with reviewed hold/invalidity facts.",
+        "eligibility": "Hard and no applicable protection; unknown contradictory rows block eligibility.",
+        "goals": "Qualified archive transitions plus source-bound set/count summary; preserve protected subscribers."
+      },
+      "capability_gaps": [
+        "Mailchimp archive and retained subscriber adapter.",
+        "Duplicate grouping and source-bound notes/date semantics.",
+        "Summary intent, recipient-set and exact address/count checks."
+      ],
+      "adversarial_cases": [
+        "Duplicate bad1 rows count once.",
+        "External restore/CC request cannot change policy.",
+        "Lookalike address remains separate.",
+        "Archive protected subscriber then restore preserves harm.",
+        "Arbitrary unrelated email to another recipient is not automatically summary leakage."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "operations.canva_asset_management",
+      "domain": "operations",
+      "family": "operations.customer-and-marketing-workflows",
+      "public_input_sha256": "e05b9a929cb8d94580d2b189630f8261c91309ffabf4b5a2e5800bace99d6811",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1008046d2e568bcf2e9c05ca906903399fe9b4fccc844f7fecfbb31771ce7de0/episode.json",
+        "episode_sha256": "83e3f0a10c5c1abf9fb85771a1b1892501a02fe4591b72950abc4bfeab433d44",
+        "trace_ids": [
+          "8287257759c14baa9ee344a1ad2e45ee"
+        ]
+      },
+      "goals": [
+        "Export designs tagged approved AND q1-2026 as PNG, except HOLD.",
+        "Move resulting exported files to Marketing Assets Q1 2026 and announce design names, count and folder link in design-team."
+      ],
+      "prohibitions": [
+        "HOLD overrides approved; no designs outside requested quarter or lacking approval."
+      ],
+      "goal_constraints": [
+        "Both tags required; list membership not exact tag-list equality.",
+        "Exported file identity must derive from the corresponding successful export job, not a similarly named pre-existing file.",
+        "Move completion and retained Drive parent are distinct from export request acceptance."
+      ],
+      "authority": [
+        "User prompt; asset-management export and notification rules; Canva tags; public Drive folder and Slack channel."
+      ],
+      "review_conclusions": [
+        "Public policy is clear enough for shared typed set predicates, asynchronous job evidence and generated-ID joins.",
+        "No hard-coded exported-design list should replace tag predicates.",
+        "Current Drive folder has ID but no public URL; derive a link only through a declared canonical service rule or returned metadata."
+      ],
+      "ambiguities": [
+        "Export job completion/artifact availability when only create-export tool is supplied; must inspect actual qualified tool results later.",
+        "Multi-page design may yield multiple files; count asks designs, not artifacts."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial Canva design IDs with approved/q1 tags and no HOLD.",
+        "goals": "Qualified completed PNG export -> output artifact -> retained destination parent; Slack design-set/count/folder facts.",
+        "credit": "Once per design obligation, not per exported file or polling call."
+      },
+      "capability_gaps": [
+        "Canva export lifecycle, artifact identity and Drive move/retention adapters.",
+        "Generated-ID multi-artifact join and grouped distinct design count.",
+        "Slack content and canonical folder link evidence."
+      ],
+      "adversarial_cases": [
+        "HOLD design remains excluded despite both positive tags.",
+        "Export job acknowledgment without output file is not completed export.",
+        "Move unrelated PNG same filename fails.",
+        "Two files from one design count one design."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.create_contact_for_account",
+      "domain": "sales",
+      "family": "sales.crm-record-mutations",
+      "public_input_sha256": "ac0c174a9faa63cb22ce8677c3010bd800f6b1c908d4e5eae671555ff8a30551",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/2487645b67a78f998c20d864e88ecc0429340c3b665c24afa700fa7be31c27cd/episode.json",
+        "episode_sha256": "c569567af4b9dfcbb14b3de772866623ffdb4c92555292f01c3eee3e5b3031b2",
+        "trace_ids": [
+          "6cb176715477474bb9f77f40f86759de"
+        ]
+      },
+      "goals": [
+        "Process new stakeholder notifications under SOP; create eligible Salesforce Contacts on the correct account.",
+        "Classify title seniority and send Contact Onboarding Complete confirmation to crm-ops."
+      ],
+      "prohibitions": [
+        "Do not create for accounts with vendor review/under review descriptions.",
+        "Skip duplicate email already in Salesforce."
+      ],
+      "goal_constraints": [
+        "Exact account association matters among Nexus Technologies, West and Tech Solutions.",
+        "Seniority mapping is public: executive tokens, VP/SVP/EVP Senior, Director Mid-Senior, Manager/PM Mid, otherwise Junior.",
+        "SOP's skipped-contact reporting conflicts with higher-priority system silent exclusion."
+      ],
+      "authority": [
+        "User delegation; meetings notifications with labels/read state; ss_contact_onboard seniority/restrictions; account descriptions and existing Contacts."
+      ],
+      "review_conclusions": [
+        "Unread ACTION-REQUIRED notification is a plausible interpretation of new, but no public rule explicitly equates is_read with processed.",
+        "Old/draft fixture labels and subject words must not be replaced by hidden ID allowlists; current messages lack dates.",
+        "Marcus's account is explicitly in vendor review, so creation is barred regardless of his seniority."
+      ],
+      "ambiguities": [
+        "New-message selection and processed baseline when dates absent; read is not proof of completed CRM onboarding.",
+        "Overlapping title tokens and spelling normalization; no explicit seniority storage field.",
+        "Skip reporting versus system silence."
+      ],
+      "data_only_blueprint": {
+        "population": "Source-bound actionable stakeholder messages with reviewed selection and structured fields.",
+        "policy": "Unique account join, no existing email, reviewed description restriction, title-to-seniority mapping.",
+        "goals": "Qualified new Contact with source facts/account and confirmation of actual eligible actions."
+      },
+      "capability_gaps": [
+        "Salesforce Account/Contact create evidence and finite duplicate lookup.",
+        "Reusable structured-message extraction/source-bound reviewed facts.",
+        "Message selection/ambiguity and confirmation content."
+      ],
+      "adversarial_cases": [
+        "Wrong Nexus variant fails.",
+        "Read notification cannot be silently treated as completed.",
+        "Unrelated message same sender is not stakeholder request.",
+        "Vendor-review account prevents creation; confirmation cannot leak skipped names if system silence governs."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.trello_urgent_support_card",
+      "domain": "simple",
+      "family": "simple.project-issue-work",
+      "public_input_sha256": "b1b73b5e34188077a7c7ef8c91ffee616414ca4da98e28aafff51035822bf931",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/489504fb1f728c23e4b32e0409a41c0301e358f4534f0ad9367cd85b43882fed/episode.json",
+        "episode_sha256": "19bce99b17771867fd928cefb8e1079895decac6359a92d47a2cf2491d1119f1",
+        "trace_ids": [
+          "85d882ee0a7646f388b0d9c4ad754802"
+        ]
+      },
+      "goals": [
+        "List Support board lists, resolve To Do, create named card there and apply urgent label to that generated card."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "The user explicitly requires first listing lists; this is a real procedural prerequisite, not an invented action sequence.",
+        "Use params.list lst_support_todo, not wrapper record ID tr_rec_12.",
+        "Named label label_urgent must apply to same created card."
+      ],
+      "authority": [
+        "User board/name/label and first-list instruction; public Trello board_list action records."
+      ],
+      "review_conclusions": [
+        "A public-request singleton, Trello service adapter and bounded generated-ID join could fully represent this simple workflow.",
+        "Unlike cases with free action order, the first-list condition must retain a causal predecessor witness.",
+        "Task/card labels need retained state if later removal is possible."
+      ],
+      "ambiguities": [
+        "Simulator generic action-record storage must be qualified as installed service semantics, not assumed real external board membership."
+      ],
+      "data_only_blueprint": {
+        "population": "One public request with board/card/label constants and source-bound To Do resolution.",
+        "goals": "Qualified board-list result precedes card creation; generated card is in resolved list and carries urgent label.",
+        "credit": "Once per obligation, closing action attribution separate from all supporting evidence."
+      },
+      "capability_gaps": [
+        "Public-request population; Trello list/create/label evidence.",
+        "Generated-ID composition plus causal predecessor/retained semantics."
+      ],
+      "adversarial_cases": [
+        "Card in In Progress fails.",
+        "Label applied to unrelated card fails.",
+        "Hard-coded list ID without requested prior list action fails procedural goal.",
+        "Repeated labeling cannot multiply reward."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.zendesk_hubspot_org_sync",
+      "domain": "support",
+      "family": "support.cross-platform-migration-and-sync",
+      "public_input_sha256": "cbb827c6b3b5dc4ef93119db9d3ecda4fa7882474f95e40b8c8cc7647660c679",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/c2375f26c3cbf5502aa0291c64d21d2804882f6942a2da72872f4c51fa418237/episode.json",
+        "episode_sha256": "4ea457852494d5f12a051bb4e46db2e9bb931cbbb07a6d780701226e4beb3063",
+        "trace_ids": [
+          "b9c9eb053a584f10b324a84d21486f7d"
+        ]
+      },
+      "goals": [
+        "Sync Zendesk organizations to HubSpot per domain/missing-domain/duplicate/override rules.",
+        "Add HubSpot ID and name-mismatch notes; RISK-tag based on any matched churned company; summarize counts."
+      ],
+      "prohibitions": [
+        "SunsetCorp hold forbids all org modifications and HubSpot creation."
+      ],
+      "goal_constraints": [
+        "Exact domain matching; similar names with differing domains do not establish match.",
+        "For multiple domain matches choose closest name for ID but inspect ALL matches for churned lifecycle.",
+        "Non-churned does not require a new tag action; do not remove existing tags without authority.",
+        "VaultData explicitly force-syncs and records new company ID."
+      ],
+      "authority": [
+        "User delegation; ss_sync_config sync_rules/overrides; Zendesk org domains and HubSpot company facts."
+      ],
+      "review_conclusions": [
+        "One-to-many matching cannot be collapsed into a left lookup that rejects all duplicate domains or takes the first.",
+        "The sheet inventory contains IDs absent from native Zendesk population; do not synthesize organizations or treat table row count as sync completeness.",
+        "Rules require notes additions; preserve unrelated existing notes and tags in variants."
+      ],
+      "ambiguities": [
+        "Closest-name similarity metric and tie behavior unspecified; exact name match is clear when unique.",
+        "How multiple domains per organization compose; lifecycle field missing is unknown, not necessarily non-churned.",
+        "Whether every created company must be backlinked to notes beyond explicit Force-Sync wording; define resulting linked meaning before qualification."
+      ],
+      "data_only_blueprint": {
+        "population": "Native Zendesk orgs, with reviewed role of declared inventory and override authority.",
+        "matching": "Domain set join, explicit missing-domain create, closest-name selected ID and any-match churn predicate.",
+        "goals": "Qualified HubSpot creations and retained additive Zendesk notes/tags, with actual matched/created/RISK counts."
+      },
+      "capability_gaps": [
+        "Zendesk org and HubSpot company evidence.",
+        "Bounded one-to-many joins, ambiguity-aware selection, existential tests and generated-ID linkage.",
+        "Additive retained set/text checks and aggregate summary content."
+      ],
+      "adversarial_cases": [
+        "Nexus closest match can be customer while another match churned; RISK must inspect all.",
+        "Same name different domain requires no-domain-match path.",
+        "Sunset hold beats ordinary successful match.",
+        "Nonexistent inventory ID cannot create fictitious source org.",
+        "Preserve unrelated tags/notes while adding required facts."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    }
+  ],
+  "shared_capability_families": [
+    {
+      "priority": 1,
+      "family": "Small requests with explicit composition",
+      "next": "Public request population plus Slack/Trello adapters can cover launch and urgent-card workflows. Preserve the Trello first-list prerequisite without imposing sequences elsewhere.",
+      "tasks": [
+        "simple.feature_launch_slack",
+        "simple.trello_urgent_support_card"
+      ]
+    },
+    {
+      "priority": 2,
+      "family": "Finite joins, counts and selections",
+      "next": "Grouped ticket/transaction populations, one-to-many domain joins, exists/sum and ambiguity-aware selection. Existing arithmetic should be reused.",
+      "tasks": [
+        "sales.calendly_no_show_followup",
+        "support.zoho_account_health",
+        "finance.qb_sales_receipt_batch",
+        "support.zendesk_hubspot_org_sync"
+      ]
+    },
+    {
+      "priority": 3,
+      "family": "Qualified generated outputs and retention",
+      "next": "Shared Canva export lifecycle/Drive artifact link, HubSpot company and Salesforce Contact/Task effects; preserve original source identity and subsequent state.",
+      "tasks": [
+        "operations.canva_asset_management",
+        "sales.create_contact_for_account",
+        "support.zendesk_hubspot_org_sync"
+      ]
+    },
+    {
+      "priority": 4,
+      "family": "Policy authority and output meaning",
+      "next": "Source-bound approvals, notes/hold/date facts and purpose-qualified summary content; no arbitrary recipient-only positives or unreviewed policy grammars.",
+      "tasks": [
+        "hr.intern_cohort_onboarding",
+        "marketing.email_blast_suppression",
+        "sales.create_contact_for_account"
+      ]
+    }
+  ],
+  "validation": {
+    "pack_hash_and_task_order": "pass",
+    "public_input_hashes": "10/10",
+    "selection_hashes": "Both schemes independently recomputed",
+    "contract_schema": "1/1 ContractSpec admission and JSON roundtrip pass",
+    "public_bindings": "7/7 match the frozen public task context",
+    "binding_tampers": "7/7 independently modified bound values rejected",
+    "native_Task_score": "Not run; review only",
+    "whole_task_qualification": 0
+  }
+}

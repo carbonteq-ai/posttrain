@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-std-ws
+stage: train
+description: Two resolved SAMPO updates on LFM2.5-2.6B with the 100-update run's settings and advantage normalization `mean_std`, to compare normalization effects (advantage scale, gradient norm, clipped fraction, episode/step balance) before the 100-update run.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-manifest-steps-sampo-2-g16x8-mean-std-ws@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  environment: {type: ref, family: environment, id: automationbench-manifest-steps-mixv2-4k16t-v1}
+  settings: {type: ref, family: training, id: lfm2.5-2.6b/automationbench-manifest-steps-sampo-2-g16x8-mean-std-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@1}
+  training: {type: ref, family: training, id: training/lfm2.5-2.6b-trl-lora-manifest-ws-g128-r4-fp16@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-manifest-ws-c180-4k-t08-fp16@1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: lfm26-automationbench-vortex-20-local-v1
+  arm: sampo-2-g16x8-mean-std
+  task_mix: lfm26-automationbench-mix-v2
+  question: How does advantage normalization `mean_std` shape SAMPO advantages, gradient norms and clipping over two updates on the 2.6B configuration?
+  labels: [experiment, sampo, manifest-steps, automationbench, lfm2.5, workstation, vllm]

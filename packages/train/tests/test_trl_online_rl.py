@@ -88,6 +88,121 @@ class BatchFakeTrainer:
         )
 
 
+def test_trl_generated_call_evidence_reaches_native_trace(monkeypatch) -> None:
+    vf = pytest.importorskip("verifiers.v1")
+    if not hasattr(vf, "GeneratedCallAttempt"):
+        pytest.skip("requires native assessment candidate checkout")
+    from posttrain.train.integrations.verifiers import _PolicyClient
+    from renderers.base import ParsedToolCall
+    from verifiers.v1.assessment_source import capture_trace_source
+    from verifiers.v1.dialects.chat import ChatDialect
+    from verifiers.v1.graph import prepare_turn
+
+    class CallRenderer(FakeRenderer):
+        def parse_response(self, token_ids, *, tools, prompt_ids=None):
+            return SimpleNamespace(
+                content=None,
+                reasoning_content=None,
+                tool_calls=[ParsedToolCall(raw="send()", name="send", arguments={}, token_span=(0, 1))],
+            )
+
+    monkeypatch.setattr("posttrain.train.backends.trl.online_rl.create_renderer", lambda *args: CallRenderer())
+    generator = TrlPolicyGenerator(
+        FakeTrainer(), object(), QWEN_35_2B, replace(QWEN35_GRPO_SMOKE, max_completion_length=2), _training()
+    )
+    response = asyncio.run(
+        _PolicyClient(generator).get_response(
+            ChatDialect(),
+            {"messages": [{"role": "user", "content": "hello"}]},
+            "model",
+            SimpleNamespace(max_tokens=2, temperature=0.7, top_p=0.9),
+        )
+    )
+    assert response.tokens.completion_ids == [3, 4]
+    assert response.tokens.generated_calls[0].emitted_call_index == 0
+    from posttrain.train.integrations.verifiers_generation import decode_parser_evidence, encode_parser_evidence
+
+    parsed = CallRenderer().parse_response([3, 4], tools=None)
+    evidence = encode_parser_evidence(parsed, (3, 4), response.message.model_dump(), CallRenderer(), configuration={})
+    assert evidence is not None
+    altered = dict(evidence)
+    altered["producer"] = {"renderer": "substituted"}
+    with pytest.raises(ValueError, match="producer digest"):
+        decode_parser_evidence(altered)
+    trace = vf.Trace(
+        episode_id="episode",
+        agent=vf.AgentInfo(config=vf.AgentConfig()),
+        task=vf.TraceTask(type="Task", data=vf.TaskData(prompt="hello")),
+    )
+    index = prepare_turn(trace, [vf.UserMessage(content="hello")]).commit(response)
+    source = capture_trace_source(trace)
+    subject = vf.SubjectRef(
+        kind="call",
+        snapshot_id=source.snapshot_id,
+        episode_id="episode",
+        trace_id=trace.id,
+        node_index=index,
+        node_content_digest=source.nodes[index].node_content_digest,
+        call_index=0,
+    )
+    restored = vf.WireTrace.model_validate(trace.to_record())
+    assert restored.nodes[index].generated_call_producer == response.tokens.generated_call_producer
+    projected = vf.project_subject(subject, source, restored)
+    assert projected.status == "exact_call"
+    assert [(item.start, item.end) for item in projected.intervals] == [(0, 1)]
+    assert restored.nodes[index].token_ids == [3, 4]
+    assert restored.nodes[index].mask == [True, True]
+    from posttrain.environment.verifiers_conditioning import (
+        materialize_native_conditioning,
+        native_conditioning_records,
+    )
+    from verifiers.v1.trace import ModelCall
+
+    restored.calls.append(ModelCall(node=index, model="model", usage=response.usage))
+    record = native_conditioning_records(restored, sampled_node_indices=(index,), context_contract="causal-text@1")[0]
+    conditioning = materialize_native_conditioning(restored, record)
+    assert conditioning.token_ids == tuple(response.tokens.prompt_ids + response.tokens.completion_ids)
+    local_support = set(range(projected.intervals[0].start, projected.intervals[0].end))
+    assert tuple(physical for local, physical in conditioning.action_positions if local in local_support) == (2,)
+
+
+@pytest.mark.parametrize("version", [True, 2, "1"])
+def test_present_parser_evidence_rejects_unknown_versions(version) -> None:
+    from posttrain.train.integrations.verifiers_generation import decode_parser_evidence
+
+    with pytest.raises(ValueError, match="version"):
+        decode_parser_evidence({"kind": "verifiers.generated-calls", "schema_version": version, "attempts": []})
+
+
+@pytest.mark.parametrize(
+    "emitted_arguments,duplicate,expected",
+    [('{"id": 1}', False, (0,)), ('{"id": 2}', False, (None,)), ('{"id": 1}', True, (None, None))],
+)
+def test_parser_transport_keeps_ambiguous_and_repaired_links_unavailable(emitted_arguments, duplicate, expected):
+    vf = pytest.importorskip("verifiers.v1")
+    if not hasattr(vf, "GeneratedCallProducer"):
+        pytest.skip("requires native assessment candidate checkout")
+    from posttrain.train.integrations.verifiers_generation import decode_parser_evidence, encode_parser_evidence
+    from renderers.base import ParsedToolCall
+
+    count = 2 if duplicate else 1
+    parsed = SimpleNamespace(
+        tool_calls=[
+            ParsedToolCall(id="same", raw="send(1)", name="send", arguments={"id": 1}, token_span=(i, i + 1))
+            for i in range(count)
+        ]
+    )
+    message = {"tool_calls": [{"id": "same", "name": "send", "arguments": emitted_arguments} for _ in range(count)]}
+    configuration = {"tools": [{"description": "référence"}]}
+    sidecar = encode_parser_evidence(parsed, (3, 4), message, FakeRenderer(), configuration=configuration)
+    assert sidecar is not None
+    configuration["tools"][0]["description"] = "rewritten"
+    decoded = decode_parser_evidence(sidecar)
+    assert tuple(item.emitted_call_index for item in decoded.attempts) == expected
+    assert tuple(item.token_span for item in decoded.attempts) == tuple((i, i + 1) for i in range(count))
+    assert "référence" in decoded.producer.descriptor_json
+
+
 class BlockingFakeTrainer(BatchFakeTrainer):
     def __init__(self) -> None:
         super().__init__()
@@ -316,9 +431,7 @@ def test_resolved_trl_preserves_native_train_client_admission(monkeypatch) -> No
     assert result.message["tool_calls"] == [
         {"id": "call_0", "name": "asana_get_task", "arguments": '{"task_id": "bad"}'}
     ]
-    evidence = cast(list[dict[str, Any]], result.message["provider_state"])
-    assert evidence[0]["type"] == "posttrain.nonconforming_tool_call"
-    assert evidence[0]["raw"] == "<tool_call>invalid attempt</tool_call>"
+    assert "provider_state" not in result.message
     assert result.raw_response is not None
     choices = cast(list[dict[str, Any]], result.raw_response["choices"])
     assert choices[0]["finish_reason"] == "stop"

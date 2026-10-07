@@ -1,0 +1,50 @@
+[
+  {
+    "case": "valid_control",
+    "rejected": false
+  },
+  {
+    "case": "noncanonical_source",
+    "rejected": true
+  },
+  {
+    "case": "wrong_source_digest",
+    "rejected": true
+  },
+  {
+    "case": "wrong_snapshot_id",
+    "rejected": true
+  },
+  {
+    "case": "boolean_execution_count",
+    "rejected": true
+  },
+  {
+    "case": "noncanonical_view",
+    "rejected": true
+  },
+  {
+    "case": "wrong_view_digest",
+    "rejected": true
+  },
+  {
+    "case": "view_wrong_source",
+    "rejected": true
+  },
+  {
+    "case": "run_wrong_source",
+    "rejected": true
+  },
+  {
+    "case": "conflicting_inline_source_after_pool_admission",
+    "rejected": true
+  },
+  {
+    "case": "forged_copy_after_proof_hit",
+    "rejected": true
+  },
+  {
+    "case": "unplanned_async_child_cannot_reuse_proof",
+    "rejected": true
+  }
+]

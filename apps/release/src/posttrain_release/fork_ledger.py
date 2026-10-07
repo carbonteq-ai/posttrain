@@ -254,15 +254,15 @@ def _vllm_entry(declared: dict[str, Any], dependencies: dict[str, Any]) -> ForkL
 def _automationbench_entry(declared: dict[str, Any], root: Path) -> ForkLedgerEntry:
     text = (root / _AUTOMATIONBENCH).read_text(encoding="utf-8")
     environment_revision = _python_constant(text, "AUTOMATIONBENCH_REVISION")
-    if environment_revision != "11f4d712806d292c6c6a752af046f4e16c4f037e":
+    if environment_revision != "17e0cd0228eab18d664c2b6ff82f4aec991f4523":
         raise ValueError("AutomationBench environment source changed; update the release ledger deliberately")
     return _entry(
         declared,
-        version="1.0.5.post1",
-        revision="908db2abd4a868acc37ab0850474bff653bea25c",
+        version="1.0.5.post3",
+        revision="9bfbdd703bba4a8c06c831b35f55ce442347cf12",
         artifacts={
-            "wheel_sha256": "bd80b4947fbdd60706d9545e79635b79931d89dfc294ed45b01df6886c1f1509",
-            "sdist_sha256": "04ccef85e2a83bd26777a10a08702b4fb6a47169352777ab8564fa1bbba9acf6",
+            "wheel_sha256": "682f9852280ae0bd75152f35b1a833437a7ac6bf28d53b36774fc7023f8ab870",
+            "sdist_sha256": "036dc954f533a0809d731a922eb670d7e7b598ea4742b535d0146e7777bb3763",
             "environment_revision": environment_revision,
         },
         selection_source=_AUTOMATIONBENCH.as_posix(),

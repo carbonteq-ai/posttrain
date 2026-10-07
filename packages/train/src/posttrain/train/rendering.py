@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -101,6 +101,26 @@ def create_renderer_config(
     """
     del structured_output
     return renderer_config_from_spec(*renderer_config_spec(model, renderer))
+
+
+def full_render_messages(messages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Messages for a full re-render of a sampled conversation.
+
+    Parsed assistant text keeps the newlines a policy writes after its
+    reasoning block (LFM2.5 leaves ``"\n"`` before a tool call and ``"\n\n"``
+    before an answer). Rendered as text they merge with the template's own
+    newline after the assistant header into one token, so the renderer cannot
+    find the turn's generation-prompt boundary. A token bridge never re-renders
+    sampled turns; a full re-render (needed after a nonconforming tool call)
+    drops that leading whitespace.
+    """
+
+    return [
+        {**message, "content": message["content"].lstrip()}
+        if message.get("role") == "assistant" and isinstance(message.get("content"), str)
+        else dict(message)
+        for message in messages
+    ]
 
 
 def bridged_message_spans(rendered: Any, tail_start: int, prefix_tokens: int) -> tuple[tuple[int, int] | None, ...]:

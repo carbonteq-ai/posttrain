@@ -605,6 +605,7 @@ def test_orphan_abandoned_admission_entry_is_settled_with_its_exclusive_image(
 def test_orphan_admission_entry_whose_project_still_exists_blocks(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     owner = (tmp_path / "live-worktree" / ".posttrain" / "state").resolve()
     (owner / "executions" / _ORPHAN).mkdir(parents=True)
+    (owner / "executions" / _ORPHAN / "submission.json").write_text("{}", encoding="utf-8")
     layout, _store, _state = _install_orphan_fakes(
         monkeypatch,
         tmp_path,
@@ -617,6 +618,27 @@ def test_orphan_admission_entry_whose_project_still_exists_blocks(monkeypatch: p
 
     assert any("holds its submission receipt" in blocker for blocker in plan.blockers)
     assert plan.local_actions == ()
+
+
+def test_orphan_admission_entry_whose_run_directory_outlived_its_receipt_settles(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Partial cleanup can leave the run directory without its receipt; the
+    # project then no longer controls the run.
+    owner = (tmp_path / "live-worktree" / ".posttrain" / "state").resolve()
+    (owner / "executions" / _ORPHAN).mkdir(parents=True)
+    layout, _store, _state = _install_orphan_fakes(
+        monkeypatch,
+        tmp_path,
+        admission=(_ledger_entry(owner),),
+        registry_owners={_ORPHAN_IMAGE: (_ORPHAN,)},
+    )
+    _named_execution(monkeypatch, "cancelled", "terminated")
+
+    plan = _orphan_preview(layout)
+
+    assert not any("holds its submission receipt" in blocker for blocker in plan.blockers)
+    assert [action.kind for action in plan.local_actions] == ["local.settle_admission"]
 
 
 def test_orphan_admission_entry_whose_provider_execution_is_active_blocks(
@@ -851,3 +873,20 @@ def test_orphan_rejects_cascade(monkeypatch: pytest.MonkeyPatch, tmp_path) -> No
             reason=PurgeReason(category="abandoned-run"),
             orphan=True,
         )
+
+
+def test_stranded_running_tracking_is_purgeable_only_after_provider_cleanup() -> None:
+    from posttrain_cli.purge_surface import _reconciliation_allows_purge
+
+    stranded = {
+        "state": "pending",
+        "provider_record": {"state": "failed"},
+        "tracking_status": "running",
+        "tracking_provider_run_id": "9f902be8",
+    }
+    assert _reconciliation_allows_purge(stranded, cleaned=True)
+    # The provider workspace may still hold a writer until cleanup removes it.
+    assert not _reconciliation_allows_purge(stranded)
+    assert not _reconciliation_allows_purge({**stranded, "provider_record": {"state": "running"}}, cleaned=True)
+    assert not _reconciliation_allows_purge({**stranded, "tracking_provider_run_id": None}, cleaned=True)
+    assert not _reconciliation_allows_purge({**stranded, "tracking_status": "succeeded"}, cleaned=True)

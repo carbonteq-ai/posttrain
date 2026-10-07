@@ -14,6 +14,7 @@ from typing import Any, Literal, cast
 from uuid import uuid4
 
 from ...integrations.verifiers import load_verifiers_bridge_snapshot
+from ...integrations.verifiers_generation import encode_parser_evidence, prepare_parser_evidence
 from ...online_rl import (
     BehaviorPolicySpan,
     EnvironmentRollout,
@@ -176,6 +177,14 @@ class VerlPolicyGenerator:
             tokenizer.chat_template = str(chat_template)
         config = renderer_config_from_spec(str(renderer["config"]), dict(renderer.get("config_kwargs") or {}))
         self._renderer = create_renderer(tokenizer, config)
+        prepare_parser_evidence()
+        self._parser_configuration = {
+            "renderer_config": str(renderer["config"]),
+            "renderer_kwargs": dict(renderer.get("config_kwargs") or {}),
+            "chat_template": getattr(tokenizer, "chat_template", None),
+            "tokenizer": f"{type(tokenizer).__module__}.{type(tokenizer).__qualname__}",
+            "tokenizer_name": getattr(tokenizer, "name_or_path", None),
+        }
         protocol = renderer.get("tool_call_protocol")
         self._tool_call_protocol = None if protocol is None else SimpleNamespace(**dict(protocol))
         self._sampling_overrides = _validated_sampling_overrides(sampling_overrides or {})
@@ -295,6 +304,13 @@ class VerlPolicyGenerator:
             },
             behavior_policy=behavior_policy,
             reasoning_tokens=getattr(parsed, "reasoning_tokens", None),
+            parser_evidence=encode_parser_evidence(
+                parsed,
+                token_ids,
+                message,
+                self._renderer,
+                configuration={**self._parser_configuration, "admission": "verifiers-train-client", "tools": tools},
+            ),
         )
 
 

@@ -9,12 +9,11 @@ import json
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any
 
 from ...kl_reference import resolved_kl_reference
 from ...update_records import InvalidPolicyUpdate
-from ..policy_update_scoring import FrozenPopulationScores
+from ..policy_update_scoring import FrozenPopulationScores, dense_scores
 from .contracts import VerlLaunchManifest
 from .policy_updates import ResolvedVeRLPopulation
 
@@ -113,13 +112,13 @@ def base_reference_provider(manifest: VerlLaunchManifest, engine: Any):
         if snapshot.versions.reference is None:
             raise InvalidPolicyUpdate("native KL population lacks its frozen reference identity")
         with engine.disable_adapter():
-            values = population._infer(engine, population._rows(tuple(item.action for item in snapshot.actions)))  # noqa: SLF001
+            values = population._infer(engine, population._rows(tuple(range(len(snapshot.conditioning)))))  # noqa: SLF001
         return FrozenPopulationScores(
             snapshot.digest,
             snapshot.versions.reference,
             population.score_contract,
             population.score_temperature,
-            MappingProxyType({key: value.detach().clone() for key, value in values.items()}),
+            dense_scores(snapshot.size, (values,), device=values.values.device).detach().cpu(),
         )
 
     return score

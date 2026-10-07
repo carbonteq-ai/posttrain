@@ -1,0 +1,43 @@
+{
+  "scope": "Operational accounting checkpoint for two terminal partitions; no success-based budget fitting or reward-design decision; excludes old11 and liveuntimed503",
+  "partitions": [
+    {
+      "source_file": "docs/research/verifiers-assessment-qualification/sdk-probes/luna-reference-campaign-01/hr-remaining-firstpass/verification.json",
+      "sha256": "33f31d69bf18028e79219f48d4faeefec7f9da4eab3e8a8d261cc445ef600169",
+      "retained_attempts": 89,
+      "reconciled_attempts": 87,
+      "unavailable_attempts": 2,
+      "output_tokens_min": 167,
+      "output_tokens_median": 862,
+      "output_tokens_p95_nearest_rank": 2185,
+      "output_tokens_max": 3571,
+      "output_threshold_reached": 0,
+      "cumulative_reported_input_tokens": 20490110,
+      "reported_cached_input_tokens": 17782016,
+      "cached_input_fraction": 0.8678340916666626,
+      "cumulative_reported_output_tokens": 93749
+    },
+    {
+      "source_file": "docs/research/verifiers-assessment-qualification/sdk-probes/luna-reference-campaign-01/remaining700/timed-verification.json",
+      "sha256": "a171735c8228a89d2499a15819b0d6a5720840fba26c1bcee8baab42cfd07c10",
+      "retained_attempts": 197,
+      "reconciled_attempts": 197,
+      "unavailable_attempts": 0,
+      "output_tokens_min": 149,
+      "output_tokens_median": 905,
+      "output_tokens_p95_nearest_rank": 2451,
+      "output_tokens_max": 3366,
+      "output_threshold_reached": 0,
+      "cumulative_reported_input_tokens": 45044447,
+      "reported_cached_input_tokens": 38884352,
+      "cached_input_fraction": 0.8632440753462908,
+      "cumulative_reported_output_tokens": 201401
+    }
+  ],
+  "limits": [
+    "Reported completed-response accounting, not physical failed-stream completeness",
+    "Cumulative input sums repeated contexts; not a per-response context requirement",
+    "The 16384 threshold is observed cumulative output and can overshoot",
+    "Uncovered guards and goal obligations still block final Qwen eligibility"
+  ]
+}

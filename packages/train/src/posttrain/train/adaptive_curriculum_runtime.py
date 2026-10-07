@@ -173,6 +173,11 @@ class AdaptiveCurriculumRuntime:
             if not isinstance(task_id, str) or any(candidate != task_id for candidate in task_ids):
                 raise RuntimeError("adaptive curriculum rollout group does not preserve one task identity")
             groups.append((task_id, total_rewards[offset : offset + self.num_generations]))
+        return self.observe_groups(groups, step=step)
+
+    def observe_groups(self, groups: Sequence[tuple[str, Sequence[float]]], *, step: int) -> CurriculumObservation:
+        """Record each prompt group's rewards (one task per group) as curriculum evidence."""
+
         observation = self.controller.observe(groups, step=step)
         self.context.event(
             "adaptive_curriculum_evidence_observed",

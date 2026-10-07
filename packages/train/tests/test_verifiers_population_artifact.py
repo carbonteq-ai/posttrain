@@ -57,7 +57,7 @@ def test_bridge_retains_native_authority_instead_of_derived_observation(tmp_path
         cast(VerifiersEnvironmentRolloutBridge, bridge), (cast(EnvironmentRollout, rollout),)
     )
     assert isinstance(artifact.reference, LocalArtifactRef)
-    assert artifact.reference.path.read_bytes() == native
+    assert _local(artifact).path.read_bytes() == native
     assert trace_path.read_bytes() == b'{"id":"a","derived":true}\n'
 
 
@@ -68,13 +68,13 @@ def test_native_episode_snapshot_preserves_bytes_and_survives_source_growth(tmp_
     source.write_bytes(unrelated + selected)
     artifact = retain_native_population(source, tmp_path / "populations", ("policy",), episodes=True)
     assert isinstance(artifact.reference, LocalArtifactRef)
-    assert artifact.reference.path.read_bytes() == selected
-    assert artifact.reference.digest == hashlib.sha256(selected).hexdigest()
+    assert _local(artifact).path.read_bytes() == selected
+    assert _local(artifact).digest == hashlib.sha256(selected).hexdigest()
     assert artifact.metadata["format"] == "verifiers-native-episodes"
     source.write_bytes(source.read_bytes() + unrelated)
     repeated = retain_native_population(source, tmp_path / "populations", ("policy",), episodes=True)
     assert repeated == artifact
-    assert artifact.reference.path.read_bytes() == selected
+    assert _local(artifact).path.read_bytes() == selected
     assert not tuple((tmp_path / "populations").glob(".population-*"))
 
 
@@ -99,10 +99,10 @@ def test_corrupt_existing_artifact_is_not_overwritten(tmp_path):
     source.write_bytes(b'{"id":"a"}\n')
     artifact = retain_native_population(source, tmp_path / "populations", ("a",), episodes=False)
     assert isinstance(artifact.reference, LocalArtifactRef)
-    artifact.reference.path.write_bytes(b"corrupt")
+    _local(artifact).path.write_bytes(b"corrupt")
     with pytest.raises(InvalidPolicyUpdate, match="modified"):
         retain_native_population(source, tmp_path / "populations", ("a",), episodes=False)
-    assert artifact.reference.path.read_bytes() == b"corrupt"
+    assert _local(artifact).path.read_bytes() == b"corrupt"
     assert not tuple((tmp_path / "populations").glob(".population-*"))
 
 
@@ -132,3 +132,165 @@ def test_decoder_rejects_invalid_identity_before_native_defaults(monkeypatch, pa
     monkeypatch.setitem(sys.modules, "verifiers.v1.trace", SimpleNamespace(Trace=NativeSchema))
     with pytest.raises(InvalidPolicyUpdate, match=message):
         decode_native_population(payload, format="verifiers-native-episodes")
+
+
+def test_conditioning_decode_restores_only_message_graphs_through_the_native_branch(monkeypatch):
+    validated = []
+
+    class Branch:
+        @staticmethod
+        def model_validate(record):
+            validated.append(record)
+            return SimpleNamespace(nodes=list(record["nodes"]), calls=list(record["calls"]))
+
+    class Episode:
+        @staticmethod
+        def model_validate(record):
+            pytest.fail("conditioning decode must not restore whole episodes")
+
+    monkeypatch.setitem(sys.modules, "verifiers.v1.episode", SimpleNamespace(Episode=Episode))
+    monkeypatch.setitem(sys.modules, "verifiers.v1.trace", SimpleNamespace(Trace=Episode, Branch=Branch))
+    record = {
+        "id": "episode",
+        "traces": [
+            {"id": "a", "nodes": ["n0", "n1"], "calls": ["c1"], "assessment_sources": ["large"]},
+            {"id": "b", "nodes": ["m0"]},
+        ],
+    }
+    traces = decode_native_population(
+        (json.dumps(record) + "\n").encode(), format="verifiers-native-episodes", content="conditioning"
+    )
+
+    assert {key: (trace.id, trace.nodes, trace.calls) for key, trace in traces.items()} == {
+        "a": ("a", ("n0", "n1"), ("c1",)),
+        "b": ("b", ("m0",), ()),
+    }
+    assert [set(item) for item in validated] == [{"index", "nodes", "calls"}] * 2
+
+
+def _local(artifact) -> LocalArtifactRef:
+    """The retained population's local file reference (the only kind this module writes)."""
+    assert isinstance(artifact.reference, LocalArtifactRef)
+    return artifact.reference
+
+
+def _episode_line(index):
+    return (json.dumps({"traces": [{"id": f"t{index}", "payload": "x" * (index + 3)}]}, sort_keys=True) + "\n").encode()
+
+
+def _span(offset, line):
+    return (offset, len(line), hashlib.sha256(line).hexdigest())
+
+
+def test_indexed_population_reads_only_its_records_and_matches_a_full_scan(tmp_path, monkeypatch):
+    from posttrain.train.integrations import verifiers_population_artifact as artifact_module
+
+    source = tmp_path / "episodes.jsonl"
+    spans, offset = {}, 0
+    with source.open("wb") as stream:
+        for index in range(8):
+            line = _episode_line(index)
+            stream.write(line)
+            spans[f"t{index}"] = _span(offset, line)
+            offset += len(line)
+    wanted = ("t6", "t2", "t5")
+    scanned = retain_native_population(source, tmp_path / "scan", wanted, episodes=True)
+    full_scan = artifact_module._select
+
+    def no_scan(*args, **kwargs):
+        pytest.fail("a complete digest-proven index must not scan the source")
+
+    monkeypatch.setattr(artifact_module, "_select", no_scan)
+    indexed = retain_native_population(source, tmp_path / "index", wanted, episodes=True, spans=spans)
+    assert _local(indexed).digest == _local(scanned).digest
+    assert _local(indexed).path.read_bytes() == _local(scanned).path.read_bytes()
+    # A span index that does not cover every trace falls back to the full scan.
+    monkeypatch.setattr(artifact_module, "_select", full_scan)
+    partial = retain_native_population(source, tmp_path / "partial", wanted, episodes=True, spans={"t2": spans["t2"]})
+    assert _local(partial).digest == _local(scanned).digest
+
+
+def test_stale_or_truncated_spans_fall_back_to_the_authoritative_scan(tmp_path):
+    source = tmp_path / "episodes.jsonl"
+    first, second = _episode_line(0), _episode_line(1)
+    source.write_bytes(first + second)
+    scanned = retain_native_population(source, tmp_path / "scan", ("t1",), episodes=True)
+    second_digest = hashlib.sha256(second).hexdigest()
+    for name, span in (
+        ("stale", (0, len(first), second_digest)),
+        ("truncated", (len(first), len(second) + 50, second_digest)),
+        ("rewritten", (len(first), len(second), hashlib.sha256(first).hexdigest())),
+    ):
+        retained = retain_native_population(source, tmp_path / name, ("t1",), episodes=True, spans={"t1": span})
+        assert _local(retained).path.read_bytes() == _local(scanned).path.read_bytes() == second
+    # A trace that is genuinely absent still fails after the fallback.
+    with pytest.raises(InvalidPolicyUpdate):
+        retain_native_population(
+            source, tmp_path / "missing", ("t9",), episodes=True, spans={"t9": (0, len(first), second_digest)}
+        )
+
+
+def test_bridge_records_episode_spans_as_it_appends(tmp_path, monkeypatch):
+    from posttrain.train.integrations.verifiers import VerifiersEnvironmentRolloutBridge
+    from posttrain.train.online_rl import PolicySampling
+
+    monkeypatch.setattr(VerifiersEnvironmentRolloutBridge, "__post_init__", lambda self: None)
+    bridge = VerifiersEnvironmentRolloutBridge(
+        dataset_id="tasks",
+        revision="test@1",
+        tasks={},
+        environment_factory=dict,
+        trace_path=tmp_path / "traces.jsonl",
+        environment_id="environment",
+        run_id="run",
+        sampling=PolicySampling(8),
+    )
+    # Encoding reads the record through native_records; the bridge alias is not consulted.
+    monkeypatch.setattr("posttrain.train.integrations.native_records.native_record", lambda episode: episode)
+    monkeypatch.setattr(
+        "posttrain.train.integrations.verifiers_assessment_artifacts.retain_episode_artifacts",
+        lambda *args, **kwargs: None,
+    )
+    for index in range(3):
+        bridge._preserve_episode({"traces": [{"id": f"t{index}"}, {"id": f"s{index}"}]})
+    source = tmp_path / "episodes.jsonl"
+    raw = source.read_bytes()
+    for index in range(3):
+        offset, length, digest = bridge._episode_spans[f"t{index}"]
+        assert bridge._episode_spans[f"s{index}"] == (offset, length, digest)
+        line = raw[offset : offset + length]
+        assert hashlib.sha256(line).hexdigest() == digest
+        assert json.loads(line)["traces"][0]["id"] == f"t{index}"
+    # The recorded spans prove the bridge's own records on the indexed path.
+    wanted = ("t2", "s0")
+    indexed = retain_native_population(source, tmp_path / "index", wanted, episodes=True, spans=bridge._episode_spans)
+    scanned = retain_native_population(source, tmp_path / "scan", wanted, episodes=True)
+    assert _local(indexed).path.read_bytes() == _local(scanned).path.read_bytes()
+
+
+def test_record_handoff_pickles_parametrized_pydantic_generics():
+    """Verifiers' client decodes episodes into parametrized generics, which the default pickler rejects."""
+    import pickle
+    from typing import Generic, TypeVar
+
+    from posttrain.train.integrations.native_records import pickle_episode
+    from pydantic import BaseModel
+
+    data = TypeVar("data")
+
+    class Wire(BaseModel):
+        value: int
+
+    class Holder(BaseModel, Generic[data]):
+        payload: data
+
+    globals()["Wire"], globals()["Holder"] = Wire, Holder
+    Wire.__qualname__, Holder.__qualname__ = "Wire", "Holder"
+    try:
+        episode = Holder[Wire](payload=Wire(value=3))
+        with pytest.raises(pickle.PicklingError):
+            pickle.dumps(episode)
+        restored = pickle.loads(pickle_episode(episode))
+        assert type(restored) is Holder[Wire] and restored == episode
+    finally:
+        del globals()["Wire"], globals()["Holder"]

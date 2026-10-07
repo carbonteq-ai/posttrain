@@ -1,0 +1,94 @@
+{
+  "candidate_root": "/home/hammad/projects/verifiers-credit-candidate-20261003",
+  "changes": [
+    "Private executor-owned exact intrinsic source/view proof reuse",
+    "Strict node/call/span coordinates and Python-mode producer/request re-admission",
+    "Fresh Task and Env score owners; standalone executors isolated; explicit exact-task child borrowing",
+    "Successful admission only; bounded 64-entry/64-MiB accounted storage; scope exit/error/cancellation clear proofs"
+  ],
+  "checks": {
+    "diff_check": "passed",
+    "pyright": "0 errors scoped native source",
+    "ruff": "passed scoped owned files"
+  },
+  "evidence_boundaries": [
+    "Whole-file hashes include preserved prior candidate work, not just this milestone",
+    "No archive reload owner optimization",
+    "64-MiB accounting is proof storage, not total process resident memory",
+    "One matched local recorded replay passes 55.91 seconds versus 195.00 seconds before; no general throughput or memory claim",
+    "No dependency version changes, commits, pins or publication"
+  ],
+  "files": [
+    {
+      "path": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/_validation_scope.py",
+      "sha256": "9c7c6a503d4566080d2396ce9b323ed0b7088831fa4bb374ca048edeb44094f3"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/assessments.py",
+      "sha256": "1b2985fec0857ae56a25a0e68063a052084aa1b321a14356b3a76d57f8472641"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/assessment_runtime.py",
+      "sha256": "2cd138645a82c6b12cb45b38d73633dbbf8914e01fa33e74f2b3c760dfd65dff"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/task.py",
+      "sha256": "8770294d2559a0321acc71b6b6c5baf9c69e90fad515c2b36978cb63e5534a7a"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/credit.py",
+      "sha256": "c7d6e570f5a739ab774d1a3ed2fbe8db1761d433190216ecb805063126d5d063"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/env.py",
+      "sha256": "9d6ab3191475a874cddc880c94ab55cccdc907307024e2a90785ffbc99cd6d4a"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-credit-candidate-20261003/tests/v1/test_scoring.py",
+      "sha256": "3a887fcee74372e53e4978314d67fcdedb0a0f1e16541f99266c47fbfb5c0990"
+    }
+  ],
+  "head": "84ab782391bbfe1ac4f4ca32fa612e56d01b5b81",
+  "matched_performance": {
+    "baseline_test_seconds": 195.0,
+    "candidate_session": "65011",
+    "baseline_session": "8715",
+    "cwd": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1",
+    "command": "PYTHONPATH=/home/hammad/projects/verifiers-credit-candidate-20261003:src /usr/bin/time -f 'wall_seconds=%e max_rss_kib=%M' .venv/bin/python -m pytest tests/test_retired_content_manifest.py -q --tb=short",
+    "test_sha256": "f9de9736241cf822bdbddb602739e7b2163e940ab480510c57d1c769800aea0f",
+    "manifest_sha256": "3eaabea7ca9208c17c34b3c39b15b019fffffc820b3f8756a11a8b583e4c2e48",
+    "baseline_source_boundary": "Baseline elapsed result is recorded in session 8715 and the owning plan; baseline dirty-native source hashes were not archived. This is local matched input/test evidence, not an immutable before/after build comparison. Baseline maximum RSS was not recorded.",
+    "status": "passed_exact_recorded_score_rescore_reload",
+    "candidate_test_seconds": 55.91,
+    "candidate_wall_seconds": 56.77,
+    "candidate_max_rss_kib": 576748,
+    "test_time_ratio": 3.49,
+    "test": "tests/test_retired_content_manifest.py",
+    "episode_sha256": "e15794723da9c2fc771e288e4a533d383b8efdcc85e299267e412e3989ff8489",
+    "observed_stdout": ". [100%]\n1 passed in 55.91s\nwall_seconds=56.77 max_rss_kib=576748\n",
+    "evidence_boundary": "One local matched recorded replay; no training-throughput, memory-reduction or general-workload claim. Original scalar/source bytes and exact credit/rescore/reload checks passed. Archive loading remains fully validated outside executor scopes."
+  },
+  "published": false,
+  "tests": {
+    "junit_path": "/tmp/native-intrinsic-proof-final.xml",
+    "sha256": "e6d8603e2a02821174320a5bcaf28a56831468db3a614d56494f9d7847edf73c",
+    "suite": {
+      "errors": "0",
+      "failures": "0",
+      "hostname": "pop-os",
+      "name": "pytest",
+      "skipped": "0",
+      "tests": "153",
+      "time": "0.896",
+      "timestamp": "2026-10-04T04:03:30.105695+05:00"
+    }
+  },
+  "uncached_checks": [
+    "AssessmentBatch relations",
+    "Expected inventory",
+    "Execution/source membership",
+    "Prefix visibility",
+    "Accepted parent membership",
+    "Current attempt selection"
+  ]
+}

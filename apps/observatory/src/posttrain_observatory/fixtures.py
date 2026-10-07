@@ -363,7 +363,7 @@ class FixtureRunDataSource(RunDataSource):
                     },
                     **(
                         {
-                            "settings": {"beta": 0.1, "num_generations": 4},
+                            "settings": {"beta": 0.1, "num_generations": 4, "num_prompts_per_step": 6},
                             "inference": {
                                 "backend": "vllm@1",
                                 "engine": {"mode": "colocate", "kv_cache_dtype": "auto"},

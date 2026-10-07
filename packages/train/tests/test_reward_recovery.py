@@ -76,3 +76,47 @@ def test_changed_native_judge_config_invalidates_resume_even_with_same_package_r
     assert request.environment.revision == environment.revision
     with pytest.raises(ValueError, match="differs"):
         validate_reward_recovery(tmp_path, reward_contract_digest(request))
+
+
+def test_goal_credit_off_and_unselected_turn_outcomes_preserve_the_recovery_digest() -> None:
+    from posttrain.train.profiles import SAMPOSettings, TrainingLoop
+    from posttrain.train.reward_recovery import reward_contract_digest
+
+    loop = TrainingLoop(max_steps=3, per_device_batch_size=2)
+    settings = SAMPOSettings("sampo", loop, max_prompt_length=2, max_completion_length=6)
+    projection = RewardProjection("test", "1", (RewardComponentProjection("outcome", "scalar"),))
+    request: Any = SimpleNamespace(
+        settings=settings, environment={"id": "env@1"}, bridge=SimpleNamespace(reward_projection=projection)
+    )
+    import dataclasses
+    import hashlib
+    import json
+
+    legacy = dataclasses.asdict(settings)
+    legacy.pop("goal_credit")
+    legacy.pop("goal_credit_scale")
+    legacy.pop("anchor_fallback")
+    legacy.pop("policy_updates")
+    legacy["loop"].pop("max_steps")
+    legacy.pop("kl_reference") if legacy.get("kl_reference") == "start" else None
+    legacy["active_sampling"].pop("oversample", None)
+    legacy["active_sampling"].pop("oversample_refill", None)
+    legacy["active_sampling"].pop("retain", None)
+    old_projection = dataclasses.asdict(projection)
+    old_projection.pop("turn_goal_prefix")
+    old_projection.pop("turn_harm_key")
+    old_projection.pop("turn_state_key")
+    expected = hashlib.sha256(
+        json.dumps(
+            {
+                "schema": "posttrain.reward-contract.v1",
+                "settings": legacy,
+                "projection": old_projection,
+                "environment": {"id": "env@1"},
+            },
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+    assert reward_contract_digest(request) == expected
+    request.settings = dataclasses.replace(settings, goal_credit="group-relative")
+    assert reward_contract_digest(request) != expected

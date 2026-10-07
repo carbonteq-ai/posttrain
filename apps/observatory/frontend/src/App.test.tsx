@@ -623,7 +623,7 @@ describe('Observatory React product shell', () => {
                 environment_concurrency: 64,
                 inference_sequence_cap: 64,
                 rollouts_per_prompt: 4,
-                rollouts_per_update: 128,
+                rollouts_per_collection: 128,
               },
             }
           : view;
@@ -702,7 +702,7 @@ describe('Observatory React product shell', () => {
     expect(inferenceDetails).toHaveTextContent('6 step samples');
     expect(inferenceDetails).toHaveTextContent('Environment concurrency64');
     expect(inferenceDetails).toHaveTextContent('vLLM sequence cap64');
-    expect(inferenceDetails).toHaveTextContent('Rollouts / update128');
+    expect(inferenceDetails).toHaveTextContent('Rollouts / collection128');
     await user.click(within(phaseProfile).getByRole('tab', { name: 'timeline' }));
     expect(screen.getByRole('img', { name: 'Runtime phase and GPU utilization timeline' })).toBeVisible();
     const computeChart = screen.getByRole('region', { name: 'Compute utilization system chart' });
@@ -1674,14 +1674,58 @@ describe('Observatory React product shell', () => {
     expect(optimizationChart).toBeVisible();
     expect(screen.queryByRole('region', { name: 'Rollout behavior' })).not.toBeInTheDocument();
     const rolloutSetup = screen.getByRole('region', { name: 'Rollout setup' });
-    expect(rolloutSetup).toHaveTextContent('Prompt groups / update32 · derived');
+    expect(rolloutSetup).toHaveTextContent('Prompt groups / collection32 · derived');
     expect(rolloutSetup).toHaveTextContent('Rollouts / prompt8');
-    expect(rolloutSetup).toHaveTextContent('Rollouts / update256');
+    expect(rolloutSetup).toHaveTextContent('Rollouts / collection256');
     expect(rolloutSetup).toHaveTextContent('Environment concurrency160');
     expect(rolloutSetup).toHaveTextContent('Inference sequence cap160');
     expect(rolloutSetup).toHaveTextContent('AccelerationMTP · 3 draft tokens');
     const algorithm = screen.getByRole('region', { name: 'Algorithm settings' });
     expect(algorithm).toHaveTextContent('Actor microbatch4');
     expect(algorithm).toHaveTextContent('Grad accumulation64');
+  });
+  it('numbers steps by collection when collections span several updates', async () => {
+    const { jobRun, jobView } = metricJob(
+      'train.sampo',
+      'SAMPO collections',
+      [{ key: 'reward_mean', label: 'Mean reward, last 2 collections', metric: 'train/rl/reward_mean', value: 0.7, unit: null }],
+      {},
+      true,
+    );
+    const collectionView = {
+      ...jobView,
+      view: {
+        ...jobView.view,
+        summary: jobView.view.summary.map((item: Record<string, unknown>) => (item.key === 'reward_mean' ? { ...item, window: 2 } : item)),
+        collection_steps: [1, 3, 5, 7],
+        charts: [
+          {
+            key: 'optimization',
+            title: 'Policy optimization',
+            question: 'Is the policy improving?',
+            collection_series: ['train/rl/reward_mean'],
+            series: [
+              { name: 'train/rl/reward_mean', points: [1, 3, 5, 7].map((step) => ({ value: step / 10, step })) },
+              { name: 'train/rl/entropy', points: [1, 2, 3, 4, 5, 6, 7, 8].map((step) => ({ value: 0.2, step })) },
+            ],
+          },
+        ],
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/v1/sources') return new Response(JSON.stringify(sources));
+      const body = path === '/api/v1/runs?source_id=fixture&limit=1000' ? [jobRun] : collectionView;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+
+    render(<App />);
+
+    // Two updates per collection: update 8 is the last of collection 4, so the readout is step 4 and
+    // shows that collection's reward beside the update's entropy.
+    expect(await screen.findByText('Step 4')).toBeVisible();
+    expect(screen.queryByText('Step 8')).toBeNull();
+    // The windowed headline compares the last two collections with the two before them.
+    expect(screen.getByText(/last 2 collections · \+.* vs previous 2 collections/)).toBeVisible();
   });
 });

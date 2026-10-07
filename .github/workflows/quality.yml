@@ -17,9 +17,9 @@ permissions:
   actions: write
 
 env:
-  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev32/carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl
-  CARBONTEQ_TRACKIO_WHEEL_SHA256: 78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3
-  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_URL: https://github.com/carbonteq-ai/trackio/releases/download/carbonteq-v0.31.5.post14.dev35/carbonteq_trackio-0.31.5.post14.dev35-py3-none-any.whl
+  CARBONTEQ_TRACKIO_WHEEL_SHA256: 55342622ccd256f6d5a64bb500d568ddbb5b4c14ba060e4457c255237d1e426e
+  CARBONTEQ_TRACKIO_WHEEL_PATH: /tmp/carbonteq_trackio-0.31.5.post14.dev35-py3-none-any.whl
   CARBONTEQ_RENDERERS_WHEEL_URL: https://github.com/carbonteq-ai/renderers/releases/download/carbonteq-v0.1.12.post1.dev3/carbonteq_renderers-0.1.12.post1.dev3-py3-none-any.whl
   CARBONTEQ_RENDERERS_WHEEL_SHA256: 57dcc6f8ba2db7bec21c75d40177059f704bb817a772558435e4d34c262ab5eb
   CARBONTEQ_RENDERERS_WHEEL_PATH: /tmp/carbonteq_renderers-0.1.12.post1.dev3-py3-none-any.whl
@@ -30,7 +30,7 @@ env:
   CARBONTEQ_CAUSAL_CONV1D_WHEEL_URL: https://github.com/carbonteq-ai/causal-conv1d/releases/download/carbonteq-v1.7.0%2Bcu130torch2.13/causal_conv1d-1.7.0%2Bcu130torch2.13-cp313-cp313-linux_x86_64.whl
   CARBONTEQ_CAUSAL_CONV1D_WHEEL_SHA256: b69f39142ac88cac91cba5f954cb616c50bc49933cd84f349319420470a4947a
   CARBONTEQ_CAUSAL_CONV1D_WHEEL_PATH: /tmp/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl
-  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl:/tmp/trl-1.12.0.post14-py3-none-any.whl:/tmp/carbonteq_renderers-0.1.12.post1.dev3-py3-none-any.whl:/tmp/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl
+  POSTTRAIN_CONSUMER_EXTRA_WHEELS: /tmp/carbonteq_trackio-0.31.5.post14.dev35-py3-none-any.whl:/tmp/trl-1.12.0.post14-py3-none-any.whl:/tmp/carbonteq_renderers-0.1.12.post1.dev3-py3-none-any.whl:/tmp/causal_conv1d-1.7.0+cu130torch2.13-cp313-cp313-linux_x86_64.whl
 
 jobs:
   quality:
@@ -230,14 +230,14 @@ jobs:
           echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
           VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}" "${CARBONTEQ_RENDERERS_WHEEL_PATH}"
       - name: Install the Verifiers integration
-        # gsm8k-v1 at 11f4d712 (the revision the lab catalog pins) depends on the
-        # framework's Verifiers e6a3d9bb; the constraint makes any environment
+        # gsm8k-v1 at 17e0cd02 (the revision the framework catalog pins) depends on the
+        # framework's Verifiers 74dd3fbf; the constraint makes any environment
         # that selects another Verifiers fail to install instead of replacing it.
         run: |
           uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --inexact
           .venv/bin/python scripts/ci/locked_verifiers.py constraint > /tmp/locked-verifiers.txt
           uv pip install --python .venv/bin/python --constraint /tmp/locked-verifiers.txt \
-            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@11f4d712806d292c6c6a752af046f4e16c4f037e#subdirectory=environments/gsm8k_v1"
+            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/gsm8k_v1"
       - name: Require the locked Verifiers build
         run: .venv/bin/python scripts/ci/locked_verifiers.py check
       - name: Test the Verifiers bridge

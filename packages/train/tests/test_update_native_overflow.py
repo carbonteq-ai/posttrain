@@ -112,27 +112,33 @@ def run_native(folder, *, overflow=False, retries=0, always=False, scaled=True):
     return trainer, population, before, hook_calls
 
 
+def packs_of(population, index):
+    assert population.packs is not None
+    return len(population.packs[index])
+
+
 def test_native_scaler_retry_matches_control_with_stochastic_replay(tmp_path):
     control, expected, _, control_calls = run_native(tmp_path / "control")
     retried, actual, _, calls = run_native(tmp_path / "retry", overflow=True, retries=1)
     assert retried.state.global_step == actual.next_update == actual.applied_updates == 2
-    assert actual.attempts == 3 and len(calls) == 3
+    # The parameter hook fires once per pack's backward; update 0 runs twice.
+    first = packs_of(actual, 0)
+    assert actual.attempts == 3 and len(calls) == 2 * first + packs_of(actual, 1) == len(control_calls) + first
     assert retried.lr_scheduler.last_epoch == control.lr_scheduler.last_epoch == 2
     assert retried.accelerator.scaler.get_scale() == control.accelerator.scaler.get_scale() == 4
     for left, right in zip(control.model.parameters(), retried.model.parameters(), strict=True):
         torch.testing.assert_close(left, right, rtol=0, atol=0)
-    for action in expected.old.values:
-        torch.testing.assert_close(expected.old.values[action], actual.old.values[action], rtol=0, atol=0)
+    torch.testing.assert_close(expected.old.values, actual.old.values, rtol=0, atol=0)
     # Compare at the same native scale. Inverse-scaling a different FP16
     # backward need not be bit-exact because intermediate rounding differs.
-    torch.testing.assert_close(control_calls[0], calls[1], rtol=0, atol=0)
-    torch.testing.assert_close(control_calls[1], calls[2], rtol=0, atol=0)
+    for left, right in zip(control_calls, calls[first:], strict=True):
+        torch.testing.assert_close(left, right, rtol=0, atol=0)
 
 
 def test_native_scaler_exhaustion_keeps_occurrence_pending(tmp_path):
     trainer, population, before, calls = run_native(tmp_path, overflow=True, retries=2, always=True)
     assert trainer.state.global_step == population.next_update == population.applied_updates == 0
-    assert population.attempts == len(calls) == 3 and population._pending == 0
+    assert population.attempts == 3 and len(calls) == 3 * packs_of(population, 0) and population._pending == 0
     assert trainer.lr_scheduler.last_epoch == 0
     for name, value in trainer.model.named_parameters():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)
@@ -141,7 +147,7 @@ def test_native_scaler_exhaustion_keeps_occurrence_pending(tmp_path):
 def test_native_unscaled_nonfinite_gradient_cannot_mutate_policy(tmp_path):
     trainer, population, before, calls = run_native(tmp_path, overflow=True, retries=1, always=True, scaled=False)
     assert trainer.state.global_step == population.applied_updates == population.next_update == 0
-    assert population.attempts == len(calls) == 1 and population._pending == 0
+    assert population.attempts == 1 and len(calls) == packs_of(population, 0) and population._pending == 0
     assert trainer.lr_scheduler.last_epoch == 0
     for name, value in trainer.model.named_parameters():
         torch.testing.assert_close(value, before[name], rtol=0, atol=0)

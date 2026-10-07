@@ -1,0 +1,335 @@
+[INFO] Initializing environment for https://github.com/DavidAnson/markdownlint-cli2.
+[INFO] Installing environment for https://github.com/DavidAnson/markdownlint-cli2.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+markdownlint-cli2........................................................Failed
+- hook id: markdownlint-cli2
+- exit code: 1
+
+markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)
+Finding: environments/nemo_gym_weather/README.md docs/overview.md skills/create-environments/SKILL.md docs/v1/evaluation.md
+Linting: 4 files
+Summary: 0 issues in 0 files
+markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)
+Finding: docs/v1/agent.md .github/workflows/README.md environments/interception/README.md docs/v1/env.md
+Linting: 4 files
+Summary: 0 issues in 0 files
+markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)
+Finding: assets/lab/CLAUDE.md docs/v1/harnesses.md skills/release/SKILL.md docs/v1/getting_started.md
+Linting: 4 files
+Summary: 0 issues in 0 files
+markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)
+Finding: CLAUDE.md skills/brainstorm/SKILL.md AGENTS.md CARBONTEQ_FORK.md
+Linting: 4 files
+Summary: 1 issue in 1 file
+CARBONTEQ_FORK.md:61 error MD001/heading-increment Heading levels should only increment by one level at a time [Expected: h2; Actual: h3]
+markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)
+Finding: docs/v1/gepa.md README.md docs/v1/overview.md assets/templates/browserbase/cua/README.md
+Linting: 4 files
+Summary: 0 issues in 0 files
+markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)
+Finding: skills/evaluate-environments/SKILL.md environments/grayscale_interception/README.md environments/web_search_interception/README.md docs/v1/architecture.md
+Linting: 4 files
+Summary: 0 issues in 0 files
+markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)
+Finding: assets/lab/README.md environments/bash_interception/README.md docs/v1/harbor.md docs/v1/tasksets.md
+Linting: 4 files
+Summary: 0 issues in 0 files
+
+ruff check...............................................................Failed
+- hook id: ruff-check
+- exit code: 2
+
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+
+ruff format..............................................................Failed
+- hook id: ruff-format
+- exit code: 2
+
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag
+error: Failed to fetch: https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/
+  cause: error sending request for url (https://pypi.lan/carbonteq/dev/+simple/carbonteq-renderers/)
+  cause: client error (Connect)
+  cause: invalid peer certificate: UnknownIssuer
+
+hint: Consider enabling use of system TLS certificates with the `--system-certs` command-line flag

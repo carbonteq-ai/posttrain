@@ -303,8 +303,13 @@ class ExecutionAdmissionService:
         admission_key: str,
         provider_id: str | None,
         note: str,
+        from_state: str = "terminal_pending_evidence",
     ) -> bool:
         """Settle one abandoned ``terminal_pending_evidence`` entry as ``completed``.
+
+        ``from_state="submitted"`` settles a ``submitted`` entry whose submission
+        receipt is gone, so no status refresh can advance it; the orphan purge
+        proved its provider execution terminal or absent.
 
         This is used only by an orphan purge after it proved that the owning
         control store is gone (or holds no receipt for the run) and that the
@@ -320,9 +325,13 @@ class ExecutionAdmissionService:
             entry = _required(payload, run_id)
             if entry["state"] == "completed" and entry.get("settlement") == "orphan-purge":
                 return False
-            if entry["state"] != "terminal_pending_evidence":
+            if from_state not in {"terminal_pending_evidence", "submitted"}:
+                raise ContractError(f"admission settlement cannot start from {from_state!r}")
+            if entry["state"] != from_state:
                 raise ContractError(
                     f"admission run {run_id} is {entry['state']!r}; only terminal_pending_evidence can be settled"
+                    if from_state == "terminal_pending_evidence"
+                    else f"admission run {run_id} is {entry['state']!r}, not {from_state!r}"
                 )
             if entry["admission_key"] != admission_key:
                 raise ContractError(f"admission run {run_id} placement changed after the purge preview")

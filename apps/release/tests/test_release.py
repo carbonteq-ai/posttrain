@@ -721,7 +721,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
 
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
-    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev32"
+    assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev35"
     assert entries["trl"].revision == "09312dd1d96603587d1a24c3b714836cf67400f1"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post9"
     assert entries["causal-conv1d"].revision == "b7bec200ce1391f69fac132bf7f8ae007446d46d"
@@ -732,7 +732,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     assert entries["vllm"].artifacts["source_archive_sha256"] == (
         "7ba6018dd6bbc5872876c69a661cf136a6705221f937c3b5cbd826483c476bcb"
     )
-    assert entries["automationbench"].artifacts["environment_revision"] == ("11f4d712806d292c6c6a752af046f4e16c4f037e")
+    assert entries["automationbench"].artifacts["environment_revision"] == ("17e0cd0228eab18d664c2b6ff82f4aec991f4523")
     assert entries["dstack"].required is False
     assert entries["dstack"].deployed_image and "@sha256:" in entries["dstack"].deployed_image
     assert render_fork_ledger(repository_root)["schema"] == "posttrain.fork-ledger.v1"
@@ -1276,8 +1276,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
     artifacts = captured["artifacts"]
     assert isinstance(artifacts, list)
     assert {item["filename"] for item in artifacts} == {
-        "carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl",
-        "carbonteq_trackio-0.31.5.post14.dev32.tar.gz",
+        "carbonteq_trackio-0.31.5.post14.dev35-py3-none-any.whl",
+        "carbonteq_trackio-0.31.5.post14.dev35.tar.gz",
         "trl-1.12.0.post14-py3-none-any.whl",
         "trl-1.12.0.post14.tar.gz",
         "carbonteq_renderers-0.1.12.post1.dev3-py3-none-any.whl",
@@ -1826,7 +1826,7 @@ def test_ci_installs_environments_against_and_requires_the_locked_verifiers(tmp_
     assert "--constraint /tmp/locked-verifiers.txt" in workflow
     assert ".venv/bin/python scripts/ci/locked_verifiers.py check" in workflow
     # Every environment package CI installs pins the framework's Verifiers.
-    assert "verifiers-environments.git@11f4d712806d292c6c6a752af046f4e16c4f037e" in workflow
+    assert "verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523" in workflow
     assert "d994073b9632e73c96a57865683133d7a6ebc4bf" not in workflow
 
     try:

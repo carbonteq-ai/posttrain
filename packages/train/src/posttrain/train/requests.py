@@ -113,6 +113,15 @@ class SAMPORequest:
             raise ValueError(
                 "SAMPO process credit requires a selected credit_estimator and a matching injected provider"
             )
+        projection = getattr(self.bridge, "reward_projection", None)
+        selects_outcomes = getattr(projection, "turn_goal_prefix", None) is not None
+        if (self.settings.goal_credit != "none") != selects_outcomes:
+            raise ValueError(
+                "SAMPO goal-relative turn credit and a reward projection with turn_goal_prefix and "
+                "turn_harm_key are selected together"
+            )
+        if (self.settings.anchor_fallback != "none") != (getattr(projection, "turn_state_key", None) is not None):
+            raise ValueError("SAMPO anchor fallback and a reward projection with turn_state_key are selected together")
         _validate_online_rl(
             "SAMPO",
             self.policy,
@@ -218,7 +227,13 @@ def _validate_online_rl(
 # Every admitted selection runs on one device.
 _QUALIFIED_RESOLVED_SELECTIONS: dict[str, frozenset[tuple[str, str]]] = {
     "trl": frozenset(
-        {("grpo", "algorithm"), ("dapo", "algorithm"), ("sampo", "algorithm"), ("sampo", "semantic-spans")}
+        {
+            ("grpo", "algorithm"),
+            ("dapo", "algorithm"),
+            ("sampo", "algorithm"),
+            ("sampo", "turn-rows"),
+            ("sampo", "semantic-spans"),
+        }
     ),
     "verl": frozenset({("sampo", "algorithm")}),
 }
@@ -247,7 +262,8 @@ def _resolved_selection_problem(
         return (
             f"{training.backend} has no qualified resolved policy update executor for {algorithm} "
             f"objective variant {updates.objective_variant!r}; policy_updates requires the native "
-            "integration gates in the engine plan"
+            "integration gates in the engine plan (an unset catalog objective_variant selects SAMPO turn-rows; "
+            "set it explicitly to select another qualified variant)"
         )
     if (
         updates.credit_estimator is not None
@@ -257,8 +273,18 @@ def _resolved_selection_problem(
             f"process-credit estimator {updates.credit_estimator!r} has not passed native GPU qualification "
             f"for {training.backend} {algorithm} {updates.objective_variant!r}"
         )
-    if backend == "trl" and inference.backend.split("@", 1)[0] == "vllm":
-        return "resolved TRL policy updates are qualified with transformers generation, not vLLM rollouts"
+    if (
+        backend == "trl"
+        and inference.backend.split("@", 1)[0] == "vllm"
+        and (
+            inference.engine.get("mode") != "colocate"
+            or inference.engine.get("request_mode") != "async"
+            or training.backend_options.get("rollout_execution") is None
+        )
+    ):
+        # The TRL sampler correction reads vLLM's processed (temperature-applied)
+        # logprobs through the colocated asynchronous collection runtime.
+        return "resolved TRL policy updates with vLLM rollouts require colocated async vLLM and rollout_execution"
     if training.target.placement.get("world_size", 1) != 1:
         # Multi-GPU execution is out of scope for this release (engine plan R137).
         return "resolved policy updates are qualified on a single device; multi-GPU execution is not admitted"

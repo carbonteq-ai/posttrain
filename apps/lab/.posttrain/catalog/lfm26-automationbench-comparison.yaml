@@ -1989,12 +1989,19 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 0bad6187f40e23666150234ade99efd35ac567a0
+      # Re-pinned 2026-10-06 from 0bad6187 (now environments 24e1fc9): that revision requires Verifiers e6a3d9bb, which the
+      # current evaluation job cannot load. 089b67d contains 0bad6187; 15 benchmark-core files
+      # (task worlds and tools) changed since, so scores are not strictly comparable with earlier runs.
+      revision: 24e1fc9211b64eecf958264b93d56dae00df8f4d
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
       config:
-        taskset: *lfm26_heldout_taskset
+        # 089b67d executes tools only for tasks that capture actions (since 427e802);
+        # without it every tool call returns "linked tool execution requires capture enabled".
+        taskset:
+          <<: *lfm26_heldout_taskset
+          task: {toolset: limited_zapier, search_top_k: 20, capture_actions: true}
         retries: {max_retries: 2}
         agent:
           harness: {id: "null"}
@@ -2035,12 +2042,19 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 0bad6187f40e23666150234ade99efd35ac567a0
+      # Re-pinned 2026-10-06 from 0bad6187 (now environments 24e1fc9): that revision requires Verifiers e6a3d9bb, which the
+      # current evaluation job cannot load. 089b67d contains 0bad6187; 15 benchmark-core files
+      # (task worlds and tools) changed since, so scores are not strictly comparable with earlier runs.
+      revision: 24e1fc9211b64eecf958264b93d56dae00df8f4d
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
       config:
-        taskset: *lfm26_heldout_taskset
+        # 089b67d executes tools only for tasks that capture actions (since 427e802);
+        # without it every tool call returns "linked tool execution requires capture enabled".
+        taskset:
+          <<: *lfm26_heldout_taskset
+          task: {toolset: limited_zapier, search_top_k: 20, capture_actions: true}
         retries: {max_retries: 2}
         agent:
           harness: {id: "null"}
@@ -3245,7 +3259,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local@1:
     selection_type: training-binding
@@ -3274,7 +3288,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   # g40@1 scaled to 16 prompt groups x 4 generations. Eight environment workers
   # of eight episodes give the 64 concurrent episodes one rollout batch needs.
@@ -3308,7 +3322,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
 
   # Revision 1 plus the measured optimizer-phase settings; requires the TRL
@@ -3349,7 +3363,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   # g64-w8@2 for 144 rollouts per update (24 prompt groups x 6): twelve
   # environment workers of twelve episodes each, all 144 in flight at once.
@@ -3388,7 +3402,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g40@1:
     selection_type: training-binding
@@ -3417,7 +3431,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g40@1: &k2_horizon_trl_lora_automationbench_local_g40
     selection_type: training-binding
@@ -3446,7 +3460,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g16-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -3462,7 +3476,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g8-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -3478,7 +3492,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/k2-horizon-7b-trl-lora-automationbench-local-g4-probe@1:
     <<: *k2_horizon_trl_lora_automationbench_local_g40
@@ -3494,7 +3508,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 4096
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/lfm2.5-2.6b-trl-lora-automationbench-local-g64@1:
     selection_type: training-binding
@@ -3543,7 +3557,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   training/lfm2.5-1.2b-trl-lora-changed-weight-local@1:
     selection_type: training-binding
@@ -3565,7 +3579,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   # 8 GB SAMPO development (docs/plan/sampo-vortex-lfm-automationbench.md):
   # the changed-weight binding with a global batch of 2 prompt groups x 4.
@@ -3589,7 +3603,7 @@ training:
       vllm_policy_parity_max_sequence_tokens: 1024
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: db3b92d0ccd8ffe93c5bbd5d087422e7e6bbc113a3721f2423d68b16747fa9ef
+      dependency_lock_sha256: d309d9f2242d8cce5626144de2d5c7c10a2f3331adfc6840a23b5c52bf9a7bcb
 
   # SAMPO step rewards from the AutomationBench adapter's live per-turn progress.
   # The digest is automationbench-v1 0.4.2's scorer identity at a 0.05 penalty;
@@ -4634,6 +4648,43 @@ inference:
     purpose: [eval]
     capabilities: [tool-calling]
 
+
+  # Revision 5 of inference/lfm2.5-2.6b-vllm-automationbench-eval-local@4: identical, plus vLLM's qwen3 reasoning parser, so each call reports
+  # completion_tokens_details.reasoning_tokens and thinking tokens are recorded. LFM2.5's chat template opens
+  # <think> in the generation prompt, so a reply is "thinking</think>answer"; the qwen3 parser counts the
+  # thinking without an opening tag (deepseek_r1 counts 0 on such replies). The template already strips past
+  # thinking from the history, so prompts, and therefore scores, stay comparable with revision 4
+  # (docs/plan/eval-behaviour-metrics.md).
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-local@5:
+    revision: "5"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      reasoning_parser: qwen3
+      max_model_len: 65536
+      max_num_seqs: 20
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 8192
+      temperature: 0.1
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+
   inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-local@1:
     revision: "1"
     startup_timeout_seconds: 900
@@ -4693,6 +4744,44 @@ inference:
     purpose: [eval]
     capabilities: [tool-calling]
   # Evaluation serving with the training context (24,576 tokens).
+
+  # Revision 2 of inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-liquid-local@1: identical, plus vLLM's qwen3 reasoning parser, so each call reports
+  # completion_tokens_details.reasoning_tokens and thinking tokens are recorded. LFM2.5's chat template opens
+  # <think> in the generation prompt, so a reply is "thinking</think>answer"; the qwen3 parser counts the
+  # thinking without an opening tag (deepseek_r1 counts 0 on such replies). The template already strips past
+  # thinking from the history, so prompts, and therefore scores, stay comparable with revision 1
+  # (docs/plan/eval-behaviour-metrics.md).
+  inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-liquid-local@2:
+    revision: "2"
+    startup_timeout_seconds: 900
+    model: models/lfm2.5-2.6b@bf16
+    backend: vllm@0.29.1.dev3
+    renderer: lfm2.5-tools-thinking@2
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      reasoning_parser: qwen3
+      max_model_len: 65536
+      max_num_seqs: 20
+      max_num_batched_tokens: 65536
+      enforce_eager: false
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      flash_attn_version: 2
+      attention_backend_priority: [FLASH_ATTN]
+      text_only: true
+      skip_mm_profiling: true
+    sampling:
+      max_tokens: 8192
+      temperature: 0.5
+      top_p: 1.0
+      top_k: 50
+      repetition_penalty: 1.1
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  # Evaluation serving with the training context (24,576 tokens).
+
   inference/lfm2.5-2.6b-vllm-automationbench-eval-24k-local@1:
     revision: "1"
     startup_timeout_seconds: 900

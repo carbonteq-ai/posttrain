@@ -448,6 +448,157 @@ async def test_registered_job_kinds_resolve_to_first_class_metric_views(
     assert response.view.trace_evaluation_enabled is bool(definition.trace_sections)
 
 
+# What the resolved TRL SAMPO engine writes per update, by writer. This mirrors
+# packages/train (policy_job, policy_rollouts, update_telemetry, update_totals and
+# the shared native log callback); Observatory cannot import the trainer.
+_RESOLVED_SAMPO_UPDATE = (
+    "train/rl/loss",
+    "train/rl/policy_loss",
+    "train/rl/kl_loss",
+    "train/rl/kl",
+    "train/rl/applied_optimizer_updates",
+    "train/rl/optimizer_attempts",
+    "train/rl/selected_policy_actions",
+    "train/rl/selected_kl_actions",
+    "train/rl/advantage_mean",
+    "train/rl/advantage_abs_mean",
+    "train/rl/advantage_std",
+    "train/rl/advantage_nonzero_fraction",
+    "train/rl/advantage_positive_fraction",
+    "train/rl/advantage_negative_fraction",
+    "train/rl/advantage_zero_fraction",
+    "train/rl/clip_fraction",
+    "train/rl/clip_fraction_low",
+    "train/rl/clip_fraction_high",
+    "train/rl/importance_sampling_ratio_mean",
+    "train/rl/importance_sampling_ratio_min",
+    "train/rl/importance_sampling_ratio_max",
+    "train/rl/importance_sampling_ratio_clamped_fraction",
+    "train/rl/entropy",
+)
+_RESOLVED_SAMPO_NATIVE_LOG = (
+    "train/grad_norm",
+    "train/gradient_clipped",
+    "train/learning_rate",
+    "train/step_time_seconds",
+)
+_RESOLVED_SAMPO_ROLLOUT_TOTALS = (
+    "train/rl/rollouts_requested",
+    "train/rl/rollouts_attempted",
+    "train/rl/rollouts_completed",
+    "train/rl/rollouts_failed",
+    "train/rl/rollouts_replaced",
+    "train/rl/rollouts_truncated",
+    "train/rl/rollouts_unscorable",
+    "train/rl/rollouts_missing",
+    "train/rl/admission_rounds",
+    "train/rl/admission_rejected_groups",
+    "train/rl/time/rollout_seconds",
+    "train/rl/rollout_selected_tokens",
+    "train/rl/rollout_tokens_per_second",
+    "train/rl/rollout_selected_token_fraction",
+)
+_RESOLVED_SAMPO_COLLECTION = (
+    "train/rl/reward_mean",
+    "train/rl/reward_std",
+    "train/rl/group_reward_std_mean",
+    "train/rl/group_zero_variance_fraction",
+    "train/rl/completion_tokens_mean",
+    "train/rl/completion_tokens_max",
+    "train/rl/completion_truncation_rate",
+)
+_RESOLVED_SAMPO_CREDIT = (
+    "train/rl/episode_advantage_mean",
+    "train/rl/turn_advantage_mean",
+    "train/rl/anchor_group_size_mean",
+    "train/rl/sparse_reward_projection_fraction",
+    "train/rl/episode_advantage_abs_mean",
+    "train/rl/turn_advantage_abs_mean",
+    "train/rl/turn_advantage_informative_fraction",
+    "train/rl/singleton_anchor_fraction",
+    "train/rl/turn_credit_share",
+)
+
+
+_RESOLVED_SAMPO_SAMPLER_GAP = (
+    "train/rl/sampling_logp_delta_mean",
+    "train/rl/sampling_logp_delta_max",
+    "train/rl/sampling_logp_delta_p99",
+    "train/rl/sampling_sequence_logp_delta_abs_mean",
+)
+
+
+def _resolved_sampo_source(metrics: tuple[str, ...], backend: str = "transformers@1") -> FakeRunDataSource:
+    run_id = "runs/resolved-sampo"
+    ratios = {"train/rl/rollouts_failed": 0.0, "train/rl/rollouts_unscorable": 0.0}
+    series = {
+        name: MetricSeries(name=name, points=(MetricPoint(value=ratios.get(name, 0.5), step=1),)) for name in metrics
+    }
+    return FakeRunDataSource(
+        {
+            run_id: RunDetail(
+                summary=_summary(run_id, "train.sampo"),
+                resolved_inputs={
+                    "settings": {
+                        "beta": 0.005,
+                        "policy_updates": {"schedule": {"unit": "episode", "minibatches": 1}},
+                    },
+                    "inference": {"backend": backend},
+                },
+                metric_names=tuple(series),
+                trace_count=4,
+            )
+        },
+        {run_id: series},
+    )
+
+
+@pytest.mark.parametrize("backend", ["transformers@1", "vllm@0.20"])
+@pytest.mark.asyncio
+async def test_resolved_sampo_run_satisfies_hierarchical_credit_evidence(backend: str) -> None:
+    complete = (
+        *_RESOLVED_SAMPO_UPDATE,
+        *_RESOLVED_SAMPO_NATIVE_LOG,
+        *_RESOLVED_SAMPO_ROLLOUT_TOTALS,
+        *_RESOLVED_SAMPO_COLLECTION,
+        *_RESOLVED_SAMPO_CREDIT,
+        *_RESOLVED_SAMPO_SAMPLER_GAP,
+    )
+
+    view = await ObservatoryService(_resolved_sampo_source(complete, backend)).get_run_view("runs/resolved-sampo")
+
+    by_key = {item.key: item for item in view.completeness.requirements}
+    assert by_key["hierarchical_credit"].state == "available"
+    assert by_key["resolved_updates"].state == "available"
+    assert by_key["reference_policy"].state == "available"
+    # A colocated vLLM sampler owes rollout-policy correction evidence.
+    assert by_key["policy_freshness"].state == ("available" if backend.startswith("vllm") else "not_applicable")
+    assert view.completeness.state == "complete"
+    assert not [alert.id for alert in view.alerts if alert.id.startswith("evidence-")]
+
+    # Before the fix the resolved engine wrote only update and rollout totals.
+    before = (
+        *_RESOLVED_SAMPO_UPDATE[:8],
+        "train/rl/advantage_mean",
+        "train/rl/advantage_abs_mean",
+        "train/rl/advantage_std",
+        "train/rl/advantage_nonzero_fraction",
+        "train/rl/clip_fraction",
+    )
+    old = await ObservatoryService(
+        _resolved_sampo_source((*before, *_RESOLVED_SAMPO_NATIVE_LOG, *_RESOLVED_SAMPO_ROLLOUT_TOTALS))
+    ).get_run_view("runs/resolved-sampo")
+    assert {alert.message for alert in old.alerts} >= {
+        "Hierarchical credit assignment evidence is incomplete.",
+        "Relative learning signal evidence is incomplete.",
+        "Controlled policy update evidence is incomplete.",
+    }
+    # Without the sampler gap a vLLM-sampled resolved run is not complete.
+    no_gap = tuple(name for name in complete if name not in _RESOLVED_SAMPO_SAMPLER_GAP)
+    partial = await ObservatoryService(_resolved_sampo_source(no_gap, backend)).get_run_view("runs/resolved-sampo")
+    assert ("evidence-policy_freshness" in {alert.id for alert in partial.alerts}) is backend.startswith("vllm")
+
+
 @pytest.mark.asyncio
 async def test_distillation_projection_requires_traces_and_surfaces_teacher_failures() -> None:
     definition = DEFAULT_TELEMETRY_DEFINITIONS["train.distill"]
@@ -909,3 +1060,104 @@ async def test_trace_pages_take_token_and_turn_counts_from_stored_facts() -> Non
     assert (filled.thinking_tokens, filled.response_tokens, filled.model_calls) == (6659, 1257, 6)
     assert untouched == provider
     assert len(source.statements) == 1 and "'train-a'" in source.statements[0] and "eval-b" not in source.statements[0]
+
+
+def _series(name: str, steps: range | tuple[int, ...]) -> MetricSeries:
+    return MetricSeries(name=name, points=tuple(MetricPoint(step=step, value=float(step)) for step in steps))
+
+
+def test_charts_name_population_series_when_collections_span_updates() -> None:
+    from posttrain_observatory.service import _chart_views
+    from posttrain_observatory.telemetry import ChartDefinition
+
+    charts = (
+        ChartDefinition(
+            key="optimization", title="Policy optimization", metrics=("train/rl/reward_mean", "train/rl/entropy")
+        ),
+        ChartDefinition(key="stability", title="Update stability", metrics=("train/grad_norm",)),
+    )
+    # Resolved engine: collections at updates 1 and 3, each feeding two updates.
+    resolved = {
+        "train/rl/reward_mean": _series("train/rl/reward_mean", (1, 3)),
+        "train/rl/entropy": _series("train/rl/entropy", range(1, 5)),
+        "train/grad_norm": _series("train/grad_norm", range(1, 5)),
+    }
+    views = _chart_views(charts, resolved, resolved, (1, 3))
+    # Charts stay whole; the population series is named so readers place it at its collection.
+    assert [(view.key, [series.name for series in view.series], view.collection_series) for view in views] == [
+        ("optimization", ["train/rl/reward_mean", "train/rl/entropy"], ("train/rl/reward_mean",)),
+        ("stability", ["train/grad_norm"], ()),
+    ]
+    # One update per collection: steps already are collections.
+    legacy = {name: _series(name, range(1, 5)) for name in resolved}
+    assert all(view.collection_series == () for view in _chart_views(charts, legacy, legacy))
+
+
+def test_collection_time_sums_each_collections_updates_and_skips_one_still_training() -> None:
+    from posttrain_observatory.metric_catalog import COLLECTION_TIME_METRIC
+    from posttrain_observatory.service import _collection_time
+
+    # Collections at updates 1, 5 and 9; the third has recorded two of its four updates so far.
+    step_time = MetricSeries(
+        name="train/step_time_seconds",
+        points=tuple(
+            MetricPoint(step=step, value=value)
+            for step, value in ((1, 400.0), (2, 50.0), (3, 50.0), (4, 50.0), (5, 300.0), (6, 40.0), (7, 40.0))
+            + ((8, 40.0), (9, 350.0), (10, 45.0))
+        ),
+    )
+    by_name = {"train/step_time_seconds": step_time}
+    live = _collection_time(by_name, (1, 5, 9), finished=False)
+    assert live is not None and live.name == COLLECTION_TIME_METRIC
+    assert [(point.step, point.value) for point in live.points] == [(1, 550.0), (5, 420.0)]
+    finished = _collection_time(by_name, (1, 5, 9), finished=True)
+    assert finished is not None and [point.value for point in finished.points] == [550.0, 420.0, 395.0]
+    # One update per collection: collection time is step time.
+    single = _collection_time(by_name, (), finished=False)
+    assert single is not None and [point.value for point in single.points] == [
+        point.value for point in step_time.points
+    ]
+    assert _collection_time({}, (1, 5), finished=True) is None
+
+
+def test_training_comparison_flags_inputs_that_change_what_numbers_mean() -> None:
+    from posttrain_observatory.service import _training_differences
+
+    resolved = {
+        "model": "lfm2.5-2.6b",
+        "reward_function": "reward/automationbench-manifest-steps@1",
+        "updates_per_collection": 4,
+        "prompts_per_collection": 16,
+        "collections": 22,
+    }
+    legacy = {**resolved, "reward_function": "reward/automationbench-turn-progress@2", "updates_per_collection": 1}
+    legacy["collections"] = 20
+    differences = _training_differences([resolved, legacy])
+    # Progress (collections recorded) is context, never a difference.
+    assert [(item.key, item.values) for item in differences] == [
+        ("reward_function", ("reward/automationbench-manifest-steps@1", "reward/automationbench-turn-progress@2")),
+        ("updates_per_collection", (4, 1)),
+    ]
+    assert _training_differences([resolved, {**resolved, "collections": 3}]) == ()
+
+
+def test_windowed_summary_reduces_only_the_recent_points() -> None:
+    from posttrain_observatory.service import _reduce
+
+    reward = _series("train/rl/reward_mean", range(1, 11))  # values 1.0 .. 10.0
+    assert _reduce(reward, "mean", 8) == pytest.approx(sum(range(3, 11)) / 8)
+    assert _reduce(reward, "mean") == pytest.approx(5.5)
+    assert _reduce(_series("train/rl/reward_mean", (1, 2)), "mean", 8) == pytest.approx(1.5)
+
+
+def test_collection_starts_number_populations_only_when_they_span_updates() -> None:
+    from posttrain_observatory.service import _collection_starts
+
+    names = ("train/rl/reward_mean", "train/step_time_seconds")
+    resolved = {
+        "train/rl/reward_mean": _series("train/rl/reward_mean", (1, 5, 9)),
+        "train/step_time_seconds": _series("train/step_time_seconds", range(1, 13)),
+    }
+    assert _collection_starts(resolved, names) == (1, 5, 9)
+    legacy = {name: _series(name, range(1, 4)) for name in names}
+    assert _collection_starts(legacy, names) == ()

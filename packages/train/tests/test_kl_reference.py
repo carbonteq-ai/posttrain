@@ -155,6 +155,17 @@ def test_reward_contract_digest_changes_with_the_kl_reference() -> None:
     base = digest(_settings())
     start = digest(_settings(kl_reference="start"))
     assert base != start
+    # Choosing surplus groups by learning signal changes what is trained on; candidate order does not.
+    from posttrain.train.profiles import ActiveGroupSampling
+    from posttrain.train.update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
+
+    resolved = {
+        "loop": TrainingLoop(max_steps=1, max_length=8, per_device_batch_size=1),
+        "policy_updates": PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(1, 100, 1000)),
+    }
+    ordered = digest(_settings(**resolved, active_sampling=ActiveGroupSampling(3)))
+    assert ordered == digest(_settings(**resolved, active_sampling=ActiveGroupSampling(3, retain="first")))
+    assert ordered != digest(_settings(**resolved, active_sampling=ActiveGroupSampling(3, retain="learning_signal")))
     # "start" hashes like settings written before the field existed.
     import hashlib
     import json
@@ -168,10 +179,18 @@ def test_reward_contract_digest_changes_with_the_kl_reference() -> None:
     # Pre-engine checkpoints did not contain the additive selection field.
     legacy.pop("policy_updates")
     legacy["active_sampling"] = {"max_candidate_batches": legacy["active_sampling"]["max_candidate_batches"]}
+    # Nor goal-relative turn credit, nor the projection's turn outcome selection.
+    legacy.pop("goal_credit")
+    legacy.pop("goal_credit_scale")
+    legacy.pop("anchor_fallback")
+    legacy_projection = asdict(projection)
+    legacy_projection.pop("turn_goal_prefix")
+    legacy_projection.pop("turn_harm_key")
+    legacy_projection.pop("turn_state_key")
     payload = {
         "schema": "posttrain.reward-contract.v1",
         "settings": legacy,
-        "projection": asdict(projection),
+        "projection": legacy_projection,
         "environment": environment,
     }
     expected = hashlib.sha256(

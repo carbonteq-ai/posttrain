@@ -1,0 +1,230 @@
+{
+  "scope": "schema admission only; mutable worker drafts at checkpoint",
+  "results": [
+    {
+      "task_name": "finance.vendor_insurance_verification",
+      "draft_sha256": "bfedbb6926d594c0330dd011d09c12dcf7acffd2fdda087fecb9f07c0f34931d",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.bank_fee_analysis",
+      "draft_sha256": "0a3c9c772d3d2811132eec3cfa181f488fdfed1971a9a19e64b7f6659c5bdc04",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.credit_limit_review",
+      "draft_sha256": "83c6b65fd1d69f58aa058b853bd257e9584c9917dc707be595cc4d338b6c8dae",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.expense_anomaly_detection",
+      "draft_sha256": "56522804fa3c124d23dcbfa1c31b36d5ce976abd8b18837b062c802bea5cd2ec",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.expense_reclassification",
+      "draft_sha256": "38916d0864fa8e513468be5c1456af0c2df1aa514cfcb4bbebd074860b240b94",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.intercompany_balance_recon",
+      "draft_sha256": "10bd4840212af2e7df291c59dad30f06df147d8585f6ec5340d8053468cd5b1c",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.budget_variance_analysis",
+      "draft_sha256": "fc63aee92eea47511bd354328a37bff86cefb3bff15d7cbe8bc9e37b1d0188a1",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.annual_budget_prep",
+      "draft_sha256": "74866cdd81ae3a0d2f162c82ca2e2bc29dd20331d7bca52119764ea1a5484345",
+      "load_error": "ValidationError: 1 validation error for ContractSpec\n  Value error, effect_check_requires_supported_population [type=value_error, input_value={'schema_version': 1, 'ma...tim'}]}}], 'credit': []}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+    },
+    {
+      "task_name": "finance.revenue_recognition",
+      "draft_sha256": "1a0e96d303fb0e142d231936ffe23282904dd6565fe2bbb87a7a4924ddd3cfb3",
+      "load_error": null
+    },
+    {
+      "task_name": "finance.wire_transfer_approval",
+      "draft_sha256": "88e0de760819da8048ac38bf355c9edab089f2fd9c2c044e6ff1277f76f34f53",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.salary_adjustment_processing",
+      "draft_sha256": "97b3b53ed8c1949d6d0398d03b6049c73ff0b04bdc2b36c3e162d5e492975e8a",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.standup_absence_tracking",
+      "draft_sha256": "9a427ebbd3320e322f0bebdd6262e85f18afe52243031c4a9505c5c64f3e3334",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.slack_channel_onboarding",
+      "draft_sha256": "d20f3fd0aaeedecf253dbc2d66c6660c84b426228c45067f9c208bd3abb009b5",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.monday_pip_tracking",
+      "draft_sha256": "a3f012c10a406568df83fa3c1181c4593370b3827c3169934d02624022bc963f",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.benefits_enrollment_review",
+      "draft_sha256": "0f193587d32a8bcc37d3118078d23a80af262a97878bd05d6d8d487783ce1836",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.jira_security_access_review",
+      "draft_sha256": "303b0cc922783f5ad371e569e2f244024348369862ad680fc53e293fb504da74",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.notion_meeting_notes",
+      "draft_sha256": "5ff1f6761c5b9e9f945a549f5312cdc9030a20481e44342561a986da1f47b05c",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.return_from_leave",
+      "draft_sha256": "c61386b7110db8c71ed6f8253428fd6260e0cbbe822a8bfc0b26f287a6623573",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.survey_distribution",
+      "draft_sha256": "a4fb11b69fbcab4aa2765f6a23c97b23bf967c5e82cb806f377c8d8d3c33672c",
+      "load_error": null
+    },
+    {
+      "task_name": "hr.comp_adjustment_batch",
+      "draft_sha256": "226eefb40a5b5ce249c8deaf4e0f79be961af8f91b9615fa5abea143e881286f",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.podcast_episode_promotion",
+      "draft_sha256": "503752c59cabec02b5867bcbddc56cfc7343c6de3e32130c8b541003f44d9509",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.topic_cluster",
+      "draft_sha256": "3f75d452789caf1bec982562107bd1c44b89b18d6c07545fa27b52ddb409e55b",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.content_syndication",
+      "draft_sha256": "0ffce6315a249b349c9f3d255b3f13b973189051f8e7be7012f3752087494e49",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.social_audit",
+      "draft_sha256": "89df4c5e25887ad8ba3ae16a6fe859fdf99bedd36b2f67137e9abc02ab5d6a01",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.campaign_calendar",
+      "draft_sha256": "05342ed95e810586a11804cc67743cddb92717b628566ae6b23474f332028644",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.social_comment_response_queue",
+      "draft_sha256": "68ffbdfeaecdbe58cba331c1d7cd58ef184a026ba63bc45b3a636308b1d82e1b",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.contact_data_cleanup",
+      "draft_sha256": "9e131406d8721dd7d79c228baa4577575ac2b5101a23c6135a7defe2a7cb1810",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.guest_post_outreach",
+      "draft_sha256": "2a5befbbf5962635093f1dfa124861ee547f7f3839a1ea61e1f63d70fa03f546",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.landing_page_optimization",
+      "draft_sha256": "858082703477d53dc11a5617b80505f70b424a1407cd33e2138a139c5f4cf167",
+      "load_error": null
+    },
+    {
+      "task_name": "marketing.campaign_launch_checklist",
+      "draft_sha256": "59cfdf39e67b6b9fc02cdd76e8f7f85ad1113e5357cd2e493f3a35a2e9a3a6e1",
+      "load_error": null
+    },
+    {
+      "task_name": "operations.hubspot_personalized_outreach",
+      "draft_sha256": "7f98d175c024110beb5127dad8b2b709cde1d8ab7ea2f08377776db370d31b69",
+      "load_error": null
+    },
+    {
+      "task_name": "operations.twilio_production_incident",
+      "draft_sha256": "5dc313f9678e36cbe0155aea651b4776398482e9234728ddb820377b72be7afb",
+      "load_error": null
+    },
+    {
+      "task_name": "operations.contractor_badge_expiration",
+      "draft_sha256": "50fb26443b2a4820941b318448c29aaf5225f828f8f36f78f76025a60b347ecf",
+      "load_error": null
+    },
+    {
+      "task_name": "sales.docusign_contract_send",
+      "draft_sha256": "3938de41d83c8f75ce64f10cb37872f00a75d3222f9ec998b04d3b36c144c5a6",
+      "load_error": null
+    },
+    {
+      "task_name": "sales.event_followup_outreach",
+      "draft_sha256": "e6e785e02886162d976e8c8b1c5da0ef8fcd3c4fd836320cb4abfda89187a140",
+      "load_error": null
+    },
+    {
+      "task_name": "support.zendesk_freshdesk_sync",
+      "draft_sha256": "54314fc447a1e6adf1b61561fde3a1f05bfcec00d4e96964ea83a6693e8e0dc7",
+      "load_error": null
+    },
+    {
+      "task_name": "support.gorgias_channel_consolidation",
+      "draft_sha256": "4c3d57bab95688725da261689a61eea0200944dff747495f1910d4b9f1af5093",
+      "load_error": null
+    },
+    {
+      "task_name": "support.zoho_risk_scoring",
+      "draft_sha256": "c37f7b455b87efd1969e0597a166b26635fcda6c94725b487e37b7c6bc9ab930",
+      "load_error": null
+    },
+    {
+      "task_name": "support.zendesk_maintenance_notify",
+      "draft_sha256": "38cb704fd521e1c101431d4d6b693641893119b964568e31d2ed6ca935135bea",
+      "load_error": null
+    },
+    {
+      "task_name": "support.zoho_desk_capacity_planning",
+      "draft_sha256": "7f04e6ec5febf1668c530f34ae5848d01548aa2c364082c09612a720b7079827",
+      "load_error": null
+    },
+    {
+      "task_name": "support.gorgias_order_lookup",
+      "draft_sha256": "98399dc4924bdb081d1d18c754b32b1e1dfdd601a4031d3019825353f5e370cd",
+      "load_error": null
+    },
+    {
+      "task_name": "support.gorgias_fraud_detection",
+      "draft_sha256": "98438da3f3243de60949026b8cc6ca57ab9b6c3fa1e80f0f41a339b45a84a6fc",
+      "load_error": null
+    },
+    {
+      "task_name": "support.helpscout_response_audit",
+      "draft_sha256": "a368d960011ef7df19431fd1c6e908d184c774d36dec111cc43038a4aff04335",
+      "load_error": null
+    },
+    {
+      "task_name": "support.zendesk_automated_responses",
+      "draft_sha256": "c2fc2dbb616f5feea730767e8b27a80532f7a874dff2fc395d65937b7af7b86e",
+      "load_error": null
+    },
+    {
+      "task_name": "support.intercom_sentiment_escalation",
+      "draft_sha256": "2b8304e0c8725d88cdab8422f134bf694358be48cad1cd81fae5e582cedec940",
+      "load_error": null
+    }
+  ]
+}

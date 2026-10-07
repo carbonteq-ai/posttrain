@@ -1,0 +1,849 @@
+{
+  "schema_version": 1,
+  "review_kind": "public_input_policy_and_manifest_capability_review",
+  "batch_number": 5,
+  "batch_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-05.json",
+  "batch_sha256": "8f93b47f1584ee58c553a50db4c800966f4e74ebb28d3600df2695d86de590e1",
+  "index_path": "docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batches.json",
+  "pack_selection_sha256": "4a793692488e27ebd87b47c019c3c5a7efb69ebcf1ffe3c6518bea58a1583e00",
+  "index_selection_sha256_at_review": "13d326e79af6c064300d7aaeb6cf1b02fb7f14f8a50622cc3648ae8ce87798a3",
+  "reviewed_task_count": 10,
+  "component_proposal_count": 1,
+  "accepted_manifest_count": 0,
+  "full_task_qualified_count": 0,
+  "provenance_note": "Exact pack bytes and task order match the index. All ten canonical public-input digests pass. Index selection identity hashes exact file bytes; pack selection identity hashes canonical JSON contents. Both independently verified.",
+  "source_boundary": {
+    "used": "Public prompts, initial worlds, named tools and installed shared schemas. No external policy was consulted.",
+    "not_used": [
+      "Hidden assertions or answers",
+      "Task-specific scoring code",
+      "Recorded episode contents or teacher action sequences"
+    ],
+    "qualification_refs": "Copied solely for later exact-SHA replay; not read or used as normative policy."
+  },
+  "capability_snapshot": {
+    "available": "Opportunity record checks; initial Gmail/Opportunity and Sheets populations; qualified Gmail sends, Asana create/section and Sheets append/update effects; typed predicates and exact numeric/date values; guards and obligations. sheets.retained_when@1 is newly registered in the working candidate; this review does not qualify that increment.",
+    "limitations": "No Salesforce Contact registration, request singleton, Slack/Intercom/Re:amaze/QuickBooks/Calendar generic effects or generated-ID joins assumed. Reusable task-specific historical adapters are not automatically registered manifest capabilities."
+  },
+  "component_manifest_proposals": [
+    {
+      "component_id": "sales.post-demo-proposal-stage",
+      "task_name": "sales.full_sales_cycle_orchestrator",
+      "status": "schema_candidate_not_cataloged_or_native_replay_qualified",
+      "coverage": "One explicit CRM stage goal with native transition credit; no claim about remaining sales workflow or whole task.",
+      "why_supported": "Public Sales Manager playbook explicitly says to advance the opportunity to Proposal after Demo; the user names this deal and delegates to that playbook.",
+      "limits": [
+        "Initial stage alias requires native replay attention; do not synthesize stage_name Demo as baseline proof.",
+        "Positive credit requires independently qualified native transition evidence; a matching final value alone cannot invent a recipient.",
+        "Other scheduling, contract draft/send prohibition, prep, talking points, approvals and Slack goals remain open."
+      ],
+      "manifest": {
+        "schema_version": 1,
+        "manifest_id": "sales-post-demo-proposal-stage-component",
+        "revision": "public_batch05_review_v1",
+        "public_request": "The TechVentures - Enterprise Deal just completed Demo. Move the deal forward through the next steps -- check #deal-room-techventures for the post-demo playbook. Stage contract materials as a draft, block prep time, generate proposal talking points, and keep the deal room updated.",
+        "bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "61ec4ef97b106818b91bc3099aa61d678b5b5de9e909651bda6c0bef83f7fa71"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "messages",
+              0,
+              "id"
+            ],
+            "canonical_sha256": "ecfa2d64f7ae7576f718874cd19f006b7d2c9fd66bbf6b5f73c2aeb472b98738"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "messages",
+              0,
+              "channel_id"
+            ],
+            "canonical_sha256": "5a1e87100ad4ef37c86fb374192f719e4fa6591b4862f08211bab2d6a97ac6ff"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "messages",
+              0,
+              "user_id"
+            ],
+            "canonical_sha256": "69089767dd3aea6f2a3341a0e3ead87e15d3fc2dc389f661d0dd2117a5c5d0cf"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "messages",
+              0,
+              "ts"
+            ],
+            "canonical_sha256": "7aaa9ebd0c65575bfc3c2ef581fa6b9522983fb2295cdf5b881431e748af5267"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "messages",
+              0,
+              "text"
+            ],
+            "canonical_sha256": "30ef9784121fda67d639d457710bdb9a0772b2d2584f710efcccffc808b5f6ed"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "channels",
+              0,
+              "id"
+            ],
+            "canonical_sha256": "5a1e87100ad4ef37c86fb374192f719e4fa6591b4862f08211bab2d6a97ac6ff"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "channels",
+              0,
+              "name"
+            ],
+            "canonical_sha256": "2d77635e2a5e2cb607cf4b836168bb0b682c8c8d872620df25194f369fb3e0fb"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "users",
+              0,
+              "id"
+            ],
+            "canonical_sha256": "69089767dd3aea6f2a3341a0e3ead87e15d3fc2dc389f661d0dd2117a5c5d0cf"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "users",
+              0,
+              "name"
+            ],
+            "canonical_sha256": "ec5ece4169c6ddc265286ca885a56ad7d38a8ddaea0755cd421ddf7b6de40639"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "salesforce",
+              "opportunities",
+              0,
+              "id"
+            ],
+            "canonical_sha256": "7c266ecd1a791ed8a974c16add1369cb1905b7dc7e44afa0bcb31db24208c9f3"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "salesforce",
+              "opportunities",
+              0,
+              "name"
+            ],
+            "canonical_sha256": "8a733f235c10acfece56b79b49eb9139885a3c9fd7d7ba0cc19c082ab5e9218b"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "salesforce",
+              "opportunities",
+              0,
+              "account_id"
+            ],
+            "canonical_sha256": "8091535349dd1e2afd222c7e0f1b37f19cdf98f4677beafcf2be7077ca4a71e4"
+          }
+        ],
+        "sources": {
+          "target": {
+            "adapter": "salesforce.record@1",
+            "object_type": "Opportunity",
+            "record_id": "opp_tv",
+            "baseline_requirements": [
+              {
+                "field": "name",
+                "value": "TechVentures - Enterprise Deal",
+                "comparison": "string"
+              },
+              {
+                "field": "account_id",
+                "value": "001_TV",
+                "comparison": "string"
+              }
+            ]
+          }
+        },
+        "checks": [
+          {
+            "check_id": "post-demo-stage",
+            "signal_id": "sales.post_demo_stage",
+            "role": "goal",
+            "operator": "record.fields_equal@1",
+            "source": "target",
+            "expected": [
+              {
+                "field": "stage_name",
+                "value": "Proposal",
+                "comparison": "string"
+              }
+            ]
+          },
+          {
+            "check_id": "stage-coverage",
+            "signal_id": "sales.post_demo_stage_coverage",
+            "role": "diagnostic",
+            "operator": "record.coverage@1",
+            "source": "target"
+          }
+        ],
+        "credit": [
+          {
+            "check": "post-demo-stage",
+            "policy": "verified_transition_once@1",
+            "channel": "goal"
+          }
+        ]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task_name": "simple.email_sf_contact_account_update",
+      "domain": "simple",
+      "family": "simple.salesforce-crm",
+      "public_input_sha256": "7bd5560bb7c11cb7f44576d2b513a742508aef599e4c79209ef472f6729c9be1",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/c7f26f0d7f4f87e45f70661ac6f0c097e36361b17e4ad1c9b84119a6cb9e0d03/episode.json",
+        "episode_sha256": "6e7f4baad3a7cebaeb7aae6ee8e7f8c9c18895e8c046b4cc620faba1e12b010c",
+        "trace_ids": [
+          "13a1e1bdf8b94a1fb35761e264ce1b06"
+        ]
+      },
+      "goals": [
+        "Resolve David Kim's email and the corresponding Salesforce Contact; update that contact's account name to Nova Horizon."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Name and old email differ from the new sender domain; join the person's identity using public context, not identical email.",
+        "The request names account name only; do not require email/title updates, account creation or changing account_id."
+      ],
+      "authority": [
+        "User prompt; gmail.messages[0] sender/body/date; salesforce.contacts[0] id/name/account_name."
+      ],
+      "review_conclusions": [
+        "The initial public Contact identifies David Kim at OldJob Corp; his email states that he joined Nova Horizon as CTO.",
+        "A Contact record adapter extension would cover this small task directly; a fake Opportunity or recipient-only finding would not."
+      ],
+      "ambiguities": [
+        "Whether changing account_name also requires an Account relationship is not specified. The current public task asks for the contact's account name."
+      ],
+      "data_only_blueprint": {
+        "population": "Public Contact identity 003005, bound to David Kim and old account name.",
+        "goal": "Retained Contact.account_name == Nova Horizon, target identity and public email bound.",
+        "credit": "Once for a verified relevant transition; no credit for an already-satisfied baseline."
+      },
+      "capability_gaps": [
+        "Register Salesforce Contact native field/transition evidence in the shared record adapter; current registry supports Opportunity only."
+      ],
+      "adversarial_cases": [
+        "Same name on another Contact or conflicting emails makes target resolution unavailable.",
+        "Updating email alone fails; changing a different Contact fails.",
+        "Already updated baseline gives outcome without invented action credit."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.intercom_demo_scheduling",
+      "domain": "support",
+      "family": "support.intercom-workflows",
+      "public_input_sha256": "86e03526421cfac1b1f0c945246d539bb71c23b457a128f8afd81d9a66e117a6",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/7685c817acd24a6f273b11b1a1e7c146ec94e56e2f95e69d4734f3f1ba566c68/episode.json",
+        "episode_sha256": "0e1b8ebe08dceb83b60527848a698d3c1f82d28a4b1fe51d4971d46278ef73f9",
+        "trace_ids": [
+          "190fa807ebca4ecd9baea4dad925832f"
+        ]
+      },
+      "goals": [
+        "Qualify open demo-request conversations through contact/company joins and the supplied policy.",
+        "Schedule a correctly named event with contact and sales invitees and tier duration; deduplicate requests for the same person.",
+        "Send permissible outcome notices and Slack summary."
+      ],
+      "prohibitions": [
+        "Do not process closed/snoozed conversations, other inquiry tags or already demo-scheduled contacts.",
+        "Do not schedule competitor-domain or Never Schedule overrides."
+      ],
+      "goal_constraints": [
+        "At least five company employees and registered user status are explicit; tier durations are enterprise 60, professional 45 and starter 30 minutes.",
+        "Exact tag demo-request differs from demo-requested.",
+        "Strategic Always Schedule is an explicit override but its precedence over independent eligibility gates requires a declared policy decision."
+      ],
+      "authority": [
+        "User prompt and system exclusion rule; ss_demo_policy/ws_qualification, ws_scheduling and ws_overrides; Intercom conversations, contacts and companies."
+      ],
+      "review_conclusions": [
+        "Deduplicate by native contact identity across threads, including the repeated CloudNine contact.",
+        "Use contact email domain and associated company size/plan, not name resemblance or first matching thread.",
+        "Policy refusal replies and the user's everyone-outcome instruction conflict with the higher-priority instruction to handle excluded/rejected items silently; do not install refusal requirements as unquestioned goals."
+      ],
+      "ambiguities": [
+        "Which gates Always Schedule overrides is not stated precisely.",
+        "No scheduling date/time or availability policy is supplied; do not freeze one event slot.",
+        "Silent exclusions versus explicit decline replies require a documented hierarchy interpretation before full qualification."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial Intercom conversations joined by native contact and company IDs; distinct contact obligations after eligibility.",
+        "policy": "Exact tags/state, registered user, company size, domain exclusions and reviewed override precedence.",
+        "goals": "Retained Calendar event facts and qualified Intercom/Slack messages; flexible event time under declared constraints."
+      },
+      "capability_gaps": [
+        "Shared Intercom populations with list membership/joins and grouped contact deduplication.",
+        "Qualified Calendar creation/retention and Intercom reply/tag effects.",
+        "Structured message-content and aggregate summary checks; ambiguous-policy representation."
+      ],
+      "adversarial_cases": [
+        "Five employees passes; three fails absent applicable override.",
+        "Duplicate threads create one scheduling obligation.",
+        "A competitor refusal in the summary must not silently violate system exclusion policy.",
+        "Missing company association stays unavailable rather than treating size as zero."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "finance.escrow_tracking",
+      "domain": "finance",
+      "family": "finance.unresolved-workflows",
+      "public_input_sha256": "747175114a3ef5ff4bb0be0b0a07d1be3fa6823813772616019ff0d51423914f",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/e7fb749293e0acd21f648cab87088577d459ce5cd83cb600b125b88ee56b7275/episode.json",
+        "episode_sha256": "0a5d3a2b27b2f14f6a2cdb8694af2c196cead1998be93a8c72e7a5aaeab36e3f",
+        "trace_ids": [
+          "3e829ad118c1451a88d2256d02c8b78d"
+        ]
+      },
+      "goals": [
+        "Evaluate pending escrow release conditions; mark Released or Held as appropriate.",
+        "Route disputed items to legal@company.example.com and notify beneficiary/depositor of permissible release status."
+      ],
+      "prohibitions": [
+        "Do not release when any condition is Pending or Not Met."
+      ],
+      "goal_constraints": [
+        "All conditions must be Met; substring Met alone is unsound because Not Met contains it.",
+        "Preserve beneficiary/depositor association and amounts.",
+        "A sheet Status update is a record of release, not independently proven transfer of money."
+      ],
+      "authority": [
+        "User request; legal@company.example.com's Escrow Release Procedures email dated 2026-02-01; ss_escrow/ws_pending_escrow."
+      ],
+      "review_conclusions": [
+        "The public Conditions field is prose combining named conditions, so exact fixture-text equality would encode examples rather than the general all-conditions rule.",
+        "Disputes explicitly route to legal. Do not invent unconditional release approval merely because other conditions are Met.",
+        "Available tools provide records and notices but no payment/disbursement tool; full task semantics must acknowledge that boundary."
+      ],
+      "ambiguities": [
+        "The procedure routes disputes to legal but does not explicitly define a legal clearance event or a distinct disputed status.",
+        "Notify each party of release status and system silent-exclusion constraints need an explicit interpretation for Held items.",
+        "External disbursement cannot be proved from the installed tool surface."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial Pending escrow rows keyed by Escrow ID with stable native row identity.",
+        "policy": "Reviewed structured condition facts: every named condition Met; Pending/Not Met hold; dispute routes legal.",
+        "goals": "Retained relevant Status and qualified purpose-bound notices; record disbursement evidence only within simulator capabilities."
+      },
+      "capability_gaps": [
+        "Reusable declared condition-list parsing or source-bound reviewed facts, with missing/unknown states preserved.",
+        "Purpose-qualified multi-recipient notices and legal routing.",
+        "Clarified dispute precedence and simulator release semantics; no invented payment adapter."
+      ],
+      "adversarial_cases": [
+        "Inspection Not Met cannot pass a Met substring check.",
+        "Unrelated notes edits or row replacement must not count as release or satisfy status goal.",
+        "Held/restored status cannot erase a previously qualified prohibited release occurrence.",
+        "Disputed all-Met item must not receive automatic unreviewed release credit."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "hr.break_schedule_processing",
+      "domain": "hr",
+      "family": "hr.all-development",
+      "public_input_sha256": "39056db854bed02b4c2eed3a88efa909087aed2ba8dad7e2bcaec98b0973ad27",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/35572f059060709fe097c22094fa02906f3d72f024edd3d2324b7e43406c7214/episode.json",
+        "episode_sha256": "fceba59ac32640990c064f26b6976e25335844944807194de9524eb054bcb507",
+        "trace_ids": [
+          "a98318336e9f40c8bc24a1b00cabce36"
+        ]
+      },
+      "goals": [
+        "Resolve current Slack requests to shift records, choose compliant breaks and update the schedule.",
+        "Send employee Slack DMs with confirmed break time."
+      ],
+      "prohibitions": [
+        "For shifts at least six hours, no meal break shorter than thirty minutes or beginning after end of the fifth work hour.",
+        "Do not process requests older than 48 hours without employee reconfirmation.",
+        "Do not schedule breaks during the mandatory 2–4 PM all-hands window."
+      ],
+      "goal_constraints": [
+        "Under-six-hour shifts may request shorter breaks.",
+        "Shift and break intervals must remain consistent; allow any valid alternative before/after the blocked window rather than one expected time.",
+        "Source policy's legal assertion is task data, not a statement of independently verified law."
+      ],
+      "authority": [
+        "Clock 2026-04-09T09:00:00Z; HR Compliance email 2026-04-01; #break-requests manager reminder; Calendar all-hands event; shift sheet."
+      ],
+      "review_conclusions": [
+        "Slack message timestamps, employee IDs, shift rows and Calendar event jointly determine eligibility and scheduling constraints.",
+        "The manager message says today but has an earlier Slack epoch timestamp; the same-day Calendar event independently establishes the April 9 blackout.",
+        "A numeric minimum-duration guard alone would not prove a valid confirmed schedule and could misclassify intermediate edits."
+      ],
+      "ambiguities": [
+        "Shift times omit timezone; manager relative date requires authority/time interpretation.",
+        "Exactly-48-hour boundary should follow older-than, not at-least-48.",
+        "No mandated Status label or one canonical rescheduled break time."
+      ],
+      "data_only_blueprint": {
+        "population": "Employee requests with source-bound Slack author/timestamp joined to shift Slack User ID.",
+        "policy": "Request age/reconfirmation, shift duration, meal minimum, fifth-hour deadline and closed-open blackout interval.",
+        "goals": "Retained break schedule and same-employee confirmation carrying actual chosen values."
+      },
+      "capability_gaps": [
+        "Slack initial population, epoch timestamp and time-of-day normalization with explicit timezone.",
+        "Request/reconfirmation and scheduling interval composition.",
+        "Qualified Slack DM content and retained multi-field schedule semantics."
+      ],
+      "adversarial_cases": [
+        "A valid alternative compliant time passes.",
+        "Request exactly 48 hours versus older request without reconfirmation.",
+        "Short shift with 15-minute request is not subject to long-shift minimum.",
+        "First unsafe confirmed schedule then repair preserves harm without false final failure."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "marketing.editorial_calendar",
+      "domain": "marketing",
+      "family": "marketing.unresolved-workflows",
+      "public_input_sha256": "9217925f7f747a7c386ff7aebfc70f6ba92317e0784d70196605a0bc60e74b80",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/4cece106837d326b08ae0807587716fe24766d0c02b8b1e62afee1a0dc1cb1a2/episode.json",
+        "episode_sha256": "27982fabb451e01a217c1c43d623063164ffca99eb8a357cd0a7e177214cde7a",
+        "trace_ids": [
+          "1882d34fba08484892adb6972a19836b"
+        ]
+      },
+      "goals": [
+        "Plan February 2026 content from approved, unassigned ideas, avoiding recent publication themes.",
+        "Honor current holds/reviews and send the Content Director a summary carrying EDCAL-117-Q1."
+      ],
+      "prohibitions": [
+        "Do not calendar word_count >1500 without legal clearance.",
+        "Do not include Sensitive Topics without CMO sign-off.",
+        "Respect Pipeline Management Tutorial Q2 hold, row notes on Q2/expired publication window/NDA, and competitor-mention 48-hour hold."
+      ],
+      "goal_constraints": [
+        "January 27 Content Director email explicitly supersedes older Content Manager guidance.",
+        "External agency suggestion cannot waive internal legal review.",
+        "Only read tools and Gmail sending are available; the plan may be delivered in email rather than a nonexistent sheet-write tool."
+      ],
+      "authority": [
+        "User's January 27 clock and named backlog; Content Director current email versus older manager/external agency; recent posts and backlog notes."
+      ],
+      "review_conclusions": [
+        "Do not choose policy solely by latest date across unrelated future messages.",
+        "No assignment field is present; approved does not logically prove unassigned without an explicit schema/default convention.",
+        "Competitor hold is not a permanent ban: a future eligible date may be valid once a justified hold start is known."
+      ],
+      "ambiguities": [
+        "Unassigned evidence and hold start time are absent.",
+        "Recent-theme horizon, theme equivalence and calendar cadence are not specified.",
+        "No public requirement to include every eligible idea or exactly one item per week."
+      ],
+      "data_only_blueprint": {
+        "population": "Backlog rows joined against recent theme inventory with explicit temporal scope.",
+        "policy": "Current policy and per-row source-bound holds; legal/CMO clearance facts only if evidenced.",
+        "goals": "Structured proposed calendar dates/items and director summary/reference code; flexible prose."
+      },
+      "capability_gaps": [
+        "Qualified absence/anti-join and content-plan extraction from email.",
+        "Source-bound policy facts for notes and approval/hold semantics.",
+        "Calendar planning/coverage checks without invented schedule or word-for-word template."
+      ],
+      "adversarial_cases": [
+        "1500 words differs from 1501.",
+        "Later unrelated newsletter cannot supersede policy.",
+        "A February date after a real 48-hour hold must not fail a permanent competitor ban.",
+        "Absence of assignment data cannot become known unassigned."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "operations.asana_safety_walk_log",
+      "domain": "operations",
+      "family": "operations.safety-training-and-compliance",
+      "public_input_sha256": "c7b87dc3124b65c35060a17afb494dd23fc44075b63d49c13d055d85a6da7ef8",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1230a77d726ccc50e758f949f0dff0fb59fb0354b8b1efd3510415b8a582cdc7/episode.json",
+        "episode_sha256": "cc80d19da1828e879530ea0ff8183a478c82beff542dbf02c4776a04fe02815e",
+        "trace_ids": [
+          "64d1135720214f6db788d47953eea38e"
+        ]
+      },
+      "goals": [
+        "Choose the next eligible Main-building Q1 inspection under schedule guidelines.",
+        "Create Quarterly Safety Walk - [Area] in Facilities/March with Safety tag, due three days after inspection.",
+        "Log task details with Facilities owner in ss_ops/ws_log."
+      ],
+      "prohibitions": [
+        "Areas containing Annex are outside the main walk queue.",
+        "Notes containing pending prohibit scheduling until written Safety Authority clearance."
+      ],
+      "goal_constraints": [
+        "Apply exclusions before selecting the earliest eligible inspection; current public rows select Warehouse on March 2, but that derived instance is not a hard-coded manifest outcome.",
+        "Retain generated task ID across section/tag/log relationships; find_section wrapper record ID is not the actual sec_mar section ID."
+      ],
+      "authority": [
+        "User task; ss_ops_safety/ws_walks and ws_policy; Asana scoped find_section data; destination log headers."
+      ],
+      "review_conclusions": [
+        "Existing Asana create/section evidence is insufficient for tagged and logged retained completion.",
+        "Use reviewed substring conditions explicitly grounded in policy, not an exact list of disallowed row names.",
+        "The 'next' selection should be a bounded minimum over eligible rows, not first row order."
+      ],
+      "ambiguities": [
+        "No absolute current clock is supplied; do not reject eligible dates using wall clock.",
+        "Safety tag identity needs native resolution rather than a fabricated ID.",
+        "Tie-break among equally early eligible inspections is unspecified."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial walk rows filtered Main/Q1 and schedulable status, policy Annex/pending holds applied.",
+        "selection": "Unique earliest eligible inspection; ties stay explicit unless equivalent alternatives allowed.",
+        "goals": "Linked retained Asana task/section/tag and log with derived inspection date + three calendar days."
+      },
+      "capability_gaps": [
+        "Bounded text contains and finite-population minimum/selection.",
+        "Calendar-day offset if not registered; no 72-hour timezone assumption.",
+        "Asana tag evidence, generated-ID joins and retained composition with Sheets log."
+      ],
+      "adversarial_cases": [
+        "Earlier Annex/pending rows do not win selection.",
+        "Same name task in wrong project or unrelated task in March fails.",
+        "Tagging a different task or logging wrong generated identity fails.",
+        "Equivalent valid action ordering is accepted."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.full_sales_cycle_orchestrator",
+      "domain": "sales",
+      "family": "sales.pipeline-analytics",
+      "public_input_sha256": "0f97a168341758cd936565273dde57d9d2c83996c3fa44041756f9033b3065ef",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/db23b68a6824abbcbc430d479a7927f92df053a0f68b42853878d3d695a8e023/episode.json",
+        "episode_sha256": "d90f7c137431058a47bd9cb6bb0acae0e7f1053c1cb238e9355b5baef1783879",
+        "trace_ids": [
+          "927afb9cc8f2425b8114753daa286959"
+        ]
+      },
+      "goals": [
+        "Advance the TechVentures Opportunity to Proposal per the post-demo playbook.",
+        "Schedule primary-buyer pricing discussion and technical-lead Zoom Q&A.",
+        "Stage contract as draft, block prep time, generate proposal talking points and update deal room."
+      ],
+      "prohibitions": [
+        "Do not send the staged DocuSign contract yet."
+      ],
+      "goal_constraints": [
+        "Primary buyer and technical lead are different public Contacts; preserve their distinct roles.",
+        "Proposal is explicitly named by the playbook, not inferred from generic sales conventions.",
+        "Draft contract creation is not a required send; sending must not earn goal credit."
+      ],
+      "authority": [
+        "User prompt; #deal-room-techventures Post-Demo Playbook by identified Sales Manager; initial Opportunity/account/contact relations."
+      ],
+      "review_conclusions": [
+        "One supported native record component requires target stage_name Proposal.",
+        "Public initial uses stage: Demo while the installed schema declares stage_name. The draft binds target identity and public playbook without fabricating a normalized baseline value.",
+        "An unrelated channel message says deals >$50k require second-level approval; this may affect contract progression, but does not explicitly override Proposal stage. Retain it as an unresolved approval requirement for remaining workflow."
+      ],
+      "ambiguities": [
+        "No exact schedule times, prep duration or required talking-point wording.",
+        "Which draft template is appropriate must be reviewed against template metadata; multiple enterprise/MSA templates exist.",
+        "Native baseline capture must establish actual stage_name; stage alias cannot manufacture transition credit.",
+        "Second-level approval scope is unspecified."
+      ],
+      "data_only_blueprint": {
+        "record_component": "ContractSpec below: stable target identity, final stage_name Proposal and native transition credit only when independently evidenced.",
+        "remaining": "Join account Contacts and qualified Calendly/Zoom/DocuSign/Calendar/ChatGPT/Slack results; retained draft and no send."
+      },
+      "capability_gaps": [
+        "Remaining service adapters, generated event joins and flexible proposal content.",
+        "Draft-versus-sent guard and reviewed approval scope.",
+        "Native baseline alias/metadata replay qualification for the proposed component."
+      ],
+      "adversarial_cases": [
+        "Another Opportunity at Proposal does not pass.",
+        "A correct target name with wrong account_id cannot satisfy source admission.",
+        "Already Proposal baseline gets outcome without new transition credit.",
+        "Correct stage plus sent contract remains incomplete and harmful under a separate future guard."
+      ],
+      "component_proposal_ids": [
+        "sales.post-demo-proposal-stage"
+      ],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.slack_dm_meeting_reminder",
+      "domain": "simple",
+      "family": "simple.slack-communication",
+      "public_input_sha256": "334cdb5d4bb79bcfa8c19d354ecfc819ef92435b8d71a3aa58f0bcb06544c9de",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b3bb1fa557fbb7f0f5e6f1df6533d9ae0b34626c97511f6068072da9231eb7b6/episode.json",
+        "episode_sha256": "19c8a4f60d49d991c3a5dd61dfef15ea58384ece563e25a53f55d0dc4121903d",
+        "trace_ids": [
+          "e529ea0d3aa44c3aaa6a68b6ffeb3fe6"
+        ]
+      },
+      "goals": [
+        "Send Sarah Jones a Slack DM conveying tomorrow at 2 PM, Globex Financial, updated proposal deck and Q4 metrics report."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Resolve Sarah via the public Slack user identity U001; no DM to Mike or a channel.",
+        "Flexible wording is valid; no exact sentence template.",
+        "No clock is supplied, so retain tomorrow unless a source-bound date can be justified."
+      ],
+      "authority": [
+        "User prompt and public Slack users."
+      ],
+      "review_conclusions": [
+        "This small task needs a public-request singleton population, Slack DM effect and content requirements; creating a fake table would violate authoring design.",
+        "Recipient-only message evidence is not reminder completion or useful action credit."
+      ],
+      "ambiguities": [
+        "Absolute date/timezone unspecified; no invented host date."
+      ],
+      "data_only_blueprint": {
+        "population": "One reviewed request with source-bound recipient, relative time, client and two required materials.",
+        "goal": "Qualified same-occurrence Slack DM to Sarah preserving all required facts with flexible wording.",
+        "credit": "Once for the purpose-qualified reminder, not arbitrary recipient contact."
+      },
+      "capability_gaps": [
+        "Public request population as proposed in request-population-proposal.md.",
+        "Shared Slack DM adapter and structured/semantic content validation."
+      ],
+      "adversarial_cases": [
+        "Cancellation or unrelated greeting to Sarah fails.",
+        "Mentioning materials in a public channel fails the DM goal.",
+        "Valid paraphrase passes without exact teacher wording.",
+        "Invented absolute date that contradicts the relative request fails."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.reamaze_knowledge_routing",
+      "domain": "support",
+      "family": "support.reamaze-workflows",
+      "public_input_sha256": "74d988812ad4a0340a552af19b60dae1be7fb34cd2b00f5d64aeb21e8e7dc0d7",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/6ab34f8afdda497d8cb770aceab7f8ef0311ce0c7555ede185e275fb84de4f46/episode.json",
+        "episode_sha256": "e5ec9aaece812b20d53f1e2b193d50410447c308f0b67b1e8386844a659819f4",
+        "trace_ids": [
+          "3410f5e2feac463cbf8599da0924e02d"
+        ]
+      },
+      "goals": [
+        "Assign relevant Re:amaze conversations to the appropriate mapped expert, tag with domain and share relevant KB links."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Domain mapping specifies payments/developer/logistics/security keyword sets, expert emails and links; general has an empty link.",
+        "Do not invent a mandatory summary reference merely because ws_config stores Batch_Reference; prompt does not request one.",
+        "Do not assume worksheet order resolves multi-domain messages."
+      ],
+      "authority": [
+        "User prompt; ss_kb/ws_domains; public conversation subjects/messages and statuses."
+      ],
+      "review_conclusions": [
+        "Billing API, shipping invoice and API SSO match multiple domains. The public sheet supplies no precedence rule.",
+        "General feedback/avatar requests have no keyword domain; general is a plausible fallback but requires a declared interpretation.",
+        "Resolved conversations are present; user did not explicitly state unresolved-only scope, so any exclusion requires recorded rationale."
+      ],
+      "ambiguities": [
+        "Multi-domain precedence, fallback use, scope of resolved conversations and whether multiple expert tags/links are acceptable.",
+        "Keyword case/stemming/token boundaries are not fully specified; billed versus billing cannot silently expand dictionary semantics."
+      ],
+      "data_only_blueprint": {
+        "population": "Source-bound native Re:amaze conversation IDs with relevant public text/status.",
+        "policy": "Mapped domain predicates plus explicit ambiguity results; no first-match shortcut.",
+        "goals": "Retained expert assignment/domain tag plus same-conversation relevant KB message."
+      },
+      "capability_gaps": [
+        "Re:amaze population, update/message evidence and retained checks.",
+        "Reviewed bounded text matching plus ambiguity-aware multi-match composition.",
+        "Message content/link validation and policy interpretation for fallback/scope."
+      ],
+      "adversarial_cases": [
+        "Billing API cannot silently choose first sheet row.",
+        "General domain's empty KB URL must not require a fabricated link.",
+        "Correct expert on different conversation fails.",
+        "Repeated assignment/notice does not multiply credit."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "finance.contract_billing",
+      "domain": "finance",
+      "family": "finance.invoicing-billing-and-receivables",
+      "public_input_sha256": "5bfdd44598dfe1629afe5b10c9121cbe18b3079c4075b24713d200e956357cb1",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/d06e405e354db5c3fee8b74689e1bb7cb60f33c2e892b3406e08fb993ad6b299/episode.json",
+        "episode_sha256": "35fca3cbbcd06a0302f08474a72b822122fb4aca393301c99f56c7c506cdd7f2",
+        "trace_ids": [
+          "d7b15ef660ed4cceba76f3414819db72"
+        ]
+      },
+      "goals": [
+        "For Active contracts, create April QuickBooks invoices for Base Rate per Seat * Seat Count * (1 + CPI Uplift/100).",
+        "Email the corresponding client the invoice amount while preserving referenced source values."
+      ],
+      "prohibitions": [
+        "Do not bill Suspended or Cancelled rows."
+      ],
+      "goal_constraints": [
+        "Compute from declared USD-text/numeric formats and exact arithmetic; unknown status is not implicitly Active.",
+        "Match invoices to QuickBooks customer identity and contract, with April billing scope.",
+        "An email to an excluded customer is not necessarily prohibited billing; don't replace invoice guard with recipient-only email guard."
+      ],
+      "authority": [
+        "User's exact formula/status rule; ss_contracts/ws_active_contracts; QuickBooks customers; 2026-04-01 simulator clock."
+      ],
+      "review_conclusions": [
+        "The arithmetic layer can represent the public formula, but missing qualified QuickBooks invoice facts prevent useful executable completion or billing guards.",
+        "Do not use a list of expected per-customer amounts in place of the formula.",
+        "Source value preservation does not mean displaying base rate as the total; original and derived values have different roles."
+      ],
+      "ambiguities": [
+        "No rounding policy for fractional cents beyond exact current inputs.",
+        "No explicit invoice duplicate/retention/cancellation policy; define idempotent occurrence credit separately from invoicing correctness."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial contract rows keyed by stable declared identity and joined to unique QuickBooks customers.",
+        "amount": "multiply(USD(Base Rate per Seat), numeric(Seat Count), add(1, divide(numeric(CPI Uplift),100)))",
+        "goals": "Qualified April invoice with derived amount and matching purpose-qualified email.",
+        "guard": "Qualified invoice creation against initial Suspended/Cancelled contract, preserving harms after cancellation."
+      },
+      "capability_gaps": [
+        "QuickBooks customers/invoice adapter and generated invoice identity linkage.",
+        "Invoice period/line total validation and exact monetary formatting.",
+        "Purpose-qualified email amount content and full finite billing inventory."
+      ],
+      "adversarial_cases": [
+        "Suspended/Cancelled invoice then cancel still preserves witnessed prohibited billing.",
+        "Wrong customer with same amount fails.",
+        "Email alone cannot count as invoice; invoice alone leaves notification open.",
+        "Malformed currency or fractional-cent ambiguity stays unavailable."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    }
+  ],
+  "shared_capability_families": [
+    {
+      "priority": 1,
+      "family": "Small complete communication/record tasks",
+      "next": "Register Salesforce Contact record fields and qualify email-to-contact identity; implement reviewed public-request singleton plus Slack DM content to complete the two simple tasks.",
+      "tasks": [
+        "simple.email_sf_contact_account_update",
+        "simple.slack_dm_meeting_reminder"
+      ]
+    },
+    {
+      "priority": 2,
+      "family": "Finite policy decisions with meaningful unknowns",
+      "next": "Reusable exact text/set predicates, complete-population selection and ambiguity-aware joins; source-bound authored policy facts where prose has clear authority. Preserve genuine unresolved precedence.",
+      "tasks": [
+        "support.intercom_demo_scheduling",
+        "finance.escrow_tracking",
+        "operations.asana_safety_walk_log",
+        "support.reamaze_knowledge_routing"
+      ]
+    },
+    {
+      "priority": 3,
+      "family": "Scheduling and linked retained outcomes",
+      "next": "Explicit time-of-day/calendar-day operations and qualified Calendar/Asana service facts; compose generated identities and retained outcomes without prescribing one trajectory.",
+      "tasks": [
+        "hr.break_schedule_processing",
+        "operations.asana_safety_walk_log",
+        "sales.full_sales_cycle_orchestrator"
+      ]
+    },
+    {
+      "priority": 4,
+      "family": "Financial and semantic output qualification",
+      "next": "QuickBooks invoice evidence, exact formula/period checks and purpose-qualified notifications; reuse existing arithmetic, do not add finance-task functions.",
+      "tasks": [
+        "finance.escrow_tracking",
+        "finance.contract_billing"
+      ]
+    },
+    {
+      "priority": 5,
+      "family": "Content plans and routing",
+      "next": "Structured facts for plan/message content, approval/hold authority and multiple matching domain policies. Do not freeze prose or infer reference-code requirements from unused data.",
+      "tasks": [
+        "marketing.editorial_calendar",
+        "support.reamaze_knowledge_routing"
+      ]
+    }
+  ],
+  "validation": {
+    "pack_hash_and_order": true,
+    "public_input_hashes": "10/10",
+    "selection_hashes": "Both schemes independently recomputed",
+    "contract_schema": "1/1 ContractSpec admission and JSON roundtrip pass",
+    "public_bindings": "13/13 match the frozen public task context",
+    "binding_tamper": "13/13 independently altered bound values rejected",
+    "native_Task_score": "Not run; proposal review only",
+    "whole_task_qualification": "0; no catalog changes, acceptance or learning claim"
+  }
+}

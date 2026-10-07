@@ -48,9 +48,13 @@ def test_typed_selection_preserves_credit_and_episode_dependencies():
     assert result.credit is credit
     assert result.spec.clip_low == selected.clip_epsilon_low
     assert result.spec.clip_high == selected.clip_epsilon_high
-    assert [len(update.dependencies) for update in result.updates] == [3, 2]
+    assert [update.views for update in result.updates] == [(0, 1, 2), (3, 4)]
+    assert [update.dependency_count for update in result.updates] == [3, 2]
     assert [len(packs) for packs in result.packs] == [2, 1]
-    assert result == resolve_policy_population(snapshot, credit, selected, capabilities())
+    again = resolve_policy_population(snapshot, credit, selected, capabilities())
+    assert again.snapshot.digest == result.snapshot.digest and again.credit.digest == result.credit.digest
+    assert [update.digest for update in again.updates] == [update.digest for update in result.updates]
+    assert again.packs == result.packs
 
 
 def test_every_occurrence_is_capacity_checked_before_return():
@@ -151,9 +155,9 @@ def test_structured_credit_is_transported_without_renormalizing_minibatches(algo
     assert (result.spec.clip_low, result.spec.clip_high, result.spec.beta) == (0.13, 0.24, 0.25)
 
 
-def test_reasoning_selection_keeps_unselected_episode_ratio_dependencies():
+def _reasoning_selection(schedule: PolicyUpdateSchedule):
     snapshot, credit, _, _ = resolved()
-    action = snapshot.actions[0].action
+    action = snapshot.action(0)
     snapshot = replace(
         snapshot, spans=(SemanticSpan("thinking", "reasoning", "fixture@1", (ActionInterval(action, 1),)),)
     )
@@ -164,15 +168,31 @@ def test_reasoning_selection_keeps_unselected_episode_ratio_dependencies():
         selected,
         policy_updates=replace(
             selected.policy_updates,
+            schedule=schedule,
             objective_variant="semantic-spans",
             policy_selection=ActionSelection("spans", ("thinking",)),
             empty_policy="zero",
         ),
     )
-    result = resolve_policy_population(snapshot, credit, selected, capabilities())
+    return snapshot, resolve_policy_population(snapshot, credit, selected, capabilities())
+
+
+def test_reasoning_selection_keeps_unselected_turn_ratio_dependencies_in_one_occurrence():
+    # Both episodes in one occurrence: episode B selects nothing and keeps zero weight.
+    snapshot, result = _reasoning_selection(PolicyUpdateSchedule("episode", 2))
     assert result.spec.definition_id == "sampo-spans@1"
-    assert result.spec.policy_selection.resolve(snapshot) == (action,)
-    assert len(result.updates[0].dependencies) == 3
+    assert result.spec.policy_selection.resolve(snapshot).tolist() == [True, False, False, False, False]
+    assert result.updates[0].views == (0, 1, 2)
+    assert result.updates[0].dependency_count == 3
+
+
+def test_reasoning_selection_keeps_unselected_episode_ratio_dependencies():
+    snapshot, result = _reasoning_selection(PolicyUpdateSchedule("episode", 1))
+    assert result.spec.definition_id == "sampo-spans@1"
+    assert result.spec.policy_selection.resolve(snapshot).tolist() == [True, False, False, False, False]
+    assert result.updates[0].views == (0, 1, 2)
+    assert result.updates[0].dependency_count == 3
+    assert result.updates[1].views == () and result.packs[1] == ()
 
 
 def native_resolution(rollouts, selected):
@@ -197,7 +217,7 @@ def test_native_collection_credit_shapes_before_group_statistics_without_changin
     expected = compute_sampo_advantages(
         selected, [row.example_id for row in rollouts], [rollouts[0], replace(rollouts[1], reward=0.5)]
     )
-    assert [value.advantage for value in result.credit.values] == pytest.approx(
+    assert result.credit.advantages.tolist() == pytest.approx(
         [
             value
             for rollout, row in zip(rollouts, expected.token_advantages, strict=True)
@@ -205,7 +225,7 @@ def test_native_collection_credit_shapes_before_group_statistics_without_changin
             if eligible
         ]
     )
-    assert any(value.advantage != 0 for value in result.credit.values)
+    assert (result.credit.advantages != 0).any()
     assert rollouts[1].reward == 1.0
     assert result.snapshot.native_evidence_digest == "native-receipt-digest"
     assert len(result.updates) == 2
@@ -227,7 +247,7 @@ def test_native_collection_normalizes_complete_groups_before_optimizer_slicing()
             ),
         ),
     )
-    assert [value.advantage for value in split.credit.values] == [value.advantage for value in full.credit.values]
+    assert split.credit.advantages.tolist() == full.credit.advantages.tolist()
     assert len(split.updates) == 2 and len(full.updates) == 1
     with pytest.raises(InvalidPolicyUpdate, match="complete prompt groups"):
         native_resolution(rollouts[:1], settings())
@@ -251,6 +271,13 @@ def test_resolved_population_cannot_replace_a_later_objective_or_pack():
         replace(prepared, updates=(*prepared.updates[:-1], changed))
     with pytest.raises(InvalidPolicyUpdate, match="execution plans changed"):
         replace(prepared, packs=(prepared.packs[0], ()))
+    with pytest.raises(InvalidPolicyUpdate, match="exactly once"):
+        replace(prepared, packs=(prepared.packs[0][:1], prepared.packs[1]))
+    with pytest.raises(InvalidPolicyUpdate, match="different native evidence"):
+        replace(
+            prepared,
+            updates=(replace(prepared.updates[0], population=replace(snapshot, id="other")), *prepared.updates[1:]),
+        )
 
 
 def test_native_capo_process_credit_stays_on_original_positions_before_minibatching():
@@ -283,7 +310,7 @@ def test_native_capo_process_credit_stays_on_original_positions_before_minibatch
         selector_digest="original-actions@1",
     )
     expected = compute_capo_advantages(evidence, [row.env_mask for row in rollouts], group_size=2)
-    assert [value.advantage for value in result.credit.values] == pytest.approx(
+    assert result.credit.advantages.tolist() == pytest.approx(
         [
             value
             for rollout, row in zip(rollouts, expected.token_advantages, strict=True)

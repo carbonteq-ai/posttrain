@@ -174,3 +174,25 @@ def test_renderer_produces_equal_dpo_prompt_prefixes(model, profile) -> None:
     assert sample.chosen_ids
     assert sample.rejected_ids
     assert sample.chosen_ids != sample.rejected_ids
+
+
+def test_lfm_full_rerender_accepts_sampled_turns_with_leading_newlines() -> None:
+    from posttrain.train.rendering import create_renderer, full_render_messages
+
+    tokenizer = _load_tokenizer(LFM_25_12B_THINKING)
+    renderer = create_renderer(tokenizer, LFM_25_12B_THINKING, LFM25_RENDERER)
+    call = {"id": "call_0", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}
+    tool = {"type": "function", "function": {"name": "lookup", "description": "Look up.", "parameters": {}}}
+    messages = [
+        {"role": "system", "content": "Use tools."},
+        {"role": "user", "content": "Find it."},
+        # A parsed LFM tool-call turn keeps the newline after its reasoning block.
+        {"role": "assistant", "content": "\n", "reasoning_content": "think", "tool_calls": [call]},
+        {"role": "tool", "tool_call_id": "call_0", "name": "lookup", "content": "error"},
+        {"role": "assistant", "content": "\n\nDone.", "reasoning_content": "think"},
+    ]
+    with pytest.raises(ValueError, match="generation-prompt token prefix"):
+        renderer.render(messages[:3], tools=[tool], add_generation_prompt=True)
+    for end in (3, 4, 5):
+        rendered = renderer.render(full_render_messages(messages[:end]), tools=[tool], add_generation_prompt=True)
+        assert rendered.token_ids

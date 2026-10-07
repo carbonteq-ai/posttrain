@@ -6,16 +6,22 @@ module schedules them; it does not reinterpret credit or ratio mathematics.
 
 from __future__ import annotations
 
+import json
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
+import numpy as np
+
 from .update_records import (
-    ActionRef,
     ActionSelection,
+    ConditioningView,
     InvalidPolicyUpdate,
     PolicyVersions,
     PopulationSnapshot,
+    array_digest,
+    frozen_array,
+    payload_digest,
     record_digest,
 )
 
@@ -112,35 +118,46 @@ class PolicyUpdateSettings:
 
 @dataclass(frozen=True, slots=True)
 class ContributionRef:
+    """One atomic objective contribution: one sampled turn.
+
+    Its selected actions are the objective's selected positions inside ``view``;
+    its reduction domain is every position of ``view``. ``dependency_views``
+    are the turns whose scores its ratio needs (empty when it selects nothing
+    and needs no score).
+    """
+
     id: str
-    actions: tuple[ActionRef, ...]
-    dependencies: tuple[ActionRef, ...]
-    reduction_domain: tuple[ActionRef, ...] = ()
+    view: int
+    dependency_views: tuple[int, ...]
 
     def __post_init__(self) -> None:
-        if not self.id.strip() or not (self.actions or self.reduction_domain):
+        if not self.id.strip() or type(self.view) is not int or self.view < 0:
             raise InvalidPolicyUpdate("atomic contribution requires identity and explicit reduction domain")
-        if len(set(self.actions)) != len(self.actions) or len(set(self.dependencies)) != len(self.dependencies):
-            raise InvalidPolicyUpdate("contribution action support cannot duplicate original actions")
-        if not set(self.actions) <= set(self.dependencies):
+        if len(set(self.dependency_views)) != len(self.dependency_views) or any(
+            type(view) is not int or view < 0 for view in self.dependency_views
+        ):
+            raise InvalidPolicyUpdate("contribution dependencies cannot duplicate original turns")
+        if self.dependency_views and self.view not in self.dependency_views:
             raise InvalidPolicyUpdate("dependency closure must include selected actions")
-        if self.reduction_domain and not set(self.actions) <= set(self.reduction_domain):
-            raise InvalidPolicyUpdate("selected actions exceed contribution reduction domain")
-        if len(set(self.reduction_domain)) != len(self.reduction_domain):
-            raise InvalidPolicyUpdate("reduction domain cannot duplicate original actions")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class ObjectivePopulation:
-    """Internal output of a qualified objective resolver, not a public loss DSL."""
+    """Internal output of a qualified objective resolver, not a public loss DSL.
+
+    ``policy`` and ``kl`` are the frozen selections as masks over positions.
+    """
 
     definition_id: str
     credit_digest: str
     contributions: tuple[ContributionRef, ...]
+    policy: np.ndarray
+    kl: np.ndarray
     required_statistics: tuple[str, ...]
     # Retained per-action output statistics; adapters qualify and resolve the size.
     statistic_bytes_per_action: int
     contract_digest: str = "legacy-internal@1"
+    digest: str = field(init=False)
 
     def __post_init__(self) -> None:
         if not self.definition_id.strip() or not self.credit_digest.strip() or not self.contributions:
@@ -149,23 +166,84 @@ class ObjectivePopulation:
             raise InvalidPolicyUpdate("objective contribution identities must be unique")
         if type(self.statistic_bytes_per_action) is not int or self.statistic_bytes_per_action < 1:
             raise InvalidPolicyUpdate("objective requires its retained statistic size")
+        policy, kl = frozen_array(self.policy, bool), frozen_array(self.kl, bool)
+        if policy.ndim != 1 or policy.shape != kl.shape:
+            raise InvalidPolicyUpdate("objective selections must be aligned position masks")
+        object.__setattr__(self, "policy", policy)
+        object.__setattr__(self, "kl", kl)
+        object.__setattr__(
+            self,
+            "digest",
+            payload_digest(
+                {
+                    "schema": "posttrain.objective-population.v2",
+                    "definition_id": self.definition_id,
+                    "credit_digest": self.credit_digest,
+                    "contributions": [[item.id, item.view, list(item.dependency_views)] for item in self.contributions],
+                    "policy": array_digest(policy),
+                    "kl": array_digest(kl),
+                    "required_statistics": list(self.required_statistics),
+                    "statistic_bytes_per_action": self.statistic_bytes_per_action,
+                    "contract_digest": self.contract_digest,
+                }
+            ),
+        )
+
+    @property
+    def selected(self) -> np.ndarray:
+        return self.policy | self.kl
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class ResolvedUpdate:
+    """One optimizer occurrence: its contributions and the turns it must score.
+
+    ``contributions`` index ``objective.contributions``. ``views`` are the
+    dependency turns ordered by (episode, branch, turn id).
+    """
+
     population: PopulationSnapshot
     objective: ObjectivePopulation
     schedule_digest: str
     epoch: int
     minibatch: int
-    contributions: tuple[ContributionRef, ...]
+    contributions: tuple[int, ...]
     occurrence_ids: tuple[str, ...]
-    dependencies: tuple[ActionRef, ...]
+    views: tuple[int, ...]
     discarded_contributions: tuple[str, ...]
+    digest: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        if self.objective.policy.shape != (self.population.size,):
+            raise InvalidPolicyUpdate("resolved occurrence objective belongs to a different population")
+        if len(self.occurrence_ids) != len(self.contributions) or any(
+            not 0 <= index < len(self.objective.contributions) for index in self.contributions
+        ):
+            raise InvalidPolicyUpdate("resolved occurrence addresses absent contributions")
+        object.__setattr__(
+            self,
+            "digest",
+            payload_digest(
+                {
+                    "schema": "posttrain.resolved-update.v2",
+                    "population": self.population.digest,
+                    "objective": self.objective.digest,
+                    "schedule_digest": self.schedule_digest,
+                    "epoch": self.epoch,
+                    "minibatch": self.minibatch,
+                    "contributions": [self.objective.contributions[index].id for index in self.contributions],
+                    "occurrence_ids": list(self.occurrence_ids),
+                    "views": list(self.views),
+                    "discarded_contributions": list(self.discarded_contributions),
+                }
+            ),
+        )
 
     @property
-    def digest(self) -> str:
-        return record_digest(self)
+    def dependency_count(self) -> int:
+        """Positions whose scores this occurrence retains."""
+        offsets = self.population.offsets
+        return int(sum(int(offsets[view + 1] - offsets[view]) for view in self.views))
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +254,9 @@ class ExecutionCapabilities:
     # A coupled backward graph must remain intact across packs unless qualified replay exists.
     cross_pack_dependencies: bool = False
     context_layout: Literal["ragged", "dense-pack", "dense-population"] = "ragged"
+    # The backend scores every turn whose context is a prefix of another turn's
+    # context in the same pack from that longer context's single forward pass.
+    prefix_sharing: bool = False
 
     def __post_init__(self) -> None:
         if self.context_layout not in {"ragged", "dense-pack", "dense-population"}:
@@ -184,22 +265,20 @@ class ExecutionCapabilities:
 
 def population_context_width(population: PopulationSnapshot) -> int:
     """Maximum context actually addressed by sampled actions, including unselected turns."""
-    used = {record.conditioning_id for record in population.actions}
-    return max(view.context_tokens for view in population.conditioning if view.id in used)
+    return max(view.context_tokens for view in population.conditioning)
 
 
 def execution_context_tokens(
     population: PopulationSnapshot,
-    context_ids: tuple[str, ...],
+    views: tuple[int, ...],
     capabilities: ExecutionCapabilities,
 ) -> int:
     """Count physical input slots; padding never becomes sampled or objective support."""
-    if not context_ids:
+    if not views:
         return 0
-    contexts = {view.id: view for view in population.conditioning}
-    if len(set(context_ids)) != len(context_ids) or any(key not in contexts for key in context_ids):
+    if len(set(views)) != len(views) or any(not 0 <= view < len(population.conditioning) for view in views):
         raise InvalidPolicyUpdate("physical context cost requires unique retained conditioning identities")
-    lengths = [contexts[key].context_tokens for key in context_ids]
+    lengths = [population.conditioning[view].context_tokens for view in views]
     if max(lengths) > capabilities.max_context_tokens:
         raise InvalidPolicyUpdate("actual conditioning view exceeds qualified backend context capacity")
     if capabilities.context_layout == "ragged":
@@ -207,16 +286,30 @@ def execution_context_tokens(
     width = max(lengths) if capabilities.context_layout == "dense-pack" else population_context_width(population)
     if width > capabilities.max_context_tokens:
         raise InvalidPolicyUpdate("physical padding width exceeds qualified backend context capacity")
-    return len(context_ids) * width
+    return len(views) * width
 
 
 @dataclass(frozen=True, slots=True)
 class ExecutionPack:
+    """Turns scored together, grouped by the contexts forwarded to score them.
+
+    Each cover is (forwarded turn, turns it scores), see ``prefix_covers``.
+    Without prefix sharing every turn covers only itself. ``context_tokens``
+    is the physical input cost of the pack's forwards.
+    """
+
     update_digest: str
     index: int
-    actions: tuple[ActionRef, ...]
-    context_ids: tuple[str, ...]
+    covers: tuple[tuple[int, tuple[int, ...]], ...]
     context_tokens: int
+
+    @property
+    def views(self) -> tuple[int, ...]:
+        return tuple(sorted(view for _, members in self.covers for view in members))
+
+    @property
+    def contexts(self) -> tuple[int, ...]:
+        return tuple(cover for cover, _ in self.covers)
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,29 +322,87 @@ class UpdateCursor:
     versions: PolicyVersions
 
 
+def turn_order(population: PopulationSnapshot, views: set[int] | tuple[int, ...]) -> tuple[int, ...]:
+    """Views ordered by (episode, branch, turn id): the order packs and scores follow."""
+    conditioning = population.conditioning
+    return tuple(
+        sorted(
+            views, key=lambda view: (conditioning[view].episode_id, conditioning[view].branch_id, conditioning[view].id)
+        )
+    )
+
+
+def view_path(view: ConditioningView) -> tuple[str, tuple[int, ...]] | None:
+    """(trace id, root-to-node path) from a view's native coordinates, if it has them."""
+    try:
+        coordinates = json.loads(view.token_ids_ref)
+        trace, prefix, node = coordinates["trace_id"], coordinates["prefix_nodes"], coordinates["node_index"]
+    except (TypeError, ValueError, KeyError):
+        return None
+    if not isinstance(trace, str) or type(node) is not int or not isinstance(prefix, list):
+        return None
+    if any(type(index) is not int for index in prefix):
+        return None
+    return trace, (*prefix, node)
+
+
+def prefix_covers(population: PopulationSnapshot, views: tuple[int, ...]) -> tuple[tuple[int, tuple[int, ...]], ...]:
+    """Group turns under covering turns whose context contains theirs.
+
+    A turn's causal context is the concatenation of its message-graph path, so
+    when one turn's path is a prefix of another's in the same trace, its tokens
+    are a prefix of the other's and causal attention gives it identical scores
+    inside the longer forward. Each cover is (covering turn, covered turns in
+    turn order, the cover included); turns without native coordinates cover only
+    themselves. Covers keep the input turn order of their covering turns.
+    """
+    order = {view: rank for rank, view in enumerate(views)}
+    paths = {view: view_path(population.conditioning[view]) for view in views}
+    covers: dict[int, list[int]] = {}
+
+    def longest_first(view: int) -> tuple[int, int]:
+        path = paths[view]
+        return (-len(path[1]) if path is not None else 0, order[view])
+
+    # Longest paths first, so each turn joins the longest context that contains it.
+    for view in sorted(views, key=longest_first):
+        path = paths[view]
+        host = None
+        if path is not None:
+            for cover in covers:
+                candidate = paths[cover]
+                if candidate is not None and candidate[0] == path[0] and candidate[1][: len(path[1])] == path[1]:
+                    host = cover
+                    break
+        if host is None:
+            covers[view] = [view]
+        else:
+            covers[host].append(view)
+    return tuple(
+        (cover, tuple(sorted(members, key=order.__getitem__)))
+        for cover, members in sorted(covers.items(), key=lambda item: order[item[0]])
+    )
+
+
 def resolve_updates(
     snapshot: PopulationSnapshot,
     schedule: PolicyUpdateSchedule,
     objective: ObjectivePopulation,
 ) -> tuple[ResolvedUpdate, ...]:
-    eligible = {record.action for record in snapshot.actions}
-    if any(not (set(item.dependencies) | set(item.reduction_domain)) <= eligible for item in objective.contributions):
+    if objective.policy.shape != (snapshot.size,):
         raise InvalidPolicyUpdate("objective dependencies exceed admitted original actions")
-    groups: dict[tuple[str, ...], list[ContributionRef]] = {}
-    for contribution in objective.contributions:
+    selected = objective.selected
+    selected_per_view = np.add.reduceat(selected.astype(np.int64), snapshot.offsets[:-1]) if snapshot.size else []
+    groups: dict[tuple[str, ...], list[int]] = {}
+    for index, contribution in enumerate(objective.contributions):
+        view = snapshot.conditioning[contribution.view]
         if schedule.unit == "selected-token":
-            key = (contribution.id,)
+            key: tuple[str, ...] = (contribution.id,)
+        elif schedule.unit == "episode":
+            key = (view.episode_id,)
         else:
-            keys = {
-                (action.episode_id,)
-                if schedule.unit == "episode"
-                else (action.episode_id, action.branch_id, action.turn_id)
-                for action in (contribution.actions or contribution.reduction_domain)
-            }
-            if len(keys) != 1:
-                raise InvalidPolicyUpdate(f"atomic contribution crosses {schedule.unit} scheduling units")
-            key = next(iter(keys))
-        groups.setdefault(key, []).append(contribution)
+            key = (view.episode_id, view.branch_id, view.id)
+        groups.setdefault(key, []).append(index)
     atoms = tuple(tuple(items) for items in groups.values())
     result: list[ResolvedUpdate] = []
     schedule_digest = record_digest(schedule)
@@ -259,12 +410,14 @@ def resolve_updates(
         ordered = list(atoms)
         if schedule.order == "shuffle":
             random.Random(schedule.seed + epoch).shuffle(ordered)
-        batches: list[tuple[ContributionRef, ...]] = []
-        pending: list[ContributionRef] = []
+        batches: list[tuple[int, ...]] = []
+        pending: list[int] = []
         cost = 0
         for atom in ordered:
             atom_cost = (
-                len({action for item in atom for action in item.actions}) if schedule.unit == "selected-token" else 1
+                sum(int(selected_per_view[objective.contributions[item].view]) for item in atom)
+                if schedule.unit == "selected-token"
+                else 1
             )
             if pending and cost + atom_cost > schedule.budget:
                 batches.append(tuple(pending))
@@ -279,12 +432,13 @@ def resolve_updates(
             if schedule.final_policy == "error":
                 raise InvalidPolicyUpdate("incomplete final optimizer minibatch")
             if schedule.final_policy == "drop":
-                discarded = tuple(item.id for item in pending)
+                discarded = tuple(objective.contributions[item].id for item in pending)
             else:
                 batches.append(tuple(pending))
         if not batches:
             raise InvalidPolicyUpdate("schedule drops every contribution; no optimizer update remains")
         for minibatch, batch in enumerate(batches):
+            contributions = [objective.contributions[item] for item in batch]
             result.append(
                 ResolvedUpdate(
                     snapshot,
@@ -293,8 +447,8 @@ def resolve_updates(
                     epoch,
                     minibatch,
                     batch,
-                    tuple(f"{snapshot.id}/{epoch}/{minibatch}/{item.id}" for item in batch),
-                    tuple(sorted({action for item in batch for action in item.dependencies})),
+                    tuple(f"{snapshot.id}/{epoch}/{minibatch}/{item.id}" for item in contributions),
+                    turn_order(snapshot, {view for item in contributions for view in item.dependency_views}),
                     discarded,
                 )
             )
@@ -307,12 +461,8 @@ def validate_update(update: ResolvedUpdate, capabilities: ExecutionCapabilities)
     missing = set(update.objective.required_statistics) - set(capabilities.statistics)
     if missing:
         raise InvalidPolicyUpdate(f"backend lacks required statistics: {sorted(missing)}")
-    records = {record.action: record for record in update.population.actions}
-    contexts = {view.id: view for view in update.population.conditioning}
-    if any(
-        contexts[records[action].conditioning_id].context_tokens > capabilities.max_context_tokens
-        for action in update.dependencies
-    ):
+    conditioning = update.population.conditioning
+    if any(conditioning[view].context_tokens > capabilities.max_context_tokens for view in update.views):
         raise InvalidPolicyUpdate("actual conditioning view exceeds qualified backend context capacity")
 
 
@@ -321,47 +471,50 @@ def plan_packs(
     execution_budget: PolicyExecutionBudget,
     capabilities: ExecutionCapabilities,
 ) -> tuple[ExecutionPack, ...]:
-    validate_update(update, capabilities)
-    if len(update.dependencies) * update.objective.statistic_bytes_per_action > execution_budget.statistic_bytes:
-        raise InvalidPolicyUpdate("retained objective statistics exceed execution capacity")
-    records = {record.action: record for record in update.population.actions}
-    turns: dict[tuple[str, str, str], list[ActionRef]] = {}
-    for action in update.dependencies:
-        turns.setdefault((action.episode_id, action.branch_id, action.turn_id), []).append(action)
-    packs: list[ExecutionPack] = []
-    pending: list[ActionRef] = []
-    count = 0
+    """Split an occurrence's turns into packs within the record and context budgets.
 
-    def context_size(actions: list[ActionRef]) -> int:
-        return execution_context_tokens(
-            update.population, tuple(sorted({records[action].conditioning_id for action in actions})), capabilities
-        )
+    The unit is a cover: a forwarded context and the turns it scores (with
+    ``prefix_sharing``, every turn of the occurrence whose context it contains;
+    otherwise just itself). Covers follow the occurrence's (episode, branch,
+    turn id) order; a new pack starts when the forward count (``records``) or
+    the physical context would exceed its budget. A cover is never split.
+    """
+    validate_update(update, capabilities)
+    if update.dependency_count * update.objective.statistic_bytes_per_action > execution_budget.statistic_bytes:
+        raise InvalidPolicyUpdate("retained objective statistics exceed execution capacity")
+    population = update.population
+    covers = (
+        prefix_covers(population, update.views)
+        if capabilities.prefix_sharing
+        else tuple((view, (view,)) for view in update.views)
+    )
+    packs: list[ExecutionPack] = []
+    pending: list[tuple[int, tuple[int, ...]]] = []
+
+    def cost(contexts: list[int]) -> int:
+        return execution_context_tokens(population, tuple(contexts), capabilities)
 
     def emit() -> None:
-        packs.append(
-            ExecutionPack(
-                update.digest,
-                len(packs),
-                tuple(pending),
-                tuple(sorted({records[action].conditioning_id for action in pending})),
-                context_size(pending),
-            )
-        )
+        packs.append(ExecutionPack(update.digest, len(packs), tuple(pending), cost([cover for cover, _ in pending])))
 
-    for actions in turns.values():
-        if context_size(actions) > execution_budget.context_tokens:
+    for cover in covers:
+        if cost([cover[0]]) > execution_budget.context_tokens:
             raise InvalidPolicyUpdate("atomic turn conditioning exceeds hard pack capacity")
         if pending and (
-            count == execution_budget.records or context_size(pending + actions) > execution_budget.context_tokens
+            len(pending) == execution_budget.records
+            or cost([*(item for item, _ in pending), cover[0]]) > execution_budget.context_tokens
         ):
             emit()
-            pending, count = [], 0
-        pending.extend(actions)
-        count += 1
+            pending = []
+        pending.append(cover)
     if pending:
         emit()
     if len(packs) > 1 and not capabilities.cross_pack_dependencies:
-        pack_index = {action: pack.index for pack in packs for action in pack.actions}
-        if any(len({pack_index[action] for action in item.dependencies}) > 1 for item in update.contributions):
-            raise InvalidPolicyUpdate("objective dependency crosses packs without qualified graph retention or replay")
+        pack_of = {view: pack.index for pack in packs for view in pack.views}
+        for index in update.contributions:
+            dependencies = update.objective.contributions[index].dependency_views
+            if len({pack_of[view] for view in dependencies}) > 1:
+                raise InvalidPolicyUpdate(
+                    "objective dependency crosses packs without qualified graph retention or replay"
+                )
     return tuple(packs)

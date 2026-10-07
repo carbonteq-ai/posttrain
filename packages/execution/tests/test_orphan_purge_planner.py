@@ -307,10 +307,26 @@ def test_absent_provider_execution_counts_as_terminal() -> None:
     assert plan.blockers == ()
 
 
-def test_admission_entry_in_a_non_terminal_state_blocks() -> None:
+@pytest.mark.parametrize("state", ["waiting", "submitting", "submission_failed"])
+def test_admission_entry_in_a_non_terminal_state_blocks(state) -> None:
+    plan = _plan(_orphan(admission=_admission(state=state)), owners={_IMAGE: ("orphan-run",)})
+
+    assert any("only terminal_pending_evidence" in blocker for blocker in plan.blockers)
+
+
+def test_receiptless_submitted_entry_settles_once_its_provider_execution_is_terminal() -> None:
+    # Without the receipt no status refresh can advance the entry; the purge
+    # settles it from ``submitted`` against the proven-terminal provider state.
     plan = _plan(_orphan(admission=_admission(state="submitted")), owners={_IMAGE: ("orphan-run",)})
 
-    assert any("only terminal_pending_evidence can be settled" in blocker for blocker in plan.blockers)
+    assert plan.blockers == ()
+    (settle,) = plan.local_actions
+    assert settle.kind == "local.settle_admission" and settle.precondition["state"] == "submitted"
+    owned = _plan(
+        _orphan(admission=_admission(state="submitted", control_store_status="has-receipt")),
+        owners={_IMAGE: ("orphan-run",)},
+    )
+    assert any("holds its submission receipt" in blocker for blocker in owned.blockers)
 
 
 def test_shared_image_is_retained_with_a_warning_and_the_entry_still_settles() -> None:

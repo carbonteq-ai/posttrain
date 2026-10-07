@@ -49,7 +49,7 @@ export function SamplingSummary({ sampling }: { sampling: GRPOSamplingEvidence }
       </div>
       <p className="max-w-xl text-[11px] leading-4 text-muted">
         {olmo
-          ? 'Each update needs a fixed number of useful groups: a task\'s rollouts must earn different rewards so the update can tell better attempts from worse ones. Groups where every rollout ties are discarded and more are sampled, so discards measure extra generation cost, not the update itself.'
+          ? 'Each collection needs a fixed number of useful groups: a task\'s rollouts must earn different rewards so training can tell better attempts from worse ones. Groups where every rollout ties are discarded and more are sampled, so discards measure extra generation cost, not the updates themselves.'
           : sampling.strategy === 'dynamic'
             ? 'The sampler filters generated groups before optimization. Read retention beside rollout cost and update evidence.'
             : 'All generated groups enter the optimizer population; zero variance therefore describes the training batch.'}

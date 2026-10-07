@@ -45,6 +45,8 @@ export type SummaryMetric = {
   state: string;
   value: unknown;
   unit: string | null;
+  /** The value reduces only the series' last `window` points, when set. */
+  window?: number | null;
 };
 
 export type GRPOSamplingStep = {
@@ -525,6 +527,8 @@ export type TraceFilterOptions = {
   steps: number[];
   slices: Array<{ key: string; label: string }>;
   outcomes: Array<TraceSummary['outcome']>;
+  /** Each collection's first-update step, in order, when collections span several updates. */
+  collection_steps?: number[];
 };
 
 export type EvaluationDistribution = {
@@ -565,6 +569,8 @@ export type RunComparison = {
   }>;
   reason: string | null;
   basis: string[];
+  /** Training inputs that differ between the runs, each with one value per row. */
+  differences?: Array<{ key: string; label: string; values: unknown[] }>;
 };
 
 export type RunComparisonKey = { job_kind: string | null; comparison_key: string | null };
@@ -612,7 +618,9 @@ export type RunView = {
     view_kind: 'job.metrics' | 'job.evaluation' | 'job.serving' | 'generic';
     run: RunItem['run'];
     summary?: SummaryMetric[];
-    charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[] }>;
+    charts?: Array<{ key: string; title: string; question: string | null; series: MetricSeries[]; collection_series?: string[] }>;
+    /** First-update step of each collection when collections span several updates; empty when steps are collections. */
+    collection_steps?: number[];
     metric_help?: MetricHelp[];
     completeness?: {
       state: 'complete' | 'partial' | 'insufficient';
@@ -750,6 +758,7 @@ export type SystemMetrics = {
     value: number | null;
     unit: string | null;
     state: string;
+    window?: number | null;
     description: string;
     interpretation: string;
     caveat: string | null;
@@ -793,7 +802,7 @@ export type SystemMetrics = {
     environment_concurrency: number | null;
     inference_sequence_cap: number | null;
     rollouts_per_prompt: number | null;
-    rollouts_per_update: number | null;
+    rollouts_per_collection: number | null;
   } | null;
 };
 

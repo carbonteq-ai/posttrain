@@ -1,0 +1,2121 @@
+{
+  "source": "/home/hammad/projects/verifiers-environments",
+  "candidate": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003",
+  "base_commit": "a6d779fc1fdfde23f86e297125b3381b140cec2f",
+  "explicit_dirty_source_copy": true,
+  "live_runtime_modified": false,
+  "files": [
+    {
+      "path": "environments/automationbench_v1/src/automationbench/__init__.py",
+      "sha256": "5ac5bfdd39ee4f9279f29d4068c7fa1ac31d040747a97b660e1c46d95ccbf529"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/clients.py",
+      "sha256": "8caa651ec9a632021fce702b3367a267de33f6da951a7359c4b0d0eb14eabe63"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/console.py",
+      "sha256": "e445276784d02d51779f4de04092266715550efa61f2c2dea610127f827f2eba"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/__init__.py",
+      "sha256": "deff0ef52013c609c40298e987845dcd1f72e5d709213ef414640895353bc127"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/_noise_util.py",
+      "sha256": "7478f7512c8cb3e3dae62450b583d626c05eb8ccb798822dca91f524a98dd777"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/finance/__init__.py",
+      "sha256": "02d9d3a212ef4998226eab2fd8f3a6adee3c14ae9aa09f2739952f53c07cead3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/finance/_noise.py",
+      "sha256": "0ff7f3d7fb18d42d1b9a6a9ef71b19590ff9a59bdc73cd9585e4492130399d3e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/finance/tasks.py",
+      "sha256": "472abd638f83cd98e7eb30035a4c1a2986dda0afa45e5534e2f6b79db6f39e54"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/hr/__init__.py",
+      "sha256": "9b82960df810a739534548da66b9268b6ca105f8ec2252a846f06f5874b4eef0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/hr/_noise.py",
+      "sha256": "b1de478bd0f9e08a331111a70378c1d29c1c6017a9b9348226aa57b2fda58434"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/hr/tasks.py",
+      "sha256": "954f7b871b00c487cf34a826bcde49bb247a52b5aed5a7c21efb205f8cad9f37"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/marketing/__init__.py",
+      "sha256": "b4350ac6fe3ff7ff8757404de6c4227a954ff15c694b6c7f909eecb24bb72889"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/marketing/_noise.py",
+      "sha256": "5c68e819659d188340bd29e11e2e5e23643f0543fbe73eb8806c4fca6c913a74"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/marketing/tasks.py",
+      "sha256": "c105a0d49ab9e7e1028b17d73a7facce9d9d5c27f32d62e5cbda613cfad69bb5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/operations/__init__.py",
+      "sha256": "1d35b4f8f8b068b1ca20fb88271f594a58aba6fe56fd38a39e2c3bcd97d604bf"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/operations/_noise.py",
+      "sha256": "fe6971b0a091832d0ac5a001ce7955655d19fcd056b3c757aaa73ea23004d2cb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/operations/tasks.py",
+      "sha256": "3d930ca7996c7fc66963d9dd65a430d9426bf1ed49541f17798e8810c66440fc"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/sales/__init__.py",
+      "sha256": "fc1808ab9ac65ba73ebe48d46f16195d48e72e50a09a76d97d5ec3622e413640"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/sales/_noise.py",
+      "sha256": "72cb3dc97c9625f741d519a7f1b834233f855dc751afd5044fc747383c7add28"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/sales/tasks.py",
+      "sha256": "8df6673dd5d9466cf8d02c8fdc02526f9649e036f79adf1489dc195bc5ee4fea"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/simple/__init__.py",
+      "sha256": "db3e04496bbe0103e08945e42b29b62211bbae266a5e16cc9236eae376cd6735"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/simple/tasks.py",
+      "sha256": "ed29b090ad8d452b008690fe0e3ada1fd4a3c6688903987cb5ad11d73c084f8a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/support/__init__.py",
+      "sha256": "df2e5cd9e0a1191f0ce025826f0e265c664d43798a3f38b5d46c414eee9a1501"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/support/_noise.py",
+      "sha256": "f775b529b1ed9d94e8e6b56ddffa4c27f54de71ca0a7d59bc98a814aafee2074"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/domains/support/tasks.py",
+      "sha256": "773045bac39e0358830d0a001ebd508f51fd446a5b2c3fc57b65bb0ce236df70"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/export.py",
+      "sha256": "730eae7587f05d3df470dd9f1df2eb1eb5593b3c5eb429fba6957e4146251170"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/pricing.py",
+      "sha256": "2820d0b920f101d1ec366fd51a3a4053ca5fed8a23b6e71864060c97b80e0b98"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/__init__.py",
+      "sha256": "d797b4cb6139ae570f7286713fcebb6e55906daa83f4111ff8b8d683c6c7b279"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/__init__.py",
+      "sha256": "efbf377405a0e1fa415669089a5aeda2effff98b498bab0fb6f2306053207e09"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/buffer.py",
+      "sha256": "ee40e6bfce1afbdb0da0c8b0f799993a9b33511564070086ada60ed503412e54"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/calendly.py",
+      "sha256": "b2efb3d02cb96736834350d7ff0c583633eed23eaff74b36b8f14300b33eca6f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/canva.py",
+      "sha256": "8a7a176981a9df0fcd734bcd34082be2b017d27d4c3ffb4d87852f65f8bcf79f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/chatgpt.py",
+      "sha256": "30dfd2d9a2319c422bddc90d14b32b112d10e7338ef226227b2ccf61a2e6f44a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/docusign.py",
+      "sha256": "456aea4be8a6d0bf0451d7f5e6cab80d2b4d9813df74b60102026203c25b2e1e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/facebook_conversions.py",
+      "sha256": "aa1b1d18d6ad5432138c9e963f8ffd353ee46701db3eb06f0e7ea60601a741e9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/facebook_lead_ads.py",
+      "sha256": "3dfb0f95b711e7bf2d3ff4b47c572daba671374d45e367d8b0ff1026d4515e14"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/facebook_pages.py",
+      "sha256": "06a71177fc983c60836b2832d813a800353443672be0471db911a1005d241cbb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/gmail.py",
+      "sha256": "fdd111e821ffa8404603bd49fbb1f12ea7b27b9ca5732c213db2a65d0c9c7d58"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/google_ads.py",
+      "sha256": "c8201aa3fa77725bce71c81a1d24fcb4d485d5d7eec1d7d3ba4386dc6cd6390c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/google_calendar.py",
+      "sha256": "6639c0e430d2b8ccc810fd24c9d3ecf6ca69446c5846b88e4a8d32fb82024502"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/google_sheets.py",
+      "sha256": "57cc26d7a1ee6431a6ce4d1ef9d3cc087939d1e8ac2dea2df005f02a1d669c0b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/hubspot.py",
+      "sha256": "13fcce6088cbb84c2c1e3be67aaa6f99c90233a2e5f80b420e6eb7514bd8b5ac"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/instagram.py",
+      "sha256": "8150cebf7f9987b15d5774e4105fe431683a497e03002d979ce73a3f52c576a9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/linkedin.py",
+      "sha256": "ce0a88a528331a8d62553b7d60c5d9d2cf6a5d356ff292ddec0609fb4c2ac57c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/linkedin_ads.py",
+      "sha256": "192484ffd695bda7705b9e612a02e1a84221875c312a2acf2560e62a8af8e2c1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/linkedin_conversions.py",
+      "sha256": "f97995869fba33aedc05c26a2b7fbc25828c66542f0fcf29315dfcbad1d9b5c9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/mailchimp.py",
+      "sha256": "10d05035d5b6a76b5554f6071b40ee782e6324923c2d81bd4d183f250cb515b7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/ops_apps.py",
+      "sha256": "7ff57521872754591975723be0b621a569fd2a9bc577e59a20601cf5b8f8e064"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/quickbooks.py",
+      "sha256": "718ba5a361c9fb45b8c1b5835e907b62bc2a6e01658749c4a34f261acb4e887f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/salesforce.py",
+      "sha256": "962ccffe3d600abfac60e6807ab8805f1af730d20d3081a51b0f81db9af59a64"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/slack.py",
+      "sha256": "cc13f1448e3d2072a3c3e2b51961f6131a388f243d3fe3c0634cf822eaa22050"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/support_apps.py",
+      "sha256": "85afee051e1b8203f4f21cb72d3388e0dca8dfed6a5c227a6493631b6668f518"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/twilio.py",
+      "sha256": "f6049eb63a1b1c6ee87589fe0c01b1df3fecd8db8912e0b38ced9b8d4e4e8c49"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/twitter.py",
+      "sha256": "940f6101e0cbb40232ebd6d9ff9bc181d7e7bf98d6e3d33279cecef12f6f83b4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/utils.py",
+      "sha256": "22c259c789d1a25cd4294fdd6bdccb06e04a4b864d157bb2698648a3dcab163e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/wave.py",
+      "sha256": "0bb89affe1e7bcf841ce228ef410772dd14bf3596e6069e090e7e1e992425f97"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/xero.py",
+      "sha256": "346a5944f2c318c5254f3939a6b9ee7ed4ab7b0752b3682f6ea338bf9295d7c8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/assertions/zoom.py",
+      "sha256": "dcf196a15c018e371a0146bd89802c5908a37f2b7a8ae192311c605a0c200df1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/rubric/registry.py",
+      "sha256": "bddb9c8c66e11e89d1a1f268fb03c171a953be34786b40d3bea7683e59727e47"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/runner.py",
+      "sha256": "6d64f3b9580c2b5ba675d1cfa64a710d55d13a2bae066ba1298fc80835964f50"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/__init__.py",
+      "sha256": "800917a01824a1aadc26226939ddea4a7c42a67805a42f4172a3522ed9d36e10"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/airtable.py",
+      "sha256": "8cc2deddb96cecca8eb43854b09c64d876ef178d8ebc06733cc1e8895cf75a62"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/asana.py",
+      "sha256": "5cb8524d092bc32251ec3e8df68bf9618520ea6abc61cadb0eaa6313023dc841"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/bamboohr.py",
+      "sha256": "852a58a5b5b20c2c241b3f691bc8d988fa82d2ae562e9001cdca7d740f5687c2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/basecamp3.py",
+      "sha256": "a17697ba83ee38e9c45cb5d30ea2e77efd7525d21e0591b8dfb85d8eeb8cfd9f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/buffer.py",
+      "sha256": "869a1f5d33d0ed239aa5959a3b74b36fc5929d0d3f096db74db16fc03ceaa796"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/calendly/__init__.py",
+      "sha256": "6dd1817c309be5c426615620ded1806c51e87b319ef5e2eb5689e91b947deb66"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/calendly/base.py",
+      "sha256": "2697206bf65011f818abbca347d3f3174bb2b9ef7e4732fa5cc47098c31cd0b4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/calendly/event.py",
+      "sha256": "3054e47b847666555db6720dcf84fff5deaeccd6e9b4d9a5bdce17e2ded44dc6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/calendly/event_type.py",
+      "sha256": "8367f7ea116ef00574eacd78d44c8326687ea78b9f3065a026024fbe17e38db2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/calendly/invitee.py",
+      "sha256": "f4fbbadd00381bb83115963c8dd5fac7b0cae6e299b387b09041989be67606f4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/calendly/user.py",
+      "sha256": "90579d7e585fbdd9076b64c424c9abcca7eb934d68405507ffa77a71896d10cc"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/canva.py",
+      "sha256": "4d1eed1edf6494a5cfab6b5f08dcd0b79fa24d8ab07c8730dff2f7ec3290e2cb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/__init__.py",
+      "sha256": "cc39471de152ed275a9dbdbcb8d6eb7497c8ba1fe7ba975aef7e387eb9e533f5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/assistant.py",
+      "sha256": "6989aeaf4dd86969b4ab846beabe1dbfeac1673822852fbb801587b80638aebe"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/base.py",
+      "sha256": "f4992bd2a7202dbcd48e3fa309b7e6221aa9c79766dd84b87264e049eb467c00"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/completion.py",
+      "sha256": "db8e4f673aa911dd2942fc74c4a595e5de3b8dd14c1226fe8bf3afb604b75b87"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/conversation.py",
+      "sha256": "d049e77145e07ec5247aababc436dbc7e32317fd3939d7edf36020854f132c04"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/file.py",
+      "sha256": "b5aa129d40a3be82ea4f627ea38efa8d11e2298e65a5c2fa7beda4e91dd43589"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/image.py",
+      "sha256": "2b63a458e551a579890fba47ee8998613cd4f950b2bf2f546b573013c32d1b4b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/transcription.py",
+      "sha256": "b1e3bfd6cc6eaf50d0e1751a99db2b1b8239cb044122db4f7f55c618ff45abf7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/chatgpt/vector_store.py",
+      "sha256": "ac75ae9a647d1346b4d15f0515abbb5ea2417e5c34300bae93c8eea6cd32f1e2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/confluence.py",
+      "sha256": "07cb041f701ace39b6ea5553551931361f89dd8f05f4188a349fb0b7eab7ed83"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/docusign/__init__.py",
+      "sha256": "75fb83b6f19911f5fbd6186dc2aee45dce8913797e9428d72d3c699f2e12832c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/docusign/base.py",
+      "sha256": "c43e481ad0c2459e340ec2d3a225f3d7a0310153fc5ca86a71d9bf08f3bc2c10"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/docusign/envelope.py",
+      "sha256": "183edf4a26ff2c2926638f562b63aea35fe290eee649dfdf5449862a42c06be3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/docusign/template.py",
+      "sha256": "16cd66fe748b01e063cceb6a692169d834c7fc0789ab89ef578c52b8cb04186b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/docusign/workspace.py",
+      "sha256": "c76232f2f3a103378708c9e404b9f72bc27dab07cda54d590db6d2d931e16ae4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/facebook_conversions.py",
+      "sha256": "401fd1af3c21ea607dce0cfb48537a64d302f4bd0a5f40de3e549c62b7529bdd"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/facebook_lead_ads.py",
+      "sha256": "fabdd4d83fb59f844e2015b77ec13d372d3142b68bfa07288ee031def3d00a53"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/facebook_pages.py",
+      "sha256": "f1e645ca55767c445e83bf8c0f76b2e9b9c83571be75b6d53dd731549c15ed9b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/freshdesk.py",
+      "sha256": "5bfd5e1757b39acf80c109c97455519bde8789be54f74ef07e6b482e177cdb60"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/gmail/__init__.py",
+      "sha256": "6643942b3b30af6fe51b408e30e1596764966cb4dedee4ad90c53b26f907cdda"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/gmail/attachment.py",
+      "sha256": "b00a748d13ee1a885742285925f69d497a9c74f21a1908dcdf6a87befee46fb7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/gmail/base.py",
+      "sha256": "51dd28df52ff95d94040dc16fd816ffe1e0436812573a5dd41724fdb12f2a201"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/gmail/draft.py",
+      "sha256": "92f2a16cf3a4c1dcbbafd809f4a2b3fefe215d7049f49291ef66f25bc28e8700"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/gmail/label.py",
+      "sha256": "4a7852686bab09282c0993446fb36e9c4d223e8c486c32853df80b65b84f18f1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/gmail/message.py",
+      "sha256": "28309a914e508226c908928263787f0dbc6929a68047fae52d7279d40fd9abf9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_ads.py",
+      "sha256": "8bae5e4184dd2053dda41b8fc999f6e8febca3e79fe45880032ab1a989ac1612"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_calendar/__init__.py",
+      "sha256": "7ee0782b87a659a16b573e8fd832abafae1c4083402f1231af7d3434bd880a44"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_calendar/base.py",
+      "sha256": "074a7c129f52012714242aa06fdab55d2a8dc6e1c61347542eff169f2c4207cd"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_calendar/calendar.py",
+      "sha256": "c5b64de62a64f48b22e2e78371d2e6920ba2e88cbf416b88f0e915f5ffca242b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_calendar/event.py",
+      "sha256": "e7a4dab446997f5b94b18f34390189b3609c4f46d3df180da8e36c6bdece1948"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_drive.py",
+      "sha256": "e89ed1e22d8577006ed25463b4cb813b808024d5bb11f3c93aec93052f450d82"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_sheets/__init__.py",
+      "sha256": "c5ad8ac0095ebed94bc8afebf7555121e95b7779e005480ec1b2a73539e1ff4a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_sheets/base.py",
+      "sha256": "6d3169c57e862a1db79df3c5b3729f5a7fff9cab6935a9cc017d823cb0cad4ac"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_sheets/row.py",
+      "sha256": "0f5320bf77fd905316fbb7c7600ac5e24abfe6a6127f04039a640bc34720b3da"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_sheets/spreadsheet.py",
+      "sha256": "cf596c301c3acf9dae0d327f5c7f4f26b84ea62826b6811a618b40fe9782d662"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/google_sheets/worksheet.py",
+      "sha256": "962a1f6ba18e450ae557a7e42ba787589101e31f51e948d310e2365126b4941c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/gorgias.py",
+      "sha256": "322edcaf5d2593a4758f54ae3bdaf2ddfbde8797349826e6b70b29c74fb69593"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/helpcrunch.py",
+      "sha256": "a211b743733687fd40e7bda985883117b39872eeeb667a175425aceddf06013e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/helpscout.py",
+      "sha256": "3f17fccc8db78eb5e3593563cf64885cef6f05aa9977383967b791b5c96c4d16"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/hiver.py",
+      "sha256": "256c8f277f8b5ce9a54f2134bb0c06f40040ae2fa67d3bfc088c066a0dc06cf9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/hubspot.py",
+      "sha256": "e034fe70da4022db3e8b3726d9bdc7b623b11acc9e6b34a75985a1393171e8eb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/instagram.py",
+      "sha256": "61d3529e9e8db86260609a8697d0e1ef6f96b3a800ede70df6b816123479f4b7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/intercom.py",
+      "sha256": "39669d86bac0202beb4c7838087b037857e41d8290f695168c343137f904137a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/jira.py",
+      "sha256": "195d7b2b443b7c46f5a4949f7edc4f608571400d595a2a34b4124b3c39e663c3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/__init__.py",
+      "sha256": "c19fde0bf4c16e82c1c149774488065ce32b518f59b019975b11cc4ab66876f5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/base.py",
+      "sha256": "cc133a97f176d772316dbb6c5475124586fd4929137a49905e73f625507327c2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/company.py",
+      "sha256": "a2640c4a861404af326a7b83ddfb6278a45cf39a15818a62f1c744c756a3c5b3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/connection.py",
+      "sha256": "8f87c2b34ec44a3b6fa7d57900f5b7cf2b8cb5591008d2602ca713a4275a4aa8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/group.py",
+      "sha256": "e08413c688bee4683128607f67f3f3c073588a8b054d979a48d55130b8de73ad"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/invitation.py",
+      "sha256": "4c2eb7381c8a9d8e55421445bc7fd9efcbc077d0e46022b01e4060693b23d79c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/job.py",
+      "sha256": "b2e83abb0d8eb9240a7e54fc2434e8d218acc4105f65ac0949ed309201a0664b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/message.py",
+      "sha256": "32bdf646116ae1c4840e02ed44cee340569562b92f9a9d7243eadf48568b1d23"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/post.py",
+      "sha256": "2d2c0d2ea5f279e370d14bca41490695f9be87da18c33dcb5dcadc76ae84ef43"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin/profile.py",
+      "sha256": "d6b64fd483ec5e24e1d30dec2e2cd9ba5ca5b10769da30b83e8ca70136b5ec72"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin_ads.py",
+      "sha256": "f45ba59374b0f81939d6bac8d8c18261b5b59ccc5c9136b544ab5ed3b6b0899b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin_conversions.py",
+      "sha256": "65fc1d9e4a2c62b863d6577ba14c814bcc30d01109235765f88e6059a1183bf2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/linkedin_leadgen_forms.py",
+      "sha256": "a82f0c6de1effc8cb2d3ea6c78587d7fd4b28e43c893cbfd99d709ff7eecf683"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/mailchimp.py",
+      "sha256": "c35603e3b40b90212cbd6f619b77af4272172d098c023d461d5fc0c706423e07"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/monday.py",
+      "sha256": "a66f6c6dad5cece3dbab8200871a70597b028bfc6385d902b42d5f4460734c41"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/notion.py",
+      "sha256": "8b08697250ce41ded1139f6e56bc4868f3d49e0c96d3c7889354e0e18c5371d6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/pipefy.py",
+      "sha256": "ef1885aa652fd8b8b97fec746251dc76fdc780c264027a1caab6fdda5fbf44a6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/quickbooks.py",
+      "sha256": "1aea08fb17eddad693b8669b05bf7ff170d056f3fe3d4bd451b0b706d5328187"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/reamaze.py",
+      "sha256": "b04649e391fc9dbed0755049d4ae9bb266319f126ae732f7dd3c5a237a29a948"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/recruitee.py",
+      "sha256": "9aabd28a7fd2ac43c3bb23aadc48255cce5d6750e340c749079036811231a425"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/__init__.py",
+      "sha256": "f6c0b362fa7eaed9c7edfaddcd9fa964f4e8b2bdebd6193eb53aa64cc735e319"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/account.py",
+      "sha256": "3effc92592b209d1c61bca9bde75072ae3e802dcca194a15551454a49605744f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/attachment.py",
+      "sha256": "82e228165a47b64cd27a0084e49d569151b5f4ce168ccb7f0fc7e25205962aa0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/base.py",
+      "sha256": "f91d8427b85624031ae6fe0edfd3897141e2e8d1deffb659a947015543745d83"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/campaign.py",
+      "sha256": "de0dfe4f68fea0886f5e08b5c24852eb3991abe7aea3a6de472728122ffd012b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/campaign_member.py",
+      "sha256": "99455caa0ff223f33aa4eef0fd9609798db7e499f4859d904fe80a05ce0539f5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/case.py",
+      "sha256": "a9979bb3a4c7fcf291781a30df334639d34828c65079b1525f79952ea7a6677c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/case_comment.py",
+      "sha256": "d0cb4a188a2908526b097899efea55f5b832708684188216d23f72543023e235"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/contact.py",
+      "sha256": "28bdf718ba26628c60f6152cf6aca72db53edf915cdac39fd57f933a30f9767d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/document.py",
+      "sha256": "cff8c82461a35caa92a83a39489d579392935d3f1497556ac3eea2991291903c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/email.py",
+      "sha256": "cf666464fddf566892e0f636f84b1a472097c0265aa0706ad8bb5824a1ac3074"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/event.py",
+      "sha256": "dfc61ab560a0f0c949c25c077fd3f142f1eeb405b54e3bcd15cebfd8d6b148d7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/folder.py",
+      "sha256": "0098830ab07f83d194e3f81b11a56de43b15bcd06ae7c1f977c20bb40605f18c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/lead.py",
+      "sha256": "38ca0304ad8150682b2b047eaabcab78d5219eec654cc3521a76359989f25d90"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/note.py",
+      "sha256": "387d18537651feae4d61e55b4fca809d253e905e487edeea8340e123d2d751c2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/opportunity.py",
+      "sha256": "b730a421813f6eeb84daaa63f64a89336107e4c39803480f24017a2780909a57"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/task.py",
+      "sha256": "426b4aa929245551ef9a6e8736fe3d12a8b18da41d35316a4167e45be6721a1e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/salesforce/user.py",
+      "sha256": "52c540da97cb73b63e4edc11fd92cafe1ca89c2f3e9d14e6b2f06f1e6f9ef5d1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/slack/__init__.py",
+      "sha256": "942b0038ae3baa1ee174cda59f62eaa4e6efe8faa3cf4282d3d6bdec0643bb9e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/slack/base.py",
+      "sha256": "208f0a1553a97d4f53088b494c9905210863faaf23f9a5a4f50bd1f4eb2e8578"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/slack/channel.py",
+      "sha256": "9ccb8d31ff7d6050a32e29a1cf74228e5dda544a2dd2e3da1c3f1b4e01c6994e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/slack/message.py",
+      "sha256": "24c631edbf98a472747f95235f27d981ab20976e70988446d2736a3c218a9cef"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/slack/user.py",
+      "sha256": "48f7ce5b8dcc4a0f3279413962c3ded5a53f1e69e1222a5f2f10b213d0540052"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/trello.py",
+      "sha256": "9ec4e70c14210481af02aea6f7dc6ecf32872f5f107035c400dac57c95e81f68"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/twilio.py",
+      "sha256": "43815150f508b7dfba42811479d9c937c5dc697c79e89237a5d4fdc7fcfe62f7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/twitter.py",
+      "sha256": "6309a6c9b58b4ca18c2c088e478bc0924faaa816b04fc7e1b16768ab79ddf645"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/wave.py",
+      "sha256": "b53018fa192671c63026dbdcb64816221f01130b6e0ca50c335606f73aa26cc9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/world.py",
+      "sha256": "1af363dd3d421a4e66791f8ea140804986e37444796f7092941c2b5f190a1f6c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/xero.py",
+      "sha256": "fce56b8f2de900ac0edfa1cf7d3d5401385bbd94d7fdd666f596df7955d1fddb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zendesk.py",
+      "sha256": "2afbdf3464526e1c6f174db34c3bbec21fa95ba53bb6ec7e5e9a34bb0021aae5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoho_desk.py",
+      "sha256": "c27518bde341a3b5b901a1282d4917baa84690da879ba629d6e115c02f2314b8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoom/__init__.py",
+      "sha256": "a22b7e5d03749f27699e8012426969118ddb977ce1383130cf5fb257c693cb5f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoom/base.py",
+      "sha256": "70b62c1cd9289fdc0b53c23076d466bc43f3d07969a0f678a7280450f0b20f6c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoom/meeting.py",
+      "sha256": "662b77f0ec22ab181ce45d32fb51d9158af428a51b47055f53ae518358749a2e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoom/participant.py",
+      "sha256": "d6df43adf15bf8a96f035f5f09cb6317b9727165fb3443d41d0213d60baa6ad9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoom/recording.py",
+      "sha256": "7c06ed63877899bd4a859d0c5f4ad3a72f5d2a36c8488b2b21e3bcf9902a9e64"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoom/registrant.py",
+      "sha256": "7c68c8eb8f70705c9c9b3ab280391ccfdd04dfbbb81d86e304eb30ac8b926039"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/schema/zoom/webinar.py",
+      "sha256": "536fccdcaaa263ad7d9828532394a0ece3b1dd9195a73e3a51e0b935cbd7a567"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/scripts/__init__.py",
+      "sha256": "b159d1ecda0af6d8bde351072679cc97d9574ce6252f5c1a19dce413e71b5e09"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/scripts/complete_run.py",
+      "sha256": "a6526a72958a941bd33cbaa98c009ebfe9a51c93771b48d65200d1e38ca1fd42"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/scripts/eval.py",
+      "sha256": "6ca17bae99354b5269edb3e3734a63fb01958e86634d2a2968a47eb3a550af5f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tool_wrapper.py",
+      "sha256": "0317d21471edcc99da5109d61c0149fcf00e7aed8ef24efff584e626cf749404"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/__init__.py",
+      "sha256": "7c38d9e77ef3e0007c2219654b8a1cf111afb8d04f23de3e3cffd9cbc41c1818"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/__init__.py",
+      "sha256": "8b14abd3cf37f1961b3809d94a37cb0bcc83f1d35fafba30aaabb7e49b8a55a9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/encode.py",
+      "sha256": "c8c440b13cfbb15a28ca2b728ae9ebec0861203fa9f33dbc9f652b0fbfac47d8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/fetch.py",
+      "sha256": "cf4022f2c48cd532e976c9971521f6d2934ea142f7d13384647a2145460876b0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/__init__.py",
+      "sha256": "57a13645519983a922839ddfb5ae2fb84b11c56d156db08752219795211800ed"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/airtable.py",
+      "sha256": "7ff3ff9e782c24e26a6106703a1107b43c9ec2a0690b34764dc2ca7d6241cc8b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/asana.py",
+      "sha256": "c84fe1db5bc9e5bd1c9702cf81a1c31d6e3079f16ddd6e20bca7c0768c4963c2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/bamboohr.py",
+      "sha256": "312fa24ff09a752f20cf7f6ebee963f020f107f5a7ac77161fa7a42e018f7da5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/basecamp3.py",
+      "sha256": "cf478e5ea6860b4d7c7808689ff15c3d10c663471758939269728777959092cf"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/buffer.py",
+      "sha256": "de60049f805cb6707d1b5b1d39add51e16ed45d9fc992ae51083e6462ff53f4e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/calendly.py",
+      "sha256": "dccb329a91cc95be924776b666b5c51452f39867686daba53409f6d8345e008e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/canva.py",
+      "sha256": "7956c5ec2bdf968790daa08b3c605b260051ea21138222e5a7258a1e05eb6f25"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/chatgpt.py",
+      "sha256": "86e7c94da4bc5704a0e07dff0508a45aed531e6c50777295ec0554d00eacd71c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/confluence.py",
+      "sha256": "290e79c3d7e69609f7c65731c1dce137cb950a4674aa62359b8ae57418db1a7e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/docusign.py",
+      "sha256": "3341320fac3d996167d3eb812b2e108d054133290bb3aa118b71028ffce1500c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/facebook_conversions.py",
+      "sha256": "92b9728f2275d3ccfb56bb0078693f29c0c9e458171fcb1afd9b41d479e14d2f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/facebook_lead_ads.py",
+      "sha256": "85865b45d92703259db33d3a363cde2e47d0270fdc31e42ef5ec169ed5f80886"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/facebook_pages.py",
+      "sha256": "5b7ff942068bc00511d5d9b2777e78fbd45ff3ccc44fb413e2c1ddab7778a0b5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/freshdesk.py",
+      "sha256": "0362c08b021f2ab1861978c208523e171c14a27aad7664480ee6adc42a007366"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/gmail.py",
+      "sha256": "ee7508ff0bdf6abfb709b5e93bcf42987c8763cf0f6bf4db53a239748e1c899f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/google_ads.py",
+      "sha256": "292f28eaa4dde8709ef0da07f69021f264fc0e753d0a111dea064b7f81a1eff5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/google_calendar.py",
+      "sha256": "65428e7874764ed3de648eb387e67e977b46621cab110e78d6f3d3170c8cbb5d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/google_drive.py",
+      "sha256": "fb9a91baf1f2ba696f315ac4d1da3d069df6d0578ea531a1e4c76d2677dc917d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/google_sheets.py",
+      "sha256": "9cd7d62d27aa8738ef57cc8f782f1e57ba9331549ee91f4773a5643729b67a5b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/gorgias.py",
+      "sha256": "56e778e0b22ae9e370e0fae97cd76b7dac5dae525edf079dde15ef3a39bcccbf"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/helpcrunch.py",
+      "sha256": "30da0caed39675462cd9e3859109fc8a902f2f42627753ea80a206e62f3a71ac"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/helpscout.py",
+      "sha256": "4bdf2b8a63c50aeae62e71e4127fa909e782ee8a70236dec7f48dbe89e6ec320"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/hiver.py",
+      "sha256": "2cd840e0a85d381312f5e58c2b0a679755888fd1f0caa97d140180eedfe3ced6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/hubspot.py",
+      "sha256": "5b51c910094029fa8609857dc90a81c07c32c3f63a443c1a9632ebaef73ffc47"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/instagram.py",
+      "sha256": "6e7a481223270efc394114a17c50fe32e73f8398357baceee7852ee6cb982805"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/intercom.py",
+      "sha256": "86c2d894a66661c296c3ba9bb41c445b951fbd79c1c9127bd4f299a572f4c3e8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/jira.py",
+      "sha256": "06627f997c19cc0db34b2f455ccd4a6017f57cfa32bd107971599f5682ebcf77"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/linkedin.py",
+      "sha256": "35ca0de317a0f6944ba835d230959d2cf0b4e496585391fa301b4100f79045b1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/linkedin_ads.py",
+      "sha256": "5b1624860b8574ca7323dffa37083e47ae7bca713e8204cef3025b909bc1d4c1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/linkedin_conversions.py",
+      "sha256": "e2fe53e80e37beed85d77c98a2ca9de0fa4c7af29efe3f16de016acec2eb2364"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/mailchimp.py",
+      "sha256": "f39eb3a93f6c3caa946edee82a9626e928a77b484df8728a9fcec4175946fb5e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/monday.py",
+      "sha256": "6737eb04112eac96794abd7c3a799b690a44ee3f08d470ad9bd4d9cddfed7fb3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/notion.py",
+      "sha256": "0308a54b275ce69666620b9c1373d0eb6192e60c41744fc21d00c15cdbafc912"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/pipefy.py",
+      "sha256": "ac3a2616772ee40806612b8769759d61e1ef41c27dde87226ecba9621bdaaf82"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/quickbooks.py",
+      "sha256": "b9e88c165196cb8626e5574ccf6c6d243d17e39b0475aca6659bbb0eee77ec41"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/reamaze.py",
+      "sha256": "c1192e54254238cc640131e896d6b262d0a3a59565b43b9cd994cd7ebf5c5742"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/recruitee.py",
+      "sha256": "cb7432dda09f03303a6b332e8dff3a40524632b0e4b3f5d9d96b656c40c430cd"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/salesforce.py",
+      "sha256": "36b7899034c8e24057c0502d35e2a9c128898c40347f4deec74ea0867d8482bd"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/slack.py",
+      "sha256": "819165232bbfd71d5962ec35cd15aa0bc0240d6f5903785134db608c0636742e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/trello.py",
+      "sha256": "f0950a62a27712cf537b085ac3fbca2257d01608ed2035dc6889a7649b9cf22d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/twilio.py",
+      "sha256": "2037852959f9f19f92a9723a0a846c4ae394bc52e98ce5e1f40c533baf11c9d2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/twitter.py",
+      "sha256": "4a817ff8e1e53d4f177ae2b0b270b257ca7bd70d43a935da66d12fb1c8f799fb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/wave.py",
+      "sha256": "339ada75b9933184283a456d05bdda5e57bdafbc04e8e1a0bd6a04d32deef273"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/xero.py",
+      "sha256": "c2d7f2ef1266205b8745cb837fed8f97ffa700999d24cb48939151b228798c9d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/zendesk.py",
+      "sha256": "0a7a1f6d75a933049329811a4370844386feaad8c6da0e4520a40d1cbafadb8a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/zoho_desk.py",
+      "sha256": "94058e9337d32a0e2945a172a5f3cc30bb0c7b7558b6db027a6434af83d3cb1e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/impl/zoom.py",
+      "sha256": "a4d857da6e5d280eda3cf23269dc7f6f43e2f4fc5f1d5dcbd54204769cf612c6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/__init__.py",
+      "sha256": "218a7165ce60cbd91724347e5c198b95389b6fcf0dabca9cbac72be5867f6efe"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/airtable.py",
+      "sha256": "d3f4c7266965ed912d85645a599dd7356ac9e56cb4d09a834db82e18b16721f5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/asana.py",
+      "sha256": "29fe0ae30a6887662eafdb9957e992c096f1faf5bc74ff23bc193d7e8fe3410d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/bamboohr.py",
+      "sha256": "cc6243b99285a06e83ef1a971122007bb6fb32969c2cbfcec0926a9169ee9a0e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/basecamp3.py",
+      "sha256": "68339d6c771988b5b1eb4d178851e2e95ba4662ab87038d0c2a20e00b65857a8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/buffer.py",
+      "sha256": "4073f85bc08c4b97d120efcf6afad922990465856f75a53141eada4931f98ca4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/calendly.py",
+      "sha256": "c150126472e56e9c100552e947b1b998df531901a4c8743da9c5c9258d95c3c1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/canva.py",
+      "sha256": "53a5f540a3b85879946c680486ec0ae9a252b24194ce911b890828bad547eb65"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/chatgpt.py",
+      "sha256": "a9f97f3b5243226e3e196c360995777114e31183deff46fe02b428ebdef3090a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/confluence.py",
+      "sha256": "947d398aa5e5541feeec935a63fcb09fc06ba4e3cdd8e6b53601d87937439708"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/docusign.py",
+      "sha256": "21ed0731253b029b41bbb5f71a41b42213a0a5e799da223c0275584e145789ca"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/facebook_conversions.py",
+      "sha256": "6d25ca0e9987fe3f94b9c2ec8a1729e0d5989510f8615f7650656555f75d8797"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/facebook_lead_ads.py",
+      "sha256": "727ee4ba1d0d6fd243795d80279269e3c5db1fb6ee6f75372bbbf68263cc01a0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/facebook_pages.py",
+      "sha256": "2ab88e87a5e026d3dbb318108e6299c9c52712334d035970d154634ac0d19d65"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/freshdesk.py",
+      "sha256": "14c8caef85348a69f8db419f7ae12570612b773f6d56742d6ffb8d8f2d293f0d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/gmail.py",
+      "sha256": "d7c431721f72a10dede1bd33720ff55016dd2fa8d03a20e9ac76fca72082b2e4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/google_ads.py",
+      "sha256": "44551e3492ab332d77676ba50aa1c25ace9bb61b06e79e5a6ede9f27b5ca7210"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/google_calendar.py",
+      "sha256": "1ba38550a7cb964ecaec083ad4dbdcdbd92f39a50f8e4fb37c129c25027344c5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/google_drive.py",
+      "sha256": "69ab9736d79064bb7592a765bdbe853fb86ecd90222f2e3c5ee80390fdde137c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/google_sheets.py",
+      "sha256": "ed53d2f0418f1bf40ca05bcef09afbe71a03c201fb38d46df298726ed354c592"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/gorgias.py",
+      "sha256": "fd2d1c30ef6bea5425f40acee35d784856442dad0aeced7acf2f385da8612934"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/helpcrunch.py",
+      "sha256": "fcefcf1c0c468826a0af442e36667f373765193f94a54c3029ae9601a53e5569"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/helpscout.py",
+      "sha256": "67641dc0b8102de8fc8894b518e513489a0f7c168fee7c54d1dee2dd527e3d39"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/hiver.py",
+      "sha256": "4dec63bbf73e79ff9f9347d2d591b718ccedbc73f5c7769aa092e5fc71fd3ba1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/hubspot.py",
+      "sha256": "df9155ef2bd1c3d4dcdba1c64bedc4ca072e2bbd6cbd0301314584ad413bad5e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/instagram.py",
+      "sha256": "79b0f2e6dd476a4e845ae7df3a54f278fbcb4c222d162dba8d6bf50c3ca2abf5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/intercom.py",
+      "sha256": "f2cab0eb8f5f04312ec90386956103f37598b7eb6d50c3d927ee94a76b85dec4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/jira.py",
+      "sha256": "f1027568ba11af0cfa9b4f466cdadaac33754658a35bcc60798aaea3d817c71d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/linkedin.py",
+      "sha256": "8466462bfba3d75a4e57cf6f3a9c0d9f5c79eb34cf85376b145d2f5c5f054a5c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/linkedin_ads.py",
+      "sha256": "c0ec1bea8433d7a39dbd9c569dd707f6e92cf5045ba7653ff0952bf215b7780b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/linkedin_conversions.py",
+      "sha256": "26d0260a32d84b30d7988d8fbf6e31f70c2eb1bda01244d59638de56846e32b0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/mailchimp.py",
+      "sha256": "99d2ccf5e09ce1f6e6c78d742a88da2750643b2228399d0cbcdae4d50d72e836"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/monday.py",
+      "sha256": "b3ad3110bdd669ad9021af996209fce7dc60e93c9cdaca03bbfd6e0d061f0052"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/notion.py",
+      "sha256": "7f51ad54339357a80cff810218c256f95f2647d3b00fb4b993a91a8fc018ba88"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/pipefy.py",
+      "sha256": "1d77e21593068ea299aee27c4131a5b4426c3ed7f19c31b21c308a42b09b2b4c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/quickbooks.py",
+      "sha256": "720935ba3d9a7731d054506f09b04a027346df50631d78446d434a7e02bac014"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/reamaze.py",
+      "sha256": "2f8628f6e0f98d8200263dd14b81618d474dedf00445f08a311c5f7a2b26e843"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/recruitee.py",
+      "sha256": "c7a1b6cdf8923ec62539c9325d7dbdfdfd8f69e61aeb160a4ec7828080c1e0bd"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/salesforce.py",
+      "sha256": "19ef876ba1602c86d70fab34412356fbffdad0c2a698603093a7e6f996a61ee3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/slack.py",
+      "sha256": "e68ab194143b3f423bca866dad1453cac321970ef025dafaee706a01ccf9979a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/trello.py",
+      "sha256": "a5467106b1f61034b751bce28a9dd98d0b96f1e981f74f2064d01a826b3552a6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/twilio.py",
+      "sha256": "7eaf48fd9acdff6a6ed22137c47d26e6582bb495f50a6d0d6c67661d1a6966f4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/twitter.py",
+      "sha256": "8e03725d9ca6b73c82b8b69f165ca7e75cd892233040de904075359fa4c6da10"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/wave.py",
+      "sha256": "ed4d03aae8c2d76620f513f1283a25a70b55f71f9659f1d272fd96a091b1f124"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/xero.py",
+      "sha256": "abb7721213b7513781c26e65fcff3b7ce206d37245338adffabd27413bf60fc4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/zendesk.py",
+      "sha256": "2743cc9cd28c6f8a7d544059803cdd3d934005bdc72b9aba68dc92355fda63a7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/zoho_desk.py",
+      "sha256": "41c9b7455f934d010146928daa912f00ea5e39a27bfbb36937395765ad3bcef4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/routes/zoom.py",
+      "sha256": "e4e53ebedad8c8ee39b41142c4f89556461dd6c97d91e204a4f4927f9878590a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/airtable.jsonc",
+      "sha256": "4d88a24e436d5acdce08cfb79f7bb9e822f4a9be4d42b7667e13fe212fa021ab"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/asana.jsonc",
+      "sha256": "e8b241f09c812cfd4f1087ffba40b44fc03ec0e58239f6507fdfa7a47a79808c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/bamboohr.jsonc",
+      "sha256": "571b03b25da0107939e4bfd5a0d118b8966bc0e528f7e92c13edb572f9a04779"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/basecamp3.jsonc",
+      "sha256": "070714452b29c6926c23fc7f614319c7a5cc5313ed901ac09f4b9df350b9b9be"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/buffer.jsonc",
+      "sha256": "68bbda7cb53eaa6e0691994b096f1780a1a34080a6c247173fdba1d591f0b482"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/calendly.jsonc",
+      "sha256": "381bed1e9ea8e962dc8738eb3a9c3f69f195e560d8aa8f2ce75306c6f397047a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/canva.jsonc",
+      "sha256": "86219d932e851a0f02970f51825cadee951dfe3960072835eb4eaa575411a6a0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/chatgpt.jsonc",
+      "sha256": "5f94b7be7e8ebc9919d75f9d54bc43d383724c48e7341887258600fd3f033ccb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/confluence.jsonc",
+      "sha256": "70ee835c57c5a945bd37d9c3d3e03c742434b0d56d365007a9906801d9110583"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/docusign.jsonc",
+      "sha256": "c080012956d0999adb63c6af2df26e58fa77c358f3f3a91957e87f3e2d0ad660"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/facebook_conversions.jsonc",
+      "sha256": "225903ceaf3bdb6fd52a6ef1c2a825d2a7098037b6857aebb2943147857e28ea"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/facebook_lead_ads.jsonc",
+      "sha256": "0670c5af26291c6a48bec5a371cdacac6d45d82ffd9c1a424c1c4e5d1a131224"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/facebook_pages.jsonc",
+      "sha256": "73cc7c00eab8bcd2f88ffc7e78821a99c43fd604debd8eb47358c45f794504c4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/freshdesk.jsonc",
+      "sha256": "956dbf9d7ece8861a90d451163ccee50d1159f117ede9d8333b6bfed4a9e2d88"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/gmail.jsonc",
+      "sha256": "c01cf53f4a908f5ab63023f36ff9a6468402f8f1ddc498294703876578b13af8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/google_ads.jsonc",
+      "sha256": "943aa07f083427e398e9c48a88bbd76b90aeb31ce5a3f813f8b66db6dc807237"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/google_calendar.jsonc",
+      "sha256": "ec642373d3fc13aeb1a66cded4c27e201686a11585593ea7eb20ff5117565c11"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/google_drive.jsonc",
+      "sha256": "093690583d5baae62b39b76f62012f8d0e3754efd4b6c1cc0739ca4211c12fca"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/google_sheets.jsonc",
+      "sha256": "2f4906747565ee1187ab61dc0663e0e4677d854389bed673f24ac62e89487582"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/gorgias.jsonc",
+      "sha256": "2efec435381d426e4b12ad595719f46ee743d3c3e72e57600d8e085e40bee5f3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/helpcrunch.jsonc",
+      "sha256": "0ce22d6c5a56f95a221ad8d2a2ce0fdcaf203e3d993f581fa6a89b4135bf408f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/helpscout.jsonc",
+      "sha256": "281ac852aede5a38803abab7fb1736099b4b23ebd7fbb5bdfe9d2290b98dea07"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/hiver.jsonc",
+      "sha256": "94398c8be84f32fda85910fcc7e9e89b81abb3765489f76b6a587b5cf488842c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/hubspot.jsonc",
+      "sha256": "ffd7b834a4600b6047f2cc07bc7aabf11c8febcd59f4594955219999918eed17"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/index.txt",
+      "sha256": "754ab936846b5725093e1594afac8f8abf313e5c27f78459efb99e9f439b0f80"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/instagram.jsonc",
+      "sha256": "eadbb3f94b444bfaaac7d25d3f01f66ddffd37d1e63f347dd682b842c2040f1e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/intercom.jsonc",
+      "sha256": "549eff515b6897334e0422b5d70874338131d135017a88948f5a13a47ba3b9d6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/jira.jsonc",
+      "sha256": "fa803bbf8dc555ad52c3235462b16fe37c8c6f4e739f80339113c36c453b5dde"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/linkedin.jsonc",
+      "sha256": "779f401511425e7175b312e14ebdfae793c0c5986a270804b71ef53f0881e942"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/linkedin_ads.jsonc",
+      "sha256": "f7d92f998707b5ff88caf2be216d8e9a68767b63251cc7075a31e803a7f7adad"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/linkedin_conversions.jsonc",
+      "sha256": "060bbced95f2720526566d7fd337200cc93bd8c52a6dc88c828b0dc14ad15dd3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/mailchimp.jsonc",
+      "sha256": "b1ebd9fcdeae7880ad662b2343bf24610db5bf43066c42518ece8467a82c82e7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/monday.jsonc",
+      "sha256": "919790144326dc0c22a356297626654392d4e9ec30a5092fa63bcf1fd3b69ef5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/notion.jsonc",
+      "sha256": "f80dce7027524b9ca0237c81b3fcd76449d0ca065783a1849e8c31726f6d75e3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/pipefy.jsonc",
+      "sha256": "d2dbac4cc2a3ed5145c0cf0eac55c19eae1e21eda3c16f0161c92d1f34bc9273"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/quickbooks.jsonc",
+      "sha256": "0673d0abadb722d4643920caeb52474f69769df27266a50af04729e0cb8323b7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/reamaze.jsonc",
+      "sha256": "7a68d43cd3cecddc185330531bdc65e1f0933096f07749ed7c8b138293d87de9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/recruitee.jsonc",
+      "sha256": "70350bcc12dcd24cf555a54080ba1c5b75085d9b7bfa6f7c28f387637f88e317"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/salesforce.jsonc",
+      "sha256": "3b987e26710a17d9747bacbeefaaadbaf47710934138925241bc926e009b01b8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/slack.jsonc",
+      "sha256": "06b59f9b1551ffcaf50f04e31309c523a0e7257547e9bbce6fb926d575ea5ece"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/trello.jsonc",
+      "sha256": "e78d073920b79164847953709d0bea62787dba8f4812ac24d423a3dd1017dfeb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/twilio.jsonc",
+      "sha256": "78a67dacf88f30bc4c2bb551e6b658c3506a9f12e3ebd7150194194f1d11fb06"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/twitter.jsonc",
+      "sha256": "911d58ad41e8da43ce74ff4f5fe809cc4a4bf22a20e9481e7989dd6be95915f9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/wave.jsonc",
+      "sha256": "afa9de101853ad3bcf58b7a39a7a6d8af488d5117c1745f51177f11991c57aaf"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/xero.jsonc",
+      "sha256": "9832d403830306dfcfbae4d5c6480f805687c1e2e02fdfa491ca5b4ffbf466c2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/zendesk.jsonc",
+      "sha256": "2637ad38453d2629c860125e46dbcdbc84be62f4940ab1209e21a4f35da689d4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/zoho_desk.jsonc",
+      "sha256": "0bfa9faa55532012fe7e3da7eb0eef632c67bc453a2fe26b52623bc5b6e47e39"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/schemas/zoom.jsonc",
+      "sha256": "8e1bfbc393c84ac3737f6f86473b9864666c3d6170e1c3e8eed2218ea39c7556"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/api/search.py",
+      "sha256": "3a8b7b4c0699c9791f5448636b552ca88ef193acc74e64b6cfcdd4868258a4ef"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/__init__.py",
+      "sha256": "5e24b498b80fcc1561e8a12fd7d39d6bbb99952903bf75a8d49261c258029ece"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/action_utils.py",
+      "sha256": "f6b890803b50770463d45aa121913549291cd5d42fe03cfda9ad642b33c47ac9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/airtable/__init__.py",
+      "sha256": "0375d199b4c0357aaf1bbd152d49b34f8aab603c9d8b1e15bfe618ca7d34aa23"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/airtable/actions.py",
+      "sha256": "bde7d42af4bc3197175f9006c13e792f34a2d37704ba250fb09f274fc56f1412"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/asana/__init__.py",
+      "sha256": "5a06db05498b49c638e2620b523d138b776144b2fb2ff7c0aa8951e47b850c9c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/asana/actions.py",
+      "sha256": "1dfc8ac948da169fa757f951994b7a15840fc1ad264634bea427962388f8f4c4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/bamboohr/__init__.py",
+      "sha256": "b078f961581d9c2156eefa0c687d2ea20c59691f42cb48c99c5d51b426f97c9e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/bamboohr/actions.py",
+      "sha256": "05f73fcfde0bf79e951df924f36b0b838e4e635d843b961b54a63034ed4dcfe0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/basecamp3/__init__.py",
+      "sha256": "bfab1ec0079ea1d60b7a6dd2fcf192f4d2058e26eed84179cca8d4d04e254d3d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/basecamp3/actions.py",
+      "sha256": "dc10b2f930b2f7044d8dba50ee458e40eb0ebf21a5178f49fdbba4bb38468a8a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/buffer/__init__.py",
+      "sha256": "5085f4dcb521b045f3c54a5b0982c7fbf8614837fe9f8d9c2f4548f432d2de04"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/buffer/posts.py",
+      "sha256": "306f29ce9be54f06972e4a4ec516a4f2fd226e75a803c10f527e77d5641a1bd9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/calendly/__init__.py",
+      "sha256": "1f6a15246d825fe90cd86e9d832c8d9409bf6830e619e1644d85764d6e7d36c5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/calendly/events.py",
+      "sha256": "64c51025a1e497cac518124b7fb819d26f85579d5b3437a9eadeb51fb107a3b5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/calendly/users.py",
+      "sha256": "738eb21ef65fe810af860ded0d520c7887ffcaed10a34fefe8dcead8a2a667b8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/canva/__init__.py",
+      "sha256": "4d3d7639142c68285f8e7d9ebe37166950c6ac14fd31a0c0fadc3255c74a6854"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/canva/assets.py",
+      "sha256": "5399327aa4478e38c1105f1c626fd4c867660d6d599265e595313208eb223b29"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/canva/designs.py",
+      "sha256": "f551816f2d413b8c2e7f1ca624d2e1eb6a5f7449fbc5605a97deb86c6c9ad570"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/chatgpt/__init__.py",
+      "sha256": "c0c41688295847455e63d19eea72fa3f62e94f97f79db7f712a4276c8b0f6be9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/chatgpt/assistants.py",
+      "sha256": "5fb06f845ec0ea8f5d91a1555f10542ad08d14b2dae11ded6bd52e81439a669e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/chatgpt/audio.py",
+      "sha256": "2ea655c6c65ab13a71741a454cb3369eb78d61fbc312826d5f3f441d2b1bb303"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/chatgpt/completions.py",
+      "sha256": "678124998227fb5bdc21a7793b50b7e080a8fdd8cae3c16f66a5c9fddfa3a528"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/chatgpt/files.py",
+      "sha256": "2dc1d79a1fe8d70757996b17cc159207cb68d7dd8a36e73ba85a813f8d5a775d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/chatgpt/images.py",
+      "sha256": "19d0528e2dd7bca2f47bbce2024d304daaf66a4c36b53b9be14c6d0aa686dd4d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/chatgpt/text_processing.py",
+      "sha256": "d201ffc77e0d27ba2faf3f9b874313bdc1472dbeb8b1a90b2b45dfabd04449cf"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/confluence/__init__.py",
+      "sha256": "7d1a8803c66e369eb8e9a619b031831daf06f04b61246a4263ff42f0ffb52701"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/confluence/actions.py",
+      "sha256": "3d4446f6e30f7bcc089236b4584f9fae226f0c6e6b55196e988b6c730b1f2783"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/docusign/__init__.py",
+      "sha256": "82832744e3efa3290b6eeb56c7b6c0693d4364c06cc525aa084d72411c6edec2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/docusign/envelope.py",
+      "sha256": "831562c2663227a43ed3fabb4a8d1c53b2f9838f189e29b766d5074d27625ce4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/docusign/template.py",
+      "sha256": "371e7037651494dddfe866d2c64515a84f2574a5ee98f80eb1fcd93abf123fb9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/docusign/workspace.py",
+      "sha256": "1e6efacf38d954f487d503e0399b46b9f45ac8724d0d23ebb6cfc8fc1cd77e1c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/facebook_conversions/__init__.py",
+      "sha256": "5761aaf13173a8db77130995cf977e13214b0433e74e8f378db225ed9b0af515"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/facebook_conversions/events.py",
+      "sha256": "9d51bbdb1907853dc56772abe470cfccb8d37685a3d64741d87f41ee29534d01"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/facebook_lead_ads/__init__.py",
+      "sha256": "049b513233179d24064fee7f5a322514d7fbcc8294daf82b7f27104151cc4f6a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/facebook_lead_ads/ads.py",
+      "sha256": "4ccd46b9395541aa9c15940eba50155da9dbb8998fd5cee50b44dc00198c4657"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/facebook_pages/__init__.py",
+      "sha256": "3a613a2c4cb908c9d1271eb670093f78d40d2f34862ee78ba65428609e3d7048"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/facebook_pages/posts.py",
+      "sha256": "f46eb0a437dfdcb02f80ea3597809712f760a299441557169ea7f4578f0751f7"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/freshdesk/__init__.py",
+      "sha256": "b14d7714dc539388596bc42f6133279f3510a9dc2b80cb2c0c9e88e1535c8714"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/freshdesk/tickets.py",
+      "sha256": "d6e0999587c45ed80d68741b05e295f1ad7ba4f29e95af6631cdd9c27ca957c0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gmail/__init__.py",
+      "sha256": "dbdb4b324bdee379f212c2d0118a2c1d1b3a2126a4973e35d4dce15089d77e1e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gmail/actions.py",
+      "sha256": "8ff45dd0624e77753fdb55b3c6f5456c45ed067f8d4b456236df5b77f62a61a1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gmail/attachment.py",
+      "sha256": "c7a125cce133f00187b575508eed35a910978cb0e55936b225b8539a1bb41820"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gmail/draft.py",
+      "sha256": "a73d46c8cfe0a94698312d0b3931612aa0fc9044bf0c3af5a81e20c7e6a11ced"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gmail/label.py",
+      "sha256": "94db7ea90c45af9ef44c1d163c2dfed5120c0a512bb1e5123653928ead04c8bf"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gmail/message.py",
+      "sha256": "a719082e17ca80ab7ac57cfe8d53bf7615997d2951333a8276ee31c1bc813a8d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gmail/thread.py",
+      "sha256": "ddfdbfa7c0d0b437a289006475b6e561136024ccfdd50ec1fdfd1f5dc2e5d56e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_ads/__init__.py",
+      "sha256": "f48189f33e5367ce03159e72955f9ea179fe32434bdcf22117b765f83f7ee55b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_ads/campaigns.py",
+      "sha256": "537a47f7f7595115e961761d723b191b6c67897a3120064813cb61cdff2367f9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_ads/conversions.py",
+      "sha256": "d9f634a1dddd251402c49eb914306811ea8e1c70ddc7a5b81c970258231bbcb1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_ads/customer_lists.py",
+      "sha256": "59080f2c632ad84b4c7c9695e795bb0b4f005d0622ba99367fc9aa9d76c49bc2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_calendar/__init__.py",
+      "sha256": "61786b77599bdc13abc1bb89ab2cb323491114402a44241ba6735177e6d68cce"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_calendar/calendar.py",
+      "sha256": "c2271d1f5e352bdf11954dfbf43871b4d27f513fdc17990cfd3c7eb09c10884a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_calendar/event.py",
+      "sha256": "50dda48e9646fc209de6f06446fae2cefaac776ffcdca11f8af250b9fbbe14b0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_drive/__init__.py",
+      "sha256": "3181477ee3ab7e712f2bbf964088bb47abbe179e64511b543d488599d0a54021"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_drive/actions.py",
+      "sha256": "aa602f0497e5e10ab9c5544886da7ce79c8812387a41f19363744ad2682fbac2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_sheets/__init__.py",
+      "sha256": "91c8c16036d72ca90e806f96c548b4268b4b617a78f1ba267cb20141ee54ec9b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_sheets/_common.py",
+      "sha256": "d80d948715327a0e7379296aae8dcf45c4a0c9a345d31165af9ac48621bc0d5f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_sheets/row.py",
+      "sha256": "0d524a9c17897d182ae444cd198b84d2b013d723aaa1127c26a52a815b41375f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_sheets/spreadsheet.py",
+      "sha256": "d06087cedc2cbb74ed0a54a4b67019bca5225e2f710cdd55dee495b722ff0e85"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/google_sheets/worksheet.py",
+      "sha256": "566a261dff3c5304d20c6f6d1a82e32930c01410757718550c1171037f668990"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gorgias/__init__.py",
+      "sha256": "e0c7b77bd3143167a8008f7e4895c0602d3bb254a5e6319b32f9ff0d2c3872e2"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/gorgias/tickets.py",
+      "sha256": "6ac6d6348e01f74eece2912e2ac4020371b7212e94ae66b767172f3f0466304a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/helpcrunch/__init__.py",
+      "sha256": "7cb399733111dc5ff7e8a3cc19d30db3fd0a7316ceab73f6fde88e1ef7bc4d65"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/helpcrunch/customers.py",
+      "sha256": "9b9d9c1f245e62e06e08ecc00f491f027b55669b08d423dcca20127447893e9d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/helpscout/__init__.py",
+      "sha256": "6d5ae4186b02295e7125c5783593a0695521ce0d9566e17a253d7fe3bfd271ea"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/helpscout/conversations.py",
+      "sha256": "ab2354ae5291d186c118f47e85c5086d2407913a0a19123cd7b1cac34e968a66"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/hiver/__init__.py",
+      "sha256": "f4f82b18b71e577060cc8226f6a5f3143243e1f3e76ee0697dcb1b6918743fe1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/hiver/conversations.py",
+      "sha256": "6b5c64257fe0b1fedf728d79dfa06614ca72a52d1d95590b12b8a89d783d8bd6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/hubspot/__init__.py",
+      "sha256": "804eb4337a5d93ff8d13aafafa72e0935ef5a3bb32848c5f31c60b60d6bc7a8b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/hubspot/crm.py",
+      "sha256": "0fed89deac31752454f478fb2e2462426d18a547e7c255b624cc8bc60bd967ba"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/instagram/__init__.py",
+      "sha256": "45cd25d10e00491ca510cc67ffe5fbb7d5047237d8eedd5e32b72ed4719e75c6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/instagram/media.py",
+      "sha256": "2f3854a9226dbae726b8a90685c2b89ca8eac25c38660f7e2df5e31aac93048e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/intercom/__init__.py",
+      "sha256": "5147e01fe4a33a3a331f07359c669a7b0c3f01ac503d89b06524c4ab13779fc4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/intercom/tickets.py",
+      "sha256": "eda34d654cd8b42451374969f6df9383c42833179f2a21b5c9605b714be2e2a5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/jira/__init__.py",
+      "sha256": "5bb68ad445d28a37b72617387ad22aede51157624040b666f66b7c3f868f6d7b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/jira/actions.py",
+      "sha256": "5110c6948b2a9188ab0d2a8131184f9969c80f9dbfb085110ed406a279d0bc5d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin/__init__.py",
+      "sha256": "84a09ac555b295fa01a07b7f6bfa8f357de54658a5d6767c7dafb77f180ce916"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin/companies.py",
+      "sha256": "d32ff59c336a112b48254c4c304a0a84940861245b38978b0521d0df2802c7c9"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin/invitations.py",
+      "sha256": "54d9c7be2531c058084dc1b0d12fe09e62762af262ada1b0a2863f87c8a12f43"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin/jobs.py",
+      "sha256": "8096489c43b483454a0aa72d03d8842fa7559cc5856801a6ecf8891b09f08030"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin/messages.py",
+      "sha256": "21556fcde63a16468b78d3c9b471072f1578a143aeb92d573baa97f0fe367835"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin/posts.py",
+      "sha256": "0280ac63495576e769d8d08fc04c4a011e01184ccb40fd131717e895ee339e5c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin/profiles.py",
+      "sha256": "2abf9db11fd208d10fd0bcc2a8f910de4d200ba561720849606c47e6f97f6743"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin_ads/__init__.py",
+      "sha256": "07da9d6a773197984032c3b3128f7383a440e2c9155f91169027d9b3d77ccb9d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin_ads/audiences.py",
+      "sha256": "f9438554aa9442c5f0955e1dfb4b200a117ef08fe75825c7c6a3deb1a9d0aa7e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin_ads/conversions.py",
+      "sha256": "8b29fbc0922fbe4b5ed96f87ee232b7eeba2f422e821a9d4eaa309c9b01ce1df"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin_conversions/__init__.py",
+      "sha256": "f545f53afc2e3bb94e39250c12d4c65ea31b61f9947bbbfad629911589ea0ad5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin_conversions/events.py",
+      "sha256": "206ebe4494a325f824607d202e34567ca8c54a21b8e6fa8b9a983e5172355c29"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin_leadgen_forms/__init__.py",
+      "sha256": "462e1b724cf943914757a0204fc4c2f77dea47eeee5bd0c8e7a993933e200eee"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/linkedin_leadgen_forms/actions.py",
+      "sha256": "a00f3c289319de4365684cbcb7f079d43d643402a0f2fab3ae2613752723b825"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/mailchimp/__init__.py",
+      "sha256": "814131b1ea5b221100ab58383ce429ec9b3eab71f9319d4af40deb99a828fd9d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/mailchimp/subscribers.py",
+      "sha256": "c974e61d05bc715872c8888fccd3ccd981841f7d6b3f995cbf88e358b523cc23"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/meta.py",
+      "sha256": "de7e778ad6f8d62bde47bdbdd28b416fb6eb074527d197bddc3e180e4b94691d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/monday/__init__.py",
+      "sha256": "2d6bc4897dd549c87ee93f811a5d49b7c1cbf45397acbf4c503cb6e56062830c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/monday/actions.py",
+      "sha256": "ca4e3942cfe231af1a454990c29640874a7847f73702c396ca8076d787ff8395"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/notion/__init__.py",
+      "sha256": "a7358e3a0d3a70ca05a974a4e56b847433bb23cfc6afa52de9d424f83ab41233"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/notion/actions.py",
+      "sha256": "93f177aa06664f3806d6ddd63eb3e7d693abc31466adc9a63874dcf9aed67af8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/pipefy/__init__.py",
+      "sha256": "5c8f33652f4d1f93f46581304e9f4c764ce06d3e679b75612cd724aee499af96"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/pipefy/actions.py",
+      "sha256": "4cb59c4a37193d44891e66bed5d83b58c18ab02e09b05fa85c7c1c52ee38af26"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/__init__.py",
+      "sha256": "a3b621047ad9a3317ac41c151979c51a194f20ffb3906bfe7749193bae0dcf10"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/bills.py",
+      "sha256": "52ae113b7565c50d3912f704723f0b4b54e1def0238f2527076d79f4f0d21001"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/customers.py",
+      "sha256": "e4fe2b63c799c35d797ed8802d2aa185f787da4c0a4a50729a92543bc279276a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/estimates.py",
+      "sha256": "310544e055f167ba9ec8f65b65d1e65259aeb908a256738f5fa40a09060da25d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/invoices.py",
+      "sha256": "b9ed6161b801e7543882b66448b35a64ba7732e4879d7da63364a00ea497edc4"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/items.py",
+      "sha256": "9fddec9508081aa9f83f948805d5211a8306993b52bdc472a8366fb9fe6c328d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/payments.py",
+      "sha256": "7a831847aefa077c869992f243a2e7db470e9b707f944794374b1fdc6efaace5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/quickbooks/vendors.py",
+      "sha256": "bddf535a4405bc06a822d042b2426951b080716348522d58b040c38a6324eeef"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/reamaze/__init__.py",
+      "sha256": "e47e9713fc6751d17b32822282c79b86953147af4a401511ddbec91b6a72fdc3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/reamaze/conversations.py",
+      "sha256": "9268dac1bf6ffe907475b51a5cc7da38dbac2e91e66cb2faf7f04a5fd9e435b0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/recruitee/__init__.py",
+      "sha256": "9257361b220722f51d7f8dbe6e150227e35683f29a8a09bb90cf7b6e2d742dbe"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/recruitee/actions.py",
+      "sha256": "82c48e288736b736dcce7b5337e37988e0a02cd8059d27dfb57eacb659d662a6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/__init__.py",
+      "sha256": "66b8d746f95338a4cc28d9724226e59d875daf8f6c309f46695655b135d21320"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/account.py",
+      "sha256": "d3c1d4e09a9637e6a8be3246d72c8df55f910a633b18a78b7131c7f882441339"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/advanced.py",
+      "sha256": "fcd2e401eefd58caa37ad3aca35c0883a504716619f1e33120af4bd2f28f116d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/attachment.py",
+      "sha256": "c0c78a6637489f36f32be1f86b78693d84f2c73c059d7dcb443c13d33673e400"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/campaign.py",
+      "sha256": "ae0d28bf0619670a6330d7a71fb0f3b06786874b90905fdcc455626d8e364490"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/case.py",
+      "sha256": "80efbfcd134c672222a7823120e1ad7ce450ae066fa4470db3a0dbe0d0e97f87"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/contact.py",
+      "sha256": "81f61e209927b141b308a7b677116d1835384bead25a688835a2590553ebb7cd"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/document.py",
+      "sha256": "edd1d61686e506678aeb2b6f2a92d871afd43eacc8bd97149a7ff690dc988662"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/event.py",
+      "sha256": "3fc03cea0f0c3cb2318c43575083ca4e0d27c6812f868e868c7a850d090fa17f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/folder.py",
+      "sha256": "a83a33f01990310a76d7d6e7a35f0d4e7402ed75e7ed2b302c66b372e916e50b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/lead.py",
+      "sha256": "1b0bbbdee270d9d42204df54daa56461c22a0b9b928795103d88545ca2bc230f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/note.py",
+      "sha256": "95236c0f082ebe6524462ea7dcc51979efe948c9d4bf3b4555de5371c9984546"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/opportunity.py",
+      "sha256": "d5a3bda90c72da0ce3ddf46407753085d3fda50596cb38e1fa6ad5a8208cd348"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/query.py",
+      "sha256": "7a8cdb9b00ecbab21318d96fe6cf29a4aa11e8d923cabc3801585367af039a3e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/record.py",
+      "sha256": "a9eb4c57bd8ccb51a51f0725427eedb88012caf4f2a2de1499b2cbf8879eff5e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/salesforce/task.py",
+      "sha256": "e0b1c0fb80515d63a3c3cfc4ced0be42fec998cb2d743ef0815a3a8c5fe99d5a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/slack/__init__.py",
+      "sha256": "e69808e09c6303c21ae72ad38f2f38ff96682968b7b73b699684c27811c65c0d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/slack/channels.py",
+      "sha256": "b442b2266b704718ac13efe68c6b95fecee9d2e308f3cdcc44e6235fe6ead749"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/slack/messaging.py",
+      "sha256": "c00804a6c1c92d3fe12a86aa4581f8a50a4aa6f2719e718729a079225b9f7999"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/slack/search.py",
+      "sha256": "48f495ef551c298fdc9c6a9f7fb63c735c316ea616ee1f6ef582e40d02e4a1d1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/slack/users.py",
+      "sha256": "9d3e3fb178053763c37f558f2d180f896786cc6ff116135153b44d88de7f7db5"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/trello/__init__.py",
+      "sha256": "d2d525f5e63dadae1ff94757facdec5510b88bdafc788257f197aa93aa1f7aaf"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/trello/actions.py",
+      "sha256": "a8a1d0eee1c7acf63abce9083f393bfeb984bc82922a495dc029597ae2645588"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/twilio/__init__.py",
+      "sha256": "d19afd8b56533b5aad2479d6c2abcfd3a199a7a9b3378dcffba8a77d8e7606af"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/twilio/calls.py",
+      "sha256": "7ee8d23b386e1e279e63c8fbe66efdbce01225a14f10b2c9669c1bf51d996b5b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/twilio/messaging.py",
+      "sha256": "141df30d4e5774f0a993b910503777a1145899683b53c23b040105a187927433"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/twitter/__init__.py",
+      "sha256": "85d22a943d9af090ab3408687dace2cba09bc6919d9485bb6a4b3a9f95d77f14"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/twitter/tweets.py",
+      "sha256": "9735c2a4242271e9059b791f824f73296bbf5c94ff79c59b966bcd9bff9f91c1"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/twitter/users.py",
+      "sha256": "4f9f64896470164baad7870d5fe5829a9b0e003780925ce18924f8777efa4d9b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/types.py",
+      "sha256": "b0cd9e193ce4146169898cbcd0b3ee520aa07e04a2b43234be8e1279c955cdcb"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/wave/__init__.py",
+      "sha256": "0e1c452856b245bc49cee639b0c786865d1c6e300df036409a95bf8afd88df8c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/wave/actions.py",
+      "sha256": "2c3070f76d7c5de964d90125ce738b1b3967d3cc49049c115757b8b466693283"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/where_clause.py",
+      "sha256": "b1dafe0e0eda13743839e5f8bce7ff863196bbf4e128f572f61b9ba0bda4fb9d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/xero/__init__.py",
+      "sha256": "ffd32a155b848894fc6231b0e52917d72dee154f00f605d6ceb3428051371b5f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/xero/contacts.py",
+      "sha256": "57fe5584054d4a2e0d007ca9c9d6088642262752dee0a9503e9e2006be4ca56a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/xero/financial.py",
+      "sha256": "03661b4eea29e64af05745560eb3f285325eca2deaa6068067bd9ec70a3c653b"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/xero/invoices.py",
+      "sha256": "2eddcc5c50735afd5787dcf74d9143ddb0e3a3386794a3ff20b27d7c08f698de"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/xero/resources.py",
+      "sha256": "6e523a8409a411a6fb948c34aa8be154a1113c3ba8d5306a69f153156147ac36"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/zendesk/__init__.py",
+      "sha256": "c9a54f65f0346db6190037d68e4bbe53079786b666b53a890c54554ac0617f7e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/zendesk/tickets.py",
+      "sha256": "285862356dbdd4e97748b266a11e6d6ab3da2a4dc34b39fa210a12ee86056a39"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/zoho_desk/__init__.py",
+      "sha256": "a758221df81de3ba5442c0bd4e74f71f8fbcda6c9022d6ade3cd6b897ff778ba"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/zoho_desk/tickets.py",
+      "sha256": "e5b77b7aca63f67cecdeff4e18df8f67dd8331e434cbbb02e68aa17841262ef8"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/zoom/__init__.py",
+      "sha256": "f028330e6b3977271e702bc9f65a00bb5f5bcd74591fc7c35a3b30376d65d808"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/tools/zapier/zoom/meeting.py",
+      "sha256": "b146d92fa2533fedf175eb2263b5fc29908fb30f5a23b281b037b6a95253a1b0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/usage.py",
+      "sha256": "e310db06723b23558c62018ff67dea5ecfb40ac214bf0a8ecf5ba189be2b780f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/utils/__init__.py",
+      "sha256": "aa2d53408d035ec6c3117082b3391d6f6cc0cebb49f9486b85462ad88d2a2b3a"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/utils/bm25.py",
+      "sha256": "cfd1cbc46b728d0a835895208bb32983efe48b8fdc4b2db5bfec9ab5661aadce"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench/utils/routing.py",
+      "sha256": "a38a5a2841c1fab2a2810a7721cbcee890014226423f9d62a1fd06f95b4df275"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/__init__.py",
+      "sha256": "c9ada323183e4d77e188d8e916c196b4f69819e80b4f8c66e1edef9b6160d517"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/api_tools.py",
+      "sha256": "8edbd32003cbbb106855e367a83fd9d6e68fc92afa4d13975b1b3599cd596b81"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/__init__.py",
+      "sha256": "f4290234217d68b13e75db41b0f26f707a82627ae1720c4c144a5de86d890ee0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/budgets.py",
+      "sha256": "44dcf25b3b8f466137cc315470c50ff690691a0054a6497c3eadeb830707c93c"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/campaign.py",
+      "sha256": "088548aa948bb378a8c240cda6f011cb1296ac0df64838a8deaaeb1180101e6e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/cli.py",
+      "sha256": "1b54dfc2f7e7614f88f1c7ee74b98fe2571362cf9ad0a03bdbaa979b08220476"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/collector.py",
+      "sha256": "bbbf12507e626c6a83d1cf6b79f35207015444ca4226ce17a99772b658220050"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/cost.py",
+      "sha256": "53ff3ba3809eb6c8b75f36160d750992421e92eaeec8fbda57f203909552bfa0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/evidence.py",
+      "sha256": "b007f7badee8676b9572a780ccc1478cab19e54f503d1a7f9dabf83c0aa8841f"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/inventory.py",
+      "sha256": "411f4f60112fc5a3e574515006c044802c68e749d9e324c216724480b1032a4e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/journal.py",
+      "sha256": "3feb11081087c523578e8b7fe782587cd158ca142d25c4e75fd5378b90fd4511"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/models.py",
+      "sha256": "701022619d87c673a3f0a7e2e0363922c402e97a438c66e58e16c502021d6a5d"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/runner.py",
+      "sha256": "acee044ce5644606c836964f193dcd630a40d233a71ba50cc28dbf4b62a0cefc"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/sdk_runner.py",
+      "sha256": "36222628e8ed17647b4b3b537d1a803c04505029bee0351bbfb962ba84f5fb5e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/source.py",
+      "sha256": "a45c74ba328b9a0e50449b1b3ecad1d2714c1b57bce318d2aca9558bc66c2ada"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/calibration/verify.py",
+      "sha256": "11502d53032c12d1af06e47c96c5952946425924605fdd6ad515290f03c26366"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/capture.py",
+      "sha256": "5684fdb0323f68feef6988f279b72854a6fc8826f8040e754ffb4c06cf1382d3"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/episode_prompt.py",
+      "sha256": "6f8d5aadc07c8db0c67750a7f1f4894477e7e135e6891a764893fa862f4d5b9e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/judge.py",
+      "sha256": "b346bc348a1032dabe0e6e196b6a03b9db216b94d1ebdeb0631c5f7f9cbba103"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/judge_budget.py",
+      "sha256": "755514d511d618701161ca08c588860861f399a4932a6bab9eba0add85e6eb8e"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/limited_tools.py",
+      "sha256": "165a33ca522eb8f25e98696c1a77817a77800c6f29d5e00a8e04ffc6e2859567"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/scoring.py",
+      "sha256": "f183bb818d98001af11a675c16d39b0c2e93cb064ccd2e66858d95888ef3b5d6"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/taskset.py",
+      "sha256": "bd95b8dbc9f1f97c93a73d79622c12fc4e9d07a584952b718e61a48d41dc08a0"
+    },
+    {
+      "path": "environments/automationbench_v1/src/automationbench_v1/tools.py",
+      "sha256": "e9b06f1617ad87e82fb47d94f8dede6b14b248572e00771105c20aa77a4b937b"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_action_evidence.py",
+      "sha256": "c680ff78a1daf2736c3d303444a58b3d032a4de593f988e39535b1ac0292a1d8"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_calibration_campaign.py",
+      "sha256": "32fa7c42871badefe1b30e6fdb142b000c2026c0c702a3f76e0e95daafaee974"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_calibration_collector.py",
+      "sha256": "08f3704948cd7a00249f6678eda873c67944052439415f67a9481ae40420d373"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_calibration_cost.py",
+      "sha256": "d58bb66e2f41b75d761d593447408608f064430b8a9107ed37baaae1edd0f29e"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_calibration_inventory.py",
+      "sha256": "4fb43fec748702ed7efd577c7de53fefec7e91cf98ed12795ba2056e72eeb17d"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_calibration_journal.py",
+      "sha256": "18d9aa1015c24997ad7142c7e2959ddf098b1b2f514f0f033782e0c3cba56c3d"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_calibration_manifest.py",
+      "sha256": "d76326ca678610aa2361df66fd78b8148166be4f4dda5663afced30085c8ccad"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_calibration_runner.py",
+      "sha256": "391a23133cf1922476625831e38c7f1ed8aa7ade53ccf4490efb0676926c433d"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_capture_transport.py",
+      "sha256": "399c97dd436951c76aa1a045548fb909327612c691d50647a8218b6c3afd78dc"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_codex_isolation.py",
+      "sha256": "3215105e0a02015ee0d9cb9d0728ff5fe2f7a2365e0f654ad8ed224a0b991fbd"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_contract.py",
+      "sha256": "83144a771586daf65d34c1ff0db4ff25a7881e153a452648b4ec1301859e6779"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_environment.py",
+      "sha256": "c284ed2cd382830486f4db4860995ca1e9ab975a5bc3289c602806ba2a9c84a0"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_judge.py",
+      "sha256": "d1a25a883e68262ef05d97fc81646bcd67e15b0873cd30bcb19b89185473e737"
+    },
+    {
+      "path": "environments/automationbench_v1/tests/test_judge_budget.py",
+      "sha256": "5e4cc3dc37ef9e856e27d19bac7ee7404e3776edab6153ffbd41d767a19f521f"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "5a6c91d5a7c2ab781de5828279287d02f98e480fd9df3b62941f9fe2554bc036"
+    },
+    {
+      "path": "environments/automationbench_v1/pyproject.toml",
+      "sha256": "c9c96f1aae3a9be4662dec7f14ef23a7e539ea7eb79ca996ac7a235061cde9d0"
+    },
+    {
+      "path": "environments/automationbench_v1/uv.lock",
+      "sha256": "b721752e3af2ffd40e87460fa9ffd45f8ea83f24c33d092e2ac2747ccd6a4dab"
+    }
+  ]
+}

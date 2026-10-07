@@ -85,15 +85,17 @@ def _train_client_message(parsed: Any, token_ids: Sequence[int], tokenizer: Any)
 
     Its arguments are the renderer's best parse (a call whose values did not all
     parse as JSON keeps them as text), and a call without a name or naming an
-    undeclared tool is dropped from the model-visible message. Both kinds stay in
-    ``provider_state`` as evidence, decoded from the sampled tokens.
+    undeclared tool is dropped from the model-visible message. The message is
+    exactly the train client's: nonconforming and rejected attempts are retained
+    as generated-call evidence on the turn's tokens (``encode_parser_evidence``),
+    not on the message. A message field the harness cannot echo back changes
+    the message's identity in the native trace graph, which then forks the
+    episode into a second branch and drops the turn's token anchor.
     """
     calls = []
-    evidence = []
     for index, item in enumerate(parsed.tool_calls):
         status = item.status.value
-        executed = bool(item.name) and status != "unknown_tool"
-        if executed:
+        if bool(item.name) and status != "unknown_tool":
             calls.append(
                 {
                     "id": getattr(item, "id", None) or f"call_{index}",
@@ -104,29 +106,15 @@ def _train_client_message(parsed: Any, token_ids: Sequence[int], tokenizer: Any)
                     else json.dumps(item.arguments or {}),
                 }
             )
-            if status == "ok":
-                continue
+            continue
         span = item.token_span
         if span is None or len(span) != 2 or not 0 <= span[0] < span[1] <= len(token_ids):
-            raise ValueError("a non-conforming policy tool call requires an exact sampled-token span")
-        raw = tokenizer.decode(list(token_ids[span[0] : span[1]]), skip_special_tokens=False)
-        if not raw:
-            raise ValueError("a non-conforming policy tool call decoded to empty evidence")
-        evidence.append(
-            {
-                "type": "posttrain.nonconforming_tool_call" if executed else "posttrain.rejected_tool_call",
-                "status": status,
-                "token_span": [span[0], span[1]],
-                "raw": raw,
-            }
-        )
+            raise ValueError("a rejected policy tool call requires an exact sampled-token span")
     message: dict[str, Any] = {"role": "assistant", "content": parsed.content or None}
     if parsed.reasoning_content is not None:
         message["reasoning_content"] = parsed.reasoning_content
     if calls:
         message["tool_calls"] = calls
-    if evidence:
-        message["provider_state"] = evidence
     return message
 
 

@@ -1,0 +1,42 @@
+[
+  {
+    "task": "simple.airtable_create_contact",
+    "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5dd8ca60d1a5a9b73ee3ecc04d87449da95c7da21c98b8e6d600db82214ee72f/episode.json",
+    "status": "verified_original_outcome",
+    "strict": 1.0,
+    "partial": 1.0,
+    "assertions": 1,
+    "binding_digest": "5d67f0266cc01f37ede66f1871d44202b58a2d1a7a79bb57ebdba64a19c8b6ca"
+  },
+  {
+    "task": "finance.airtable_expense_approval",
+    "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/69e0989b3aa05dfe9775f015fae9c8e6bf47eed53b82fe5bcd38950df42cc382/episode.json",
+    "status": "verified_original_outcome",
+    "strict": 0.0,
+    "partial": 0.0,
+    "assertions": 5,
+    "binding_digest": "5d67f0266cc01f37ede66f1871d44202b58a2d1a7a79bb57ebdba64a19c8b6ca"
+  },
+  {
+    "task": "marketing.event_registration_sync",
+    "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/a853ec8d0cb6f75d5e99a7f6c8c1e794ba4f2e07cb21997f9808b296c43aa21f/episode.json",
+    "status": "rejected",
+    "reason": "frozen official replay failed: ValueError: finalized state/scorer results differ from recomputed evidence",
+    "binding_digest": "5d67f0266cc01f37ede66f1871d44202b58a2d1a7a79bb57ebdba64a19c8b6ca"
+  },
+  {
+    "task": "operations.mailchimp_ecommerce_sync",
+    "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/e1616c4357e204cd5c01d97837788a8fd91e0c5795ff6dca34d661e19fb0d250/episode.json",
+    "status": "rejected",
+    "reason": "frozen official replay failed: ValueError: finalized state/scorer results differ from recomputed evidence",
+    "binding_digest": "5d67f0266cc01f37ede66f1871d44202b58a2d1a7a79bb57ebdba64a19c8b6ca"
+  },
+  {
+    "task": "marketing.ad_performance_review",
+    "status": "verified_original_outcome",
+    "strict": 0.0,
+    "partial": 0.3333333333333333,
+    "binding_digest": "5d67f0266cc01f37ede66f1871d44202b58a2d1a7a79bb57ebdba64a19c8b6ca",
+    "assertions": 20
+  }
+]

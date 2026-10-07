@@ -365,7 +365,7 @@ multimodal = [
 
 [[package]]
 name = "carbonteq-trackio"
-version = "0.31.5.post14.dev32"
+version = "0.31.5.post14.dev35"
 source = { registry = "https://pypi.lan/carbonteq/dev/+simple/" }
 dependencies = [
     { name = "boto3" },
@@ -382,9 +382,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://pypi.lan/carbonteq/dev/+f/94d/3f3bb7084346f/carbonteq_trackio-0.31.5.post14.dev32.tar.gz", hash = "sha256:94d3f3bb7084346f441ce39b8e9d4cd775d1197d07ca6e5fba87726dfbddddc0" }
+sdist = { url = "https://pypi.lan/carbonteq/dev/+f/fc2/4885e7331b1b6/carbonteq_trackio-0.31.5.post14.dev35.tar.gz", hash = "sha256:fc24885e7331b1b637b47e2fea77c0f08394630ed30ce4def5f0b237a7c14ce9" }
 wheels = [
-    { url = "https://pypi.lan/carbonteq/dev/+f/78e/3ecf207c074c4/carbonteq_trackio-0.31.5.post14.dev32-py3-none-any.whl", hash = "sha256:78e3ecf207c074c43281edff75343086bf379a22cc281308cc12436e5a5260a3" },
+    { url = "https://pypi.lan/carbonteq/dev/+f/553/42622ccd256f6/carbonteq_trackio-0.31.5.post14.dev35-py3-none-any.whl", hash = "sha256:55342622ccd256f6d5a64bb500d568ddbb5b4c14ba060e4457c255237d1e426e" },
 ]
 
 [[package]]
@@ -2789,7 +2789,7 @@ verifiers = [
 requires-dist = [
     { name = "datasets", marker = "extra == 'huggingface'", specifier = ">=4.6.1,<4.7" },
     { name = "posttrain-common", editable = "packages/common" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=e6a3d9bbfe6959b97878f451fc721793a232cd5f" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=74dd3fbf176d60cb0070f2408bc8a597bbfc099e" },
 ]
 provides-extras = ["huggingface", "verifiers"]
 
@@ -2834,7 +2834,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "torch", marker = "extra == 'verifiers'", url = "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl" },
     { name = "transformers", marker = "extra == 'verifiers'", specifier = ">=4.57" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=e6a3d9bbfe6959b97878f451fc721793a232cd5f" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=74dd3fbf176d60cb0070f2408bc8a597bbfc099e" },
 ]
 provides-extras = ["verifiers"]
 
@@ -3241,7 +3241,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev32", index = "https://pypi.lan/carbonteq/dev/+simple/" },
+    { name = "carbonteq-trackio", specifier = "==0.31.5.post14.dev35", index = "https://pypi.lan/carbonteq/dev/+simple/" },
     { name = "posttrain-common", editable = "packages/common" },
     { name = "posttrain-tracking", editable = "packages/tracking" },
 ]
@@ -3271,6 +3271,7 @@ version = "0.0.0"
 source = { editable = "packages/train" }
 dependencies = [
     { name = "httpx" },
+    { name = "numpy" },
     { name = "posttrain-common" },
     { name = "posttrain-data" },
     { name = "posttrain-environment" },
@@ -3322,6 +3323,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'trl'", specifier = ">=1.31,<1.32" },
     { name = "kernels", marker = "extra == 'trl'", specifier = ">=0.15.2,<0.16" },
     { name = "liger-kernel", marker = "extra == 'trl'", specifier = ">=0.8.2,<0.9" },
+    { name = "numpy", specifier = ">=2.3,<3" },
     { name = "nvidia-cuda-cccl", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.85" },
     { name = "nvidia-cuda-crt", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.88" },
     { name = "nvidia-cuda-nvcc", marker = "sys_platform == 'linux' and extra == 'trl-vllm'", specifier = "==13.0.88" },
@@ -3337,7 +3339,7 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'trl'", specifier = ">=0.28,<0.29", index = "https://download.pytorch.org/whl/cu130" },
     { name = "transformers", marker = "extra == 'trl'", specifier = ">=5.14,<5.15" },
     { name = "trl", marker = "extra == 'trl'", specifier = "==1.12.0.post14", index = "https://pypi.lan/carbonteq/dev/+simple/" },
-    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=e6a3d9bbfe6959b97878f451fc721793a232cd5f" },
+    { name = "verifiers", marker = "extra == 'verifiers'", git = "https://github.com/carbonteq-ai/verifiers.git?rev=74dd3fbf176d60cb0070f2408bc8a597bbfc099e" },
     { name = "vllm", marker = "extra == 'trl-vllm'", git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc" },
 ]
 provides-extras = ["verifiers", "trl", "trl-vllm"]
@@ -4902,8 +4904,8 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.3.2.dev94"
-source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=e6a3d9bbfe6959b97878f451fc721793a232cd5f#e6a3d9bbfe6959b97878f451fc721793a232cd5f" }
+version = "0.3.2.dev102"
+source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=74dd3fbf176d60cb0070f2408bc8a597bbfc099e#74dd3fbf176d60cb0070f2408bc8a597bbfc099e" }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },

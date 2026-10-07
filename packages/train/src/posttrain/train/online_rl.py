@@ -12,7 +12,7 @@ from posttrain.common import InferenceBinding, JsonValue, MetricBatchObservation
 from posttrain.data import MessageRecord, RolloutDataset
 from posttrain.environment.verifiers_conditioning import NativeConditioningRecord
 
-from .reward_evidence import InvalidRewardEvidence, RewardEvidence
+from .reward_evidence import AssignedCreditEvidence, InvalidRewardEvidence, RewardEvidence
 
 type ToolRecord = Mapping[str, JsonValue]
 type TokenSpan = tuple[int, int]
@@ -68,6 +68,13 @@ class AgenticTurn:
     completion_end: int
     anchor_state_key: str
     step_reward: float | None = None
+    # Environment-verified outcomes this turn produced (reward projection turn_goal_prefix and
+    # turn_harm_key): (goal key, weight) for each goal it first achieved, and its harm debit.
+    goal_credits: tuple[tuple[str, float], ...] = ()
+    harm_debit: float = 0.0
+    # Environment-declared state key (reward projection turn_state_key): attempts at the same
+    # point of the task share it even when their observations differ. None when undeclared.
+    state_key: str | None = None
 
     def __post_init__(self) -> None:
         if self.completion_start < 0 or self.completion_end <= self.completion_start:
@@ -76,6 +83,15 @@ class AgenticTurn:
             raise ValueError("agentic turn anchor-state key cannot be empty")
         if self.step_reward is not None and not math.isfinite(self.step_reward):
             raise ValueError("agentic turn reward must be finite")
+        if self.state_key is not None and not self.state_key.strip():
+            raise ValueError("agentic turn state key cannot be empty")
+        if not math.isfinite(self.harm_debit) or self.harm_debit < 0:
+            raise ValueError("agentic turn harm debit must be finite and non-negative")
+        keys = [key for key, _ in self.goal_credits]
+        if len(set(keys)) != len(keys) or any(
+            not key.strip() or not math.isfinite(weight) or weight <= 0 for key, weight in self.goal_credits
+        ):
+            raise ValueError("agentic turn goal credits need unique keys and finite positive weights")
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +219,8 @@ class PolicyTurnResult:
     behavior_policy: BehaviorPolicySpan | None = None
     # Renderer parse accounting: leading completion tokens that are thinking.
     reasoning_tokens: int | None = None
+    # Optional versioned parser sidecar; interpretation belongs to the env adapter.
+    parser_evidence: Mapping[str, JsonValue] | None = None
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -276,6 +294,7 @@ class EnvironmentRollout:
     conditioning_records: tuple[NativeConditioningRecord, ...] = ()
     selected_branch_id: str | None = None
     conditioning_completion_indices: tuple[tuple[int, ...], ...] = ()
+    assigned_credit: AssignedCreditEvidence = AssignedCreditEvidence()
 
     def __post_init__(self) -> None:
         if not self.prompt_ids or not self.completion_ids:
@@ -288,6 +307,9 @@ class EnvironmentRollout:
             raise ValueError("sampling logprobs must be finite when provided")
         if not any(self.env_mask):
             raise ValueError("training rollouts require at least one model-sampled token")
+        for credit in self.assigned_credit.contributions:
+            if credit.alignment == "exact":
+                credit.support(self.env_mask)
         if self.conditioning_records:
             if not self.selected_branch_id or len(self.conditioning_records) != len(
                 self.conditioning_completion_indices

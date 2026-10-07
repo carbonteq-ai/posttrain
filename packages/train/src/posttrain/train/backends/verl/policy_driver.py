@@ -182,6 +182,8 @@ def resolved_trainer_type(
             native_active = config.algorithm.active_sampling
             if bool(native_active.enable) != (active is not None):
                 raise InvalidPolicyUpdate("native driver configuration changes resolved collection semantics")
+            if active is not None and active.retain != "first":
+                raise InvalidPolicyUpdate("native veRL active sampling keeps groups in candidate order only")
             if active is not None and (
                 native_active.max_candidate_batches != active.max_candidate_batches
                 or native_active.oversample != active.oversample

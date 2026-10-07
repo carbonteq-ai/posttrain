@@ -1,0 +1,15 @@
+{
+  "reproducer": "/tmp/automationbench-luna-sales-20261005/docusign-signer-tiebreak-reproducer.json",
+  "numeric_only": null,
+  "text_tiebreak_selection": [
+    "selected",
+    {
+      "AccountId": "001xx000003MER1",
+      "Email": "catherine.brooks@meridian.example.com",
+      "LastName": "Brooks",
+      "Role": "Legal Signer",
+      "Seniority": 3
+    }
+  ],
+  "scope": "public-source-derived finite selector component; not whole-task or action-credit qualification"
+}

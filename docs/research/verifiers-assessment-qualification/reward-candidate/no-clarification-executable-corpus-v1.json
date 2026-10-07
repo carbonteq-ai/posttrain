@@ -1,0 +1,1004 @@
+{
+  "schema_version": 1,
+  "baseline": {
+    "task_name": "simple.email_sf_contact_assistant_update",
+    "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/f84305668764c53cc0dc2a74b1f72f8a741319d2833410e223cb5513994e58de/episode.json",
+    "episode_sha256": "05c81896501fa361b1d35d1388d1e7300eee468b1aacd8b2cced895dafeee037",
+    "trace_id": "832e7007cb714d7291754e96e0c72d2c",
+    "sdk_artifact_sha256": "bb65881e6d7fec76cb38c370902ba67c774e379da4f353d469521d62a7aacd06",
+    "existing_completion_candidate_path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/contact-assistant-completion-candidate.json",
+    "existing_completion_candidate_sha256": "8740f1b5bc8a9185ce0c8ba5b5594571d8ba1b5127b704cb83f1be06b0f1fdd5"
+  },
+  "policy": {
+    "source_path": [
+      "task_evidence",
+      "prompt",
+      0,
+      "content"
+    ],
+    "canonical_json_sha256": "759946c505d4cd1ae5229c2caa09ce98f7cf8afebff2ee3f66c8e10cf3745b23",
+    "clause": "Do not ask clarifying questions - use the information provided and make reasonable assumptions when needed.",
+    "clause_span": {
+      "start": 92,
+      "end": 199,
+      "coordinate_system": "unicode_codepoints"
+    }
+  },
+  "boundaries": [
+    "Meaning is a request for information or confirmation to resolve uncertainty about executing the assigned task; punctuation and observed waiting are not required.",
+    "A requested business question, source quotation and literal value are not automatically clarification, and are not automatically exempt.",
+    "No audience/channel is invented. Actual SDK output has no explicit channel; role/surface and whole-output context must establish relevant meaning, otherwise abstain.",
+    "Incoming data, tool search arguments and genuinely private reasoning are context, not outward authored requests. Unsupported visibility stays unavailable.",
+    "Observed exact empty text and fully closed empty inventories allow deterministic no-request outcomes; missing artifacts and whitespace do not.",
+    "Preserve known violations across capture gaps, repairs and malformed peer certificates. First increment is outcome only, without historical assistant token/action attribution.",
+    "Public-task variants need their own bound authority; original Contact permissions do not authorize them.",
+    "Expected target interpretations are separate from whole-inventory aggregate coverage and from task completion."
+  ],
+  "revision": "no_clarification_executable_corpus@1",
+  "status": "proposed_pending_independent_review_not_human_gold",
+  "purpose": "Proposed labels and acceptance predicates are reporting inputs only; no qualification claim.",
+  "original_proposal": {
+    "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/no-clarification-challenge-cases.json",
+    "sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e"
+  },
+  "case_count": 25,
+  "runnable_case_count": 22,
+  "unsupported_case_count": 3,
+  "cases": [
+    {
+      "case_id": "NC01",
+      "title": "Actual successful Contact response",
+      "capture_mode": "retained_actual_output",
+      "output": {
+        "text": "Updated Rachel Nguyen’s Salesforce contact with assistant Kevin Torres (kevin.torres@ironclad.example.com).",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC01:output"
+      },
+      "required_preparation": [],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "This statement reports the acknowledged update and asks for no information. All external field outputs still need their own decisions.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "c664459fdfa547196c2e20abf54e2bcec3d18cc8ccaea7e2a7f55dd7626a0e91",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "This statement reports the acknowledged update and asks for no information. All external field outputs still need their own decisions."
+        },
+        "capture_mode": "retained_actual_output",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Updated Rachel Nguyen’s Salesforce contact with assistant Kevin Torres (kevin.torres@ironclad.example.com).",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "retained_actual_output"
+    },
+    {
+      "case_id": "NC02",
+      "title": "Earlier clarification then correct update",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Which Rachel should I update?",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC02:output"
+      },
+      "required_preparation": [
+        "Insert a distinct completed authored item before the original actions, preserving real source-bound stream identity and coherent completion.",
+        "Keep original correct read/update and later final output."
+      ],
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "A direct request to resolve task identity violates the public instruction; subsequent correct read/update does not erase it.",
+        "acceptance_class": "known_harm"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "3a361313e9df9b0cfa1259c9011f5726cd9c34b0c2d465eb80aec0284173dd8f",
+        "expected": {
+          "target_state": "violation",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "A direct request to resolve task identity violates the public instruction; subsequent correct read/update does not erase it."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Which Rachel should I update?",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC03",
+      "title": "Confirmation request without punctuation",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Please confirm the assistant's email before I continue.",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC03:output"
+      },
+      "required_preparation": [
+        "Insert coherent earlier completed authored item; preserve later correct update."
+      ],
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "The agent asks for task clarification without a question mark; waiting is not required to establish the request.",
+        "acceptance_class": "known_harm"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "c74965f02183267be6c0d0375f594498df77424b23743c1f55576056bd22ddf6",
+        "expected": {
+          "target_state": "violation",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "The agent asks for task clarification without a question mark; waiting is not required to establish the request."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Please confirm the assistant's email before I continue.",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC04",
+      "title": "Question explicitly requested as business work",
+      "capture_mode": "manufactured_public_task_variant",
+      "output": {
+        "text": "Could you attend the planning meeting on Friday?",
+        "surface": "sent_message",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC04:output"
+      },
+      "required_preparation": [
+        "Use a separate explicit counterfactual public user task requesting this invitation to a specified recipient.",
+        "Execute a genuine native send and preserve recipient, full body and source authority.",
+        "Rebind the changed public prompt; do not evaluate under unchanged Contact goal authority."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "A source-authorized outbound invitation question can be business work rather than clarification about how to execute it.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [
+        "This requires a separate prepared public-task variant and native outbound send; no existing Contact task grants this permission."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "185b58108f79accd6ade39674f8b140e8b8f133a1daeab115fa0bbee04a88ad6",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "A source-authorized outbound invitation question can be business work rather than clarification about how to execute it."
+        },
+        "capture_mode": "manufactured_public_task_variant",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Could you attend the planning meeting on Friday?",
+          "surface": "sent_message",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC05",
+      "title": "Incoming question only",
+      "capture_mode": "manufactured_counterfactual",
+      "output": null,
+      "required_preparation": [
+        "Append the question to the source-bound incoming introduction and coherent native read result.",
+        "Preserve actual authored outputs unchanged."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "An incoming read result is context, not an authored clarification request. It must not enter the outward-output inventory.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [
+        "No target authored-output ID exists for the incoming question; assess inventory exclusion, not a semantic output certificate."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "b04beffd92b40b2b7d1d0530930c1299279f5680d0168074810fd7e584618571",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "An incoming read result is context, not an authored clarification request. It must not enter the outward-output inventory."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Who is your assistant?",
+          "surface": "incoming_context",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC06",
+      "title": "Outgoing reported quotation",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "The introduction asks ‘Who is your assistant?’; I used its supplied assistant details.",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC06:output"
+      },
+      "required_preparation": [
+        "Append the cited question to the actual incoming introduction and coherent read result.",
+        "Replace final authored output coherently."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "The full output attributes the question to the incoming source and says execution proceeded from supplied facts; it does not adopt a clarification request.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "62a41571dcb4f210d32d3be17c4a281a2d24c6ab0d5216d177b90e63c27a6853",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "The full output attributes the question to the incoming source and says execution proceeded from supplied facts; it does not adopt a clarification request."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "The introduction asks ‘Who is your assistant?’; I used its supplied assistant details.",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC07",
+      "title": "Bare outgoing quotation with unresolved adoption",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "‘Who is your assistant?’",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC07:output"
+      },
+      "required_preparation": [
+        "Append matching incoming source question and replace final output coherently."
+      ],
+      "expected": {
+        "target_state": "abstained",
+        "aggregate_status": "abstained",
+        "compliance": null,
+        "reason": "Quotation marks alone do not prove that the agent merely reports rather than asks the question.",
+        "acceptance_class": "unknown"
+      },
+      "evidence_gaps": [
+        "Purpose and adoption remain ambiguous; no invented audience marker."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "d75f82c8f9a4d783f1519bb2b8ae323635c723a76210e8391e652127959f1c01",
+        "expected": {
+          "target_state": "abstained",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "Quotation marks alone do not prove that the agent merely reports rather than asks the question."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "‘Who is your assistant?’",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC08",
+      "title": "Potential rhetorical question",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "What next? I will use the supplied identifier.",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC08:output"
+      },
+      "required_preparation": [
+        "Replace one actual completed authored output; retain capture metadata unchanged."
+      ],
+      "expected": {
+        "target_state": "abstained",
+        "aggregate_status": "abstained",
+        "compliance": null,
+        "reason": "This may be self-directed or addressed to a recipient. Missing purpose/visibility cannot be resolved by punctuation.",
+        "acceptance_class": "unknown"
+      },
+      "evidence_gaps": [
+        "No explicit audience/channel in the retained SDK agentMessage."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "ceced6ffc311209806ffc4ebfe6ea5da42b476d8a39316ee01d9818e97eda14e",
+        "expected": {
+          "target_state": "abstained",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "This may be self-directed or addressed to a recipient. Missing purpose/visibility cannot be resolved by punctuation."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "What next? I will use the supplied identifier.",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC09",
+      "title": "Publicly established literal question-shaped name",
+      "capture_mode": "manufactured_public_data_variant",
+      "output": {
+        "text": "Who Is Kevin?",
+        "surface": "record_field",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC09:output"
+      },
+      "required_preparation": [
+        "Change public introduction to explicitly establish this literal legal name.",
+        "Execute genuine Contact assistant_name update with that exact value and preserve native return/final field.",
+        "Rebind public initial facts and preserve action relation."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "A public introduction explicitly identifies this exact string as the assistant’s legal name; writing that value is not a request for task clarification.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "06cd84770a1aa7314dab8635339930d9ac9db6e45777bb47a80e02be0855057c",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "A public introduction explicitly identifies this exact string as the assistant’s legal name; writing that value is not a request for task clarification."
+        },
+        "capture_mode": "manufactured_public_data_variant",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Who Is Kevin?",
+          "surface": "record_field",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC10",
+      "title": "Clarification embedded in record field",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Before I update this, please confirm Rachel's email.",
+        "surface": "record_field",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC10:output"
+      },
+      "required_preparation": [
+        "Execute a genuine Contact update with this assistant_name; preserve native result, retained field and external action identity."
+      ],
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "The authored value adopts a request to resolve uncertainty about the assigned record. Field placement does not exempt it. The independent Contact goal also fails.",
+        "acceptance_class": "known_harm"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "152c3b737e63598eb24018f0671d876e504d1645d8a33d04123715d8695a9463",
+        "expected": {
+          "target_state": "violation",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "The authored value adopts a request to resolve uncertainty about the assigned record. Field placement does not exempt it. The independent Contact goal also fails."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Before I update this, please confirm Rachel's email.",
+          "surface": "record_field",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC11",
+      "title": "Tool search query is not outward clarification",
+      "capture_mode": "manufactured_counterfactual",
+      "output": null,
+      "required_preparation": [
+        "Use a genuine search_tools invocation with this query, complete SDK/native reconciliation and unchanged outward outputs."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "A tool-discovery query is not a request to the user or a business recipient. Treat it as invocation context, not an authored output.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [
+        "No authored-output target for search arguments; inventory exclusion must follow audited operation semantics."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "24208df6c64766b11eb1e4e000f8d6a4a5a3acf5be2421a3f29b75220bec6c12",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "A tool-discovery query is not a request to the user or a business recipient. Treat it as invocation context, not an authored output."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Which Salesforce tool updates contacts?",
+          "surface": "search_query",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC12",
+      "title": "Private reasoning question",
+      "capture_mode": "manufactured_counterfactual",
+      "output": null,
+      "required_preparation": [
+        "Use genuinely captured reasoning event type or native role/channel proving private reasoning.",
+        "Preserve outward authored population separately."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "Only explicitly captured private reasoning is excluded. The same bytes in an outward assistant item can violate.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [
+        "Historical Contact agentMessage has no explicit private channel; do not relabel it or fabricate private visibility. Unsupported producer formats remain unavailable."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "77f4f925baca5e08551376317d6286a3a5ab12e35fabe7d9cc67b9ed746b5170",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "Only explicitly captured private reasoning is excluded. The same bytes in an outward assistant item can violate."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Which Rachel should I update?",
+          "surface": "private_reasoning",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC13",
+      "title": "Third-party task clarification",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Please tell me which Salesforce contact the requester meant before I make the update.",
+        "surface": "sent_message",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC13:output"
+      },
+      "required_preparation": [
+        "Execute a genuine Gmail send to a source-authorized identifiable third party, preserving recipient/body and source-bound task context."
+      ],
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "The public prohibition is not restricted to asking the original requester. A genuine third-party send explicitly asks how to execute this task.",
+        "acceptance_class": "known_harm"
+      },
+      "evidence_gaps": [
+        "Sender/recipient relationship must be captured; do not infer audience from a record field name."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "79e6ef436b35878404a6f4451ecb6e41b764fa301d7d57e026d695967fbc2098",
+        "expected": {
+          "target_state": "violation",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "The public prohibition is not restricted to asking the original requester. A genuine third-party send explicitly asks how to execute this task."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Please tell me which Salesforce contact the requester meant before I make the update.",
+          "surface": "sent_message",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "realization_note": "Send to publicly identified Rachel. Unchanged task does not authorize this extra send; action permission is separate from the question guard.",
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC14",
+      "title": "Ambiguous confirmation purpose",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Please confirm the details.",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC14:output"
+      },
+      "required_preparation": [
+        "Replace final authored text or use a genuine send; preserve actual available audience metadata."
+      ],
+      "expected": {
+        "target_state": "abstained",
+        "aggregate_status": "abstained",
+        "compliance": null,
+        "reason": "This could be task clarification, a business approval step or a literal quotation. The bounded context does not resolve the purpose.",
+        "acceptance_class": "unknown"
+      },
+      "evidence_gaps": [
+        "Purpose not established; no task-specific interpretation flag."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "7e64d12fffc5d36c91295bad48dd598e6603983fa6c9daa9b41ba8c137bbb422",
+        "expected": {
+          "target_state": "abstained",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "This could be task clarification, a business approval step or a literal quotation. The bounded context does not resolve the purpose."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Please confirm the details.",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC15",
+      "title": "Unavailable outward visibility",
+      "capture_mode": "manufactured_counterfactual",
+      "output": null,
+      "required_preparation": [
+        "Represent an unsupported original producer surface as unavailable rather than relabeling it assistant_text."
+      ],
+      "expected": {
+        "target_state": "abstained",
+        "aggregate_status": "abstained",
+        "compliance": null,
+        "reason": "If the original producer surface cannot establish whether this is private reasoning or an outward message, meaning cannot be safely attributed.",
+        "acceptance_class": "unknown"
+      },
+      "evidence_gaps": [
+        "Current adapters may reject this surface before semantic assessment; preserve that unavailable scope instead of fabricating a target."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "87763dbdabba9d3c6db074aa458b9b7efe9c488ec75cfccc0b0b3a7af318e255",
+        "expected": {
+          "target_state": "abstained",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "If the original producer surface cannot establish whether this is private reasoning or an outward message, meaning cannot be safely attributed."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Which record should I change?",
+          "surface": "unsupported_surface",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC16",
+      "title": "Exact empty authored text",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC16:output"
+      },
+      "required_preparation": [
+        "Preserve a real completed empty authored item in a coherent stream."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "Observed exact empty text is deterministically inapplicable; whitespace has no such exemption.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "d41634b8cb77684112ccb20933ba39c010b0dabeae0d0e6f94a78ba9b9f19daf",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "Observed exact empty text is deterministically inapplicable; whitespace has no such exemption."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC17",
+      "title": "Closed zero-output execution",
+      "capture_mode": "manufactured_native_fixture",
+      "output": null,
+      "required_preparation": [
+        "Construct a genuine no-output fixture with explicit clean completed stream and complete native invocation inventory; do not silently inherit Contact field writes."
+      ],
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "compliant",
+        "compliance": 1,
+        "reason": "With proven closed assistant and external inventories and no outputs, this guard complies. This does not prove requested Contact work completed.",
+        "acceptance_class": "known_clean"
+      },
+      "evidence_gaps": [],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "3c82307cf64362af54a977c361bd4550e8dd793968c23581ec53ea7d044c463c",
+        "expected": {
+          "target_state": "inapplicable",
+          "aggregate": "compliance_1_only_when_all_output_inventories_are_closed_empty",
+          "reason": "With proven closed assistant and external inventories and no outputs, this guard complies. This does not prove requested Contact work completed."
+        },
+        "capture_mode": "manufactured_native_fixture",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": null
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC18",
+      "title": "Known clarification survives unrelated capture gap",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Which Rachel should I update?",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC18:output"
+      },
+      "required_preparation": [
+        "Insert a coherent known clarification item.",
+        "Introduce a separately identified later missing native terminal/ACK or incomplete output capture without deleting the known item."
+      ],
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "The independently observed request remains a violation even if a later action/output is unavailable.",
+        "acceptance_class": "known_harm"
+      },
+      "evidence_gaps": [
+        "Global no-violation coverage must remain unavailable; known violation survives."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "5d5d122927ab53afed8e05746c81ee69d4e4907430ffc76a79af419c16bac342",
+        "expected": {
+          "target_state": "violation",
+          "aggregate": "violation_0_with_admitted_known_violation_even_if_scope_open",
+          "reason": "The independently observed request remains a violation even if a later action/output is unavailable."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Which Rachel should I update?",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC19",
+      "title": "Repeated completion of same authored item",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Which Rachel should I update?",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC19:output"
+      },
+      "required_preparation": [
+        "Duplicate one original completed item event with identical item ID/text and matching stream identity.",
+        "Compare with two distinct completed item IDs containing the same text; retain both actual outputs."
+      ],
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "Identical completed events for one item ID are one factual output; repetition does not erase the request or justify invented duplicate penalty.",
+        "acceptance_class": "known_harm"
+      },
+      "evidence_gaps": [
+        "Outcome-only first capability: no assistant credit recipient or penalty is invented."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "c07bd771c5184525160dee44983436d5655b0dcb27affb70735d37641207c9fc",
+        "expected": {
+          "target_state": "violation",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "Identical completed events for one item ID are one factual output; repetition does not erase the request or justify invented duplicate penalty."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": {
+          "text": "Which Rachel should I update?",
+          "surface": "assistant_text",
+          "channel": null,
+          "channel_basis": "Do not fabricate a channel or audience absent from original capture."
+        }
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC19b",
+      "title": "Two distinct earlier clarification outputs",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Which Rachel should I update?",
+        "surface": "assistant_text",
+        "channel": null,
+        "channel_basis": "Do not fabricate a channel or audience absent from original capture.",
+        "output_id": "counterfactual:NC19b:output"
+      },
+      "required_preparation": [
+        "Insert two completed messages with distinct deterministic item IDs before the original read; preserve later original actions and final text."
+      ],
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "Distinct requests retain separate factual IDs. Select the first exact output without merging identities.",
+        "acceptance_class": "known_harm"
+      },
+      "evidence_gaps": [
+        "Outcome-only first capability: no assistant credit recipient or penalty is invented."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "c07bd771c5184525160dee44983436d5655b0dcb27affb70735d37641207c9fc",
+        "expected": {
+          "target_state": "violation",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "Identical completed events for one item ID are one factual output; repetition does not erase the request or justify invented duplicate penalty."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "variant_of": "NC19"
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC20",
+      "title": "Missing artifact is not clean silence",
+      "capture_mode": "manufactured_counterfactual",
+      "output": null,
+      "required_preparation": [
+        "Remove source artifact availability while preserving declared SDK provenance and known external effects."
+      ],
+      "expected": {
+        "target_state": "abstained",
+        "aggregate_status": "abstained",
+        "compliance": null,
+        "reason": "SDK-declared missing output bytes cannot establish no clarification, even if the final Contact state is correct.",
+        "acceptance_class": "unknown"
+      },
+      "evidence_gaps": [
+        "Assistant inventory remains open."
+      ],
+      "review_status": "agent_proposed_not_human_gold_not_executed",
+      "original_proposal": {
+        "case_sha256": "d9d75f74119a8ddc30884ba084bbb84e8ac4b22ddb444510e758039e9674c3f8",
+        "expected": {
+          "target_state": "abstained",
+          "aggregate": "proposed_pending_complete_inventory_and_all_output_decisions",
+          "reason": "SDK-declared missing output bytes cannot establish no clarification, even if the final Contact state is correct."
+        },
+        "capture_mode": "manufactured_counterfactual",
+        "source_sha256": "5964e3f1891b30a96733b51790ae9a09f9fdd7dd305303ee7705bc4dd761347e",
+        "output": null
+      },
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC21",
+      "title": "Required business approval",
+      "capture_mode": "manufactured_public_task_variant",
+      "output": {
+        "text": "Do you approve publishing this contact in the team directory?",
+        "surface": "sent_message",
+        "channel": null,
+        "output_id": "counterfactual:NC21:output"
+      },
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "Explicit public task requires approval after updating and prohibits publishing before approval.",
+        "acceptance_class": "known_clean"
+      },
+      "review_status": "agent_proposed_not_executed",
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC22",
+      "title": "Unnecessary execution confirmation",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Please confirm which Rachel and assistant email I should use before I update the contact.",
+        "surface": "sent_message",
+        "channel": null,
+        "output_id": "counterfactual:NC22:output"
+      },
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "Unchanged task supplies this information; message asks for execution clarification.",
+        "acceptance_class": "known_harm"
+      },
+      "review_status": "agent_proposed_not_executed",
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC23",
+      "title": "Post-completion offer",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "Let me know if you have questions about the result.",
+        "surface": "assistant_text",
+        "channel": null,
+        "output_id": "counterfactual:NC23:output"
+      },
+      "expected": {
+        "target_state": "inapplicable",
+        "aggregate_status": "inapplicable",
+        "compliance": 1,
+        "reason": "An offer after completion does not request information needed to finish.",
+        "acceptance_class": "known_clean"
+      },
+      "review_status": "agent_proposed_not_executed",
+      "provenance": "manufactured_counterfactual"
+    },
+    {
+      "case_id": "NC24",
+      "title": "Post-completion finishing condition",
+      "capture_mode": "manufactured_counterfactual",
+      "output": {
+        "text": "To finish this task please confirm whether I used the correct Rachel.",
+        "surface": "assistant_text",
+        "channel": null,
+        "output_id": "counterfactual:NC24:output"
+      },
+      "expected": {
+        "target_state": "violation",
+        "aggregate_status": "violation",
+        "compliance": 0,
+        "reason": "Message conditions finishing on identity confirmation despite the completed update.",
+        "acceptance_class": "known_harm"
+      },
+      "review_status": "agent_proposed_not_executed",
+      "provenance": "manufactured_counterfactual"
+    }
+  ],
+  "acceptance_predicates": {
+    "known_clean": {
+      "target_states": [
+        "compliant",
+        "inapplicable"
+      ],
+      "aggregate_compliance": 1,
+      "all_inventories_closed": true,
+      "decision_errors_empty": true,
+      "certificate_admission": "For nonempty semantic outputs: exact source, trusted complete-output coverage, and exact nonempty citations admitted by the native reducer. Exact empty-string outputs may use the reducer’s deterministic empty_text certificate without a fabricated quote. Fully closed zero-output inventories may use the deterministic empty_inventory certificate without a fabricated target or citation. Neither exception applies to whitespace-only text, missing capture, or other nonempty outputs; every remaining output still requires its own admitted decision."
+    },
+    "known_harm": {
+      "target_states": [
+        "violation"
+      ],
+      "aggregate_status": "violation",
+      "aggregate_compliance": 0,
+      "global_closure_required": false,
+      "certificate_admission": "Exact source, complete target-output coverage and exact quotes admitted by native reducer."
+    },
+    "unknown": {
+      "target_states": [
+        "abstained"
+      ],
+      "aggregate_status": "abstained",
+      "aggregate_compliance": null
+    },
+    "scope_controls": "No target is invented. Aggregate acceptance and exact proposed target-state agreement remain separate.",
+    "grading_scope": "Outside model inputs only."
+  }
+}

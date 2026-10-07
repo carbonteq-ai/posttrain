@@ -7,8 +7,10 @@ an entry here does not advertise a public algorithm or authorize backend support
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
+
+import numpy as np
 
 from .update_credit import PreparedCredit
 from .update_plan import ContributionRef, ObjectivePopulation, ResolvedUpdate
@@ -17,6 +19,9 @@ from .update_records import (
     ActionSelection,
     InvalidPolicyUpdate,
     PopulationSnapshot,
+    array_digest,
+    frozen_array,
+    payload_digest,
     record_digest,
     require_identity,
 )
@@ -107,30 +112,79 @@ class ObjectiveSpec:
         return record_digest(self)
 
 
-@dataclass(frozen=True, slots=True)
-class ReductionWeight:
-    action: ActionRef
-    weight: float
-
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class ResolvedObjectiveTerm:
+    """One occurrence's objective as arrays over population positions.
+
+    ``policy_weight`` and ``kl_weight`` are each position's global reduction
+    weight (zero when unselected). ``ratio_segment`` groups the positions that
+    share one importance ratio (one token, one turn or one episode), numbered
+    from zero, with -1 outside any ratio support.
+    """
+
     spec: ObjectiveSpec
     update_digest: str
     credit_digest: str
-    policy_weights: tuple[ReductionWeight, ...]
-    kl_weights: tuple[ReductionWeight, ...]
-    ratio_support: tuple[tuple[ActionRef, ...], ...]
+    policy_weight: np.ndarray
+    kl_weight: np.ndarray
+    ratio_segment: np.ndarray
+    segment_count: int
     # These explicit denominators are observation/recovery evidence.
     policy_denominators: tuple[tuple[str, int], ...]
     kl_denominators: tuple[tuple[str, int], ...]
     zero_policy_episodes: tuple[str, ...]
     zero_kl_episodes: tuple[str, ...]
     parameter_version: str
+    digest: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        policy, kl = frozen_array(self.policy_weight, np.float64), frozen_array(self.kl_weight, np.float64)
+        segment = frozen_array(self.ratio_segment, np.int64)
+        if policy.ndim != 1 or policy.shape != kl.shape or policy.shape != segment.shape:
+            raise InvalidPolicyUpdate("objective term arrays must align with population positions")
+        if (policy < 0).any() or (kl < 0).any() or not (np.isfinite(policy).all() and np.isfinite(kl).all()):
+            raise InvalidPolicyUpdate("objective reduction weights must be finite and non-negative")
+        if segment.size and (segment.min() < -1 or segment.max() >= self.segment_count):
+            raise InvalidPolicyUpdate("objective ratio segments must be numbered from zero")
+        if ((policy > 0) & (segment < 0)).any():
+            raise InvalidPolicyUpdate("selected policy action lacks its importance ratio support")
+        object.__setattr__(self, "policy_weight", policy)
+        object.__setattr__(self, "kl_weight", kl)
+        object.__setattr__(self, "ratio_segment", segment)
+        object.__setattr__(
+            self,
+            "digest",
+            payload_digest(
+                {
+                    "schema": "posttrain.objective-term.v2",
+                    "spec": self.spec.digest,
+                    "update_digest": self.update_digest,
+                    "credit_digest": self.credit_digest,
+                    "policy_weight": array_digest(policy),
+                    "kl_weight": array_digest(kl),
+                    "ratio_segment": array_digest(segment),
+                    "segment_count": self.segment_count,
+                    "policy_denominators": [list(item) for item in self.policy_denominators],
+                    "kl_denominators": [list(item) for item in self.kl_denominators],
+                    "zero_policy_episodes": list(self.zero_policy_episodes),
+                    "zero_kl_episodes": list(self.zero_kl_episodes),
+                    "parameter_version": self.parameter_version,
+                }
+            ),
+        )
 
     @property
-    def digest(self) -> str:
-        return record_digest(self)
+    def policy_positions(self) -> np.ndarray:
+        return np.flatnonzero(self.policy_weight > 0)
+
+    @property
+    def kl_positions(self) -> np.ndarray:
+        return np.flatnonzero(self.kl_weight > 0)
+
+
+def _per_view(snapshot: PopulationSnapshot, mask: np.ndarray) -> np.ndarray:
+    """Count of true positions in each view."""
+    return np.add.reduceat(mask.astype(np.int64), snapshot.offsets[:-1])
 
 
 def objective_population(
@@ -141,88 +195,99 @@ def objective_population(
     """One atomic contribution per turn with the declared ratio dependencies."""
     credit.validate(snapshot)
     definition = objective_definition(spec.definition_id)
-    policy = set(spec.policy_selection.resolve(snapshot))
-    kl = set(spec.kl_selection.resolve(snapshot)) if spec.beta else set()
+    policy = spec.policy_selection.resolve(snapshot)
+    kl = spec.kl_selection.resolve(snapshot) if spec.beta else np.zeros(snapshot.size, dtype=bool)
     selected = policy | kl
-    if not selected and spec.empty_policy != "zero":
+    if not selected.any() and spec.empty_policy != "zero":
         raise InvalidPolicyUpdate("objective selects no contributions")
-    episodes: dict[str, tuple[ActionRef, ...]] = {}
-    for episode in dict.fromkeys(record.action.episode_id for record in snapshot.actions):
-        episodes[episode] = tuple(record.action for record in snapshot.actions if record.action.episode_id == episode)
-    turns: dict[tuple[str, str, str], list[ActionRef]] = {}
-    for record in snapshot.actions:
-        action = record.action
-        turns.setdefault((action.episode_id, action.branch_id, action.turn_id), []).append(action)
-    contributions = tuple(
-        ContributionRef(
-            record_digest(actions[0]),
-            tuple(action for action in actions if action in selected),
-            episodes[key[0]]
-            if definition.ratio == "episode-geometric" and any(action in policy for action in actions)
-            else tuple(actions)
-            if definition.ratio == "turn-geometric" and any(action in policy for action in actions)
-            else tuple(action for action in actions if action in selected),
-            tuple(actions),
-        )
-        for key, actions in turns.items()
-    )
+    policy_per_view, selected_per_view = _per_view(snapshot, policy), _per_view(snapshot, selected)
+    episode_views: dict[tuple[str, str], list[int]] = {}
+    for index, view in enumerate(snapshot.conditioning):
+        episode_views.setdefault((view.episode_id, view.branch_id), []).append(index)
+    contributions = []
+    for index, view in enumerate(snapshot.conditioning):
+        if policy_per_view[index] and definition.ratio == "episode-geometric":
+            dependencies = tuple(episode_views[(view.episode_id, view.branch_id)])
+        elif policy_per_view[index] and definition.ratio == "turn-geometric":
+            dependencies = (index,)
+        else:
+            dependencies = (index,) if selected_per_view[index] else ()
+        first = ActionRef(view.episode_id, view.branch_id, view.id, view.sampled[0])
+        contributions.append(ContributionRef(record_digest(first), index, dependencies))
     # Validate empty semantics against the declared population before scheduling.
-    original = {record.action for record in snapshot.actions}
-    _reduction(policy, original, original, spec)
+    everything = np.ones(snapshot.size, dtype=bool)
+    _reduction(policy, everything, snapshot, spec)
     if spec.beta:
-        _reduction(kl, original, original, spec)
+        _reduction(kl, everything, snapshot, spec)
     statistics = ("sampled-logp", "old-logp") + (("reference-logp",) if spec.beta else ())
     # FP32 score/adjoint plus frozen old scores, optional reference and correction.
     return ObjectivePopulation(
-        spec.definition_id, credit.digest, contributions, statistics, 20 if spec.beta else 16, spec.digest
+        spec.definition_id,
+        credit.digest,
+        tuple(contributions),
+        policy,
+        kl,
+        statistics,
+        20 if spec.beta else 16,
+        spec.digest,
     )
+
+
+def _view_units(snapshot: PopulationSnapshot, spec: ObjectiveSpec) -> list[str]:
+    """Each view's reduction unit: its episode, or its turn under equal-turn reduction."""
+    if objective_definition(spec.definition_id).reduction != "equal-turn":
+        return [view.episode_id for view in snapshot.conditioning]
+    return [
+        f"turn/{record_digest(ActionRef(view.episode_id, view.branch_id, view.id, 0))}"
+        for view in snapshot.conditioning
+    ]
 
 
 def _reduction(
-    selected: set[ActionRef],
-    domain: set[ActionRef],
-    original: set[ActionRef],
+    selected: np.ndarray,
+    domain: np.ndarray,
+    snapshot: PopulationSnapshot,
     spec: ObjectiveSpec,
-) -> tuple[tuple[ReductionWeight, ...], tuple[tuple[str, int], ...], tuple[str, ...]]:
+) -> tuple[np.ndarray, tuple[tuple[str, int], ...], tuple[str, ...]]:
+    """Global reduction weights over the selected positions, per the definition's unit.
+
+    Units are the episodes (or turns) the domain touches. A unit without selected
+    actions is rejected, omitted or kept with zero weight per ``empty_policy``.
+    """
     definition = objective_definition(spec.definition_id)
-
-    def unit(action: ActionRef) -> str:
-        return (
-            f"turn/{record_digest(ActionRef(action.episode_id, action.branch_id, action.turn_id, 0))}"
-            if definition.reduction == "equal-turn"
-            else action.episode_id
-        )
-
-    episodes = tuple(sorted({unit(action) for action in domain}))
-    support = {episode: tuple(sorted(action for action in selected if unit(action) == episode)) for episode in episodes}
-    empty = tuple(episode for episode in episodes if not support[episode])
+    units = _view_units(snapshot, spec)
+    selected_per_view, domain_per_view = _per_view(snapshot, selected), _per_view(snapshot, domain)
+    sizes_per_view = np.diff(snapshot.offsets)
+    unit_selected: dict[str, int] = {}
+    unit_size: dict[str, int] = {}
+    domain_units: set[str] = set()
+    for view, unit in enumerate(units):
+        unit_selected[unit] = unit_selected.get(unit, 0) + int(selected_per_view[view])
+        unit_size[unit] = unit_size.get(unit, 0) + int(sizes_per_view[view])
+        if domain_per_view[view]:
+            domain_units.add(unit)
+    episodes = tuple(sorted(domain_units))
+    empty = tuple(unit for unit in episodes if not unit_selected[unit])
     if empty and spec.empty_policy == "reject":
         raise InvalidPolicyUpdate(f"empty objective selection for episodes {empty}")
-    retained = tuple(episode for episode in episodes if support[episode] or spec.empty_policy == "zero")
+    retained = tuple(unit for unit in episodes if unit_selected[unit] or spec.empty_policy == "zero")
     if not retained:
         raise InvalidPolicyUpdate("empty objective reduction after omission")
     denominators = tuple(
-        (
-            episode,
-            len(support[episode])
-            if spec.denominator == "selected"
-            else sum(unit(action) == episode for action in original),
-        )
-        for episode in retained
+        (unit, unit_selected[unit] if spec.denominator == "selected" else unit_size[unit]) for unit in retained
     )
+    weights = np.zeros(snapshot.size, dtype=np.float64)
     if definition.reduction == "selected-token":
         denominator = sum(value for _, value in denominators)
         if denominator == 0:
             if spec.empty_policy == "zero":
-                return (), (("global", 0),), empty
+                return weights, (("global", 0),), empty
             raise InvalidPolicyUpdate("empty selected-token denominator")
-        weights = tuple(ReductionWeight(action, 1 / denominator) for action in sorted(selected))
-    else:
-        weights = tuple(
-            ReductionWeight(action, 1 / (len(retained) * denominator))
-            for episode, denominator in denominators
-            for action in support[episode]
-        )
+        weights[selected] = 1 / denominator
+        return weights, denominators, empty
+    unit_weight = {unit: 1 / (len(retained) * value) for unit, value in denominators if value}
+    view_weight = np.array([unit_weight.get(unit, 0.0) for unit in units], dtype=np.float64)
+    weights[selected] = view_weight[snapshot.view_of[selected]]
     return weights, denominators, empty
 
 
@@ -233,48 +298,46 @@ def resolve_objective_term(
     *,
     parameter_version: str | None = None,
 ) -> ResolvedObjectiveTerm:
-    parameter_version = update.population.versions.current if parameter_version is None else parameter_version
+    snapshot = update.population
+    parameter_version = snapshot.versions.current if parameter_version is None else parameter_version
     require_identity(parameter_version)
-    credit.validate(update.population)
-    if update.objective.definition_id != spec.definition_id or update.objective.contract_digest != spec.digest:
+    credit.validate(snapshot)
+    objective = update.objective
+    if objective.definition_id != spec.definition_id or objective.contract_digest != spec.digest:
         raise InvalidPolicyUpdate("update objective differs from resolved specification")
-    if update.objective.credit_digest != credit.digest:
+    if objective.credit_digest != credit.digest:
         raise InvalidPolicyUpdate("update prepared credit identity changed")
-    selected = {action for item in update.contributions for action in item.actions}
-    domain = {action for item in update.contributions for action in (item.reduction_domain or item.actions)}
-    original = {record.action for record in update.population.actions}
-    policy = selected & set(spec.policy_selection.resolve(update.population))
-    kl = selected & set(spec.kl_selection.resolve(update.population)) if spec.beta else set()
-    policy_weights, policy_denominators, zero_policy = _reduction(policy, domain, original, spec)
+    domain = snapshot.views_mask(tuple(objective.contributions[index].view for index in update.contributions))
+    selected = domain & objective.selected
+    policy = selected & objective.policy
+    policy_weight, policy_denominators, zero_policy = _reduction(policy, domain, snapshot, spec)
     if spec.beta:
-        kl_weights, kl_denominators, zero_kl = _reduction(kl, domain, original, spec)
+        kl_weight, kl_denominators, zero_kl = _reduction(selected & objective.kl, domain, snapshot, spec)
     else:
-        kl_weights, kl_denominators, zero_kl = (), (), ()
+        kl_weight, kl_denominators, zero_kl = np.zeros(snapshot.size, dtype=np.float64), (), ()
     definition = objective_definition(spec.definition_id)
+    segment = np.full(snapshot.size, -1, dtype=np.int64)
     if definition.ratio == "token":
-        ratio_support = tuple((action,) for action in sorted(policy))
-    elif definition.ratio == "episode-geometric":
-        ratio_support = tuple(
-            tuple(sorted(action for action in original if action.episode_id == episode))
-            for episode in sorted({action.episode_id for action in policy})
-        )
+        positions = np.flatnonzero(policy)
+        segment[positions] = np.arange(positions.size)
+        count = int(positions.size)
     else:
-        turns = sorted({(action.episode_id, action.branch_id, action.turn_id) for action in policy})
-        ratio_support = tuple(
-            tuple(
-                sorted(action for action in original if (action.episode_id, action.branch_id, action.turn_id) == turn)
-            )
-            for turn in turns
-        )
-    if not {action for support in ratio_support for action in support} <= set(update.dependencies):
+        owners = snapshot.episode_of if definition.ratio == "episode-geometric" else snapshot.view_of
+        touched = np.unique(owners[policy])
+        lookup = np.full(int(owners.max()) + 1 if owners.size else 0, -1, dtype=np.int64)
+        lookup[touched] = np.arange(touched.size)
+        segment = lookup[owners]
+        count = int(touched.size)
+    if not (segment < 0).all() and not snapshot.views_mask(update.views)[segment >= 0].all():
         raise InvalidPolicyUpdate("resolved update lost ratio dependencies")
     return ResolvedObjectiveTerm(
         spec,
         update.digest,
         credit.digest,
-        policy_weights,
-        kl_weights,
-        ratio_support,
+        policy_weight,
+        kl_weight,
+        segment,
+        count,
         policy_denominators,
         kl_denominators,
         zero_policy,

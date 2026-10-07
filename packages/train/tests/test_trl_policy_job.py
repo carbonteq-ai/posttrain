@@ -1,9 +1,11 @@
 """Resolved job composition preserves credit and refuses changed recovery meaning."""
 
+import math
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any, cast
 
+import numpy as np
 import pytest
 from posttrain.train.backends.policy_update_admission import AdmittedNativePopulation
 from posttrain.train.backends.trl.policy_job import ResolvedTRLJob
@@ -169,6 +171,11 @@ def test_native_job_slot_collects_complete_rows_once_for_multiple_updates(tmp_pa
     candidate.trainer = SimpleNamespace(state=SimpleNamespace(global_step=0))
     population, index = candidate.run.occurrence(0, 0)
     assert population.applied_update_offset == 0 and population.attempt_offset == 0
+    # Sampled scores are retained for sampler-gap observation.
+    assert population.sampled_scores is not None
+    assert np.array_equal(
+        population.sampled_scores, prepared.read_input.sampling_log_scores(prepared.resolved.snapshot)
+    )
     assert index == 0
     assert calls[0][0] == [{"example_id": "task", "prompt": []}] * 2
     assert calls[0][1]["versions"] == candidate.versions(0)
@@ -228,9 +235,10 @@ def test_job_restore_uses_sealed_native_evidence_and_frozen_credit(tmp_path, mon
     )
     monkeypatch.setattr("posttrain.train.backends.trl.policy_job._decode_native", decode)
     restored = candidate.restore(tmp_path)
-    assert restored.credit == population.credit
-    assert restored.updates == population.updates
-    assert restored.sampler_correction == population.sampler_correction
+    assert restored.credit.digest == population.credit.digest
+    assert [update.digest for update in restored.updates] == [update.digest for update in population.updates]
+    assert population.sampler_correction is not None and restored.sampler_correction is not None
+    assert np.array_equal(restored.sampler_correction, population.sampler_correction)
     assert restored.old is None and restored.next_update == 0  # native state loading is a later boundary
     original_versions = candidate.versions(3)
     for field_name in ("old_score", "current", "reference"):
@@ -336,6 +344,9 @@ def test_applied_observation_separates_total_policy_and_weighted_kl(tmp_path, be
     assert len(metrics) == len(events) == 1
     values, metadata = metrics[0]
     assert metadata["step"] == 1
+    # The update names the collection it trained on (its first update's step) and its place in it.
+    assert metadata["attributes"]["collection_step"] == population.applied_update_offset + 1
+    assert metadata["attributes"]["collection_update"] == population.next_update == 1
     assert values["train/rl/loss"] == 3
     assert values["train/rl/policy_loss"] == 2
     assert values["train/rl/kl_loss"] == (1 if beta else 0)
@@ -343,8 +354,117 @@ def test_applied_observation_separates_total_policy_and_weighted_kl(tmp_path, be
         assert values["train/rl/kl"] == 25
     else:
         assert "train/rl/kl" not in values  # zero beta does not measure divergence
-    credit = {value.action: value.advantage for value in population.credit.values}
-    selected = [credit[weight.action] for weight in term.policy_weights]
-    assert values["train/rl/advantage_abs_mean"] == pytest.approx(sum(map(abs, selected)) / len(selected))
+    selected = population.credit.advantages[term.policy_positions]
+    assert selected.size
+    assert values["train/rl/advantage_abs_mean"] == pytest.approx(float(np.abs(selected).mean()))
     with pytest.raises(InvalidPolicyUpdate, match="committed applied boundary"):
         candidate.observe_applied_update(2)
+
+
+def test_applied_observation_reports_clipping_correction_and_entropy(tmp_path):
+    """Two declared updates share one collection; the second runs at changed parameters."""
+    torch = pytest.importorskip("torch")
+    from posttrain.train.backends.trl.policy_updates import ResolvedTRLPopulation
+    from posttrain.train.update_objectives import resolve_objective_term
+    from posttrain.train.update_sampler_correction import recipe_sampler_correction_weights
+
+    from .test_update_scoring import CausalModel
+
+    metrics = []
+    context = SimpleNamespace(
+        run_id="run", metrics=lambda values, **kw: metrics.append(values), event=lambda name, values: None
+    )
+    candidate = job(tmp_path, context=context)
+    # Token truncation keeps each action's correction weight separately readable.
+    settings = replace(candidate.request.settings, importance_sampling_mode="token_truncate")
+    object.__setattr__(candidate.request, "settings", settings)
+    prepared, _ = admitted(candidate, 0, 0)
+    population = ResolvedTRLPopulation.from_admitted(
+        prepared,
+        score_temperature=0.8,
+        score_contract="posttrain.causal-text-tempered-logsoftmax-fp32@1",
+        sampler_correction=None,
+    )
+    snapshot = prepared.resolved.snapshot
+    # log(old) - log(sampled) per position: above the 3.0 cap, inside, and below the 0.1 floor.
+    deltas = np.array([2.0, 0.25, -3.0, 0.0])
+    assert deltas.shape == (snapshot.size,)
+    population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
+        settings, snapshot, old, old - deltas
+    )
+
+    def sampled_scores():
+        # The job retains the sampler's scores beside the frozen trainer old scores.
+        old_scores = population.old.values.detach().double().numpy()
+        population.sampled_scores = old_scores - deltas
+
+    model = CausalModel()
+    optimizer = SimpleNamespace(step_was_skipped=False)
+    candidate.run.current = population
+
+    def entropy(position):
+        action = snapshot.action(int(position))
+        view = snapshot.conditioning[snapshot.view_index(action.turn_id)]
+        inputs = population.read_input(view)
+        tokens = torch.tensor([inputs.token_ids])
+        with torch.no_grad():
+            logits = model(tokens, torch.ones_like(tokens), torch.arange(tokens.shape[1]).unsqueeze(0), False).logits
+        position = dict(inputs.action_positions)[action.token_index]
+        probabilities = (logits[0, position - 1] / 0.8).softmax(-1)
+        return float(-(probabilities * probabilities.log()).sum())
+
+    def apply(index):
+        population.loss(model, index, torch.device("cpu"))
+        if population.sampled_scores is None:
+            sampled_scores()
+        population.before_step(optimizer)
+        population.complete_step(optimizer)
+        term = resolve_objective_term(
+            population.updates[index],
+            population.spec,
+            population.credit,
+            parameter_version=population.last_evaluation.parameter_version,
+        )
+        candidate.observe_applied_update(index + 1)
+        return term.policy_positions, metrics[-1]
+
+    selected, first = apply(0)
+    weights = [min(max(math.exp(delta), 0.1), 3.0) for delta in deltas]
+    chosen = [weights[position] for position in selected]
+    # The first update evaluates at the sampling parameters: ratios are one.
+    assert first["train/rl/clip_fraction"] == 0.0
+    assert first["train/rl/importance_sampling_ratio_mean"] == pytest.approx(sum(chosen) / len(chosen))
+    assert first["train/rl/importance_sampling_ratio_min"] == pytest.approx(min(chosen))
+    assert first["train/rl/importance_sampling_ratio_max"] == pytest.approx(max(chosen))
+    clamped = sum(abs(deltas[position]) > 1 for position in selected) / len(selected)
+    assert first["train/rl/importance_sampling_ratio_clamped_fraction"] == pytest.approx(clamped)
+    assert first["train/rl/entropy"] == pytest.approx(sum(map(entropy, selected)) / len(selected), rel=1e-5)
+    gaps = sorted(abs(deltas[position]) for position in selected)
+    assert first["train/rl/sampling_logp_delta_mean"] == pytest.approx(sum(gaps) / len(gaps))
+    assert first["train/rl/sampling_logp_delta_max"] == pytest.approx(max(gaps))
+    assert first["train/rl/sampling_logp_delta_p99"] == pytest.approx(max(gaps))
+    episode_of = snapshot.episode_of
+    touched = set(episode_of[selected].tolist())
+    sequences = [abs(float(deltas[episode_of == episode].sum())) for episode in touched]
+    assert first["train/rl/sampling_sequence_logp_delta_abs_mean"] == pytest.approx(sum(sequences) / len(sequences))
+
+    # Move the second update's sampled tokens in its advantage direction far
+    # enough that every PPO ratio leaves the clip interval.
+    credit = population.credit.advantages
+    second = population.updates[1]
+    term = resolve_objective_term(second, population.spec, population.credit)
+    sign = 1.0 if credit[term.policy_positions[0]] > 0 else -1.0
+    with torch.no_grad():
+        model.head.bias[4] += 6 * sign
+        model.head.bias[5] += 6 * sign
+    selected, last = apply(1)
+    ratios = population.last_evaluation.ratios.detach()
+    expected = [
+        (credit[position] > 0 and float(ratios[position]) > 1 + population.spec.clip_high)
+        or (credit[position] < 0 and float(ratios[position]) < 1 - population.spec.clip_low)
+        for position in selected
+    ]
+    assert all(expected)
+    assert last["train/rl/clip_fraction"] == 1.0
+    assert last["train/rl/clip_fraction_high" if sign > 0 else "train/rl/clip_fraction_low"] == 1.0
+    assert last["train/rl/entropy"] == pytest.approx(sum(map(entropy, selected)) / len(selected), rel=1e-5)

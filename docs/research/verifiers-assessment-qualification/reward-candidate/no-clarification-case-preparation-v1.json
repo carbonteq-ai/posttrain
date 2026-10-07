@@ -1,0 +1,649 @@
+{
+  "schema_version": 1,
+  "revision": "no_clarification_preparation@1",
+  "status": "data_draft_pending_independent_preflight_and_semantic_execution",
+  "purpose": "Factual preparation only; labels and rationales remain outside model inputs.",
+  "corpus": {
+    "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/no-clarification-executable-corpus-v1.json",
+    "sha256": "c0fc2c1ff401bc20e84f4a8b4632af9f695db7b0ef9355c4c8f7430e74bd9ae7",
+    "case_count": 25
+  },
+  "baseline": {
+    "episode": {
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/f84305668764c53cc0dc2a74b1f72f8a741319d2833410e223cb5513994e58de/episode.json",
+      "sha256": "05c81896501fa361b1d35d1388d1e7300eee468b1aacd8b2cced895dafeee037"
+    },
+    "artifact_envelope": {
+      "path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/f84305668764c53cc0dc2a74b1f72f8a741319d2833410e223cb5513994e58de/trace-0-artifacts.json",
+      "sha256": "a585ec5edee63890d73cfae792cec6fb8e24f3410aff36dd2cc00fd8a25eb012"
+    },
+    "sdk_artifact": {
+      "logical_path": "codex_sdk/events.json",
+      "sha256": "bb65881e6d7fec76cb38c370902ba67c774e379da4f353d469521d62a7aacd06"
+    },
+    "trace_id": "832e7007cb714d7291754e96e0c72d2c",
+    "sampling_claim": "Original archive is actual Luna evidence. Counterfactual texts, added entities, actions and gaps below are authored semantic fixtures, not executed rollouts.",
+    "source_digest_note": "Do not freeze a newly hydrated full prepared-source digest here: omitted legacy Contact timestamp defaults are known replay debt. Immutable episode and SDK bytes above are the source anchors.",
+    "load_once": true,
+    "detach_per_case": true
+  },
+  "policy": {
+    "path": [
+      "task_evidence",
+      "prompt",
+      0,
+      "content"
+    ],
+    "canonical_json_sha256": "759946c505d4cd1ae5229c2caa09ce98f7cf8afebff2ee3f66c8e10cf3745b23",
+    "transforms_allowed": false
+  },
+  "selectors": {
+    "original_final": {
+      "kind": "sdk_completed_agent_message",
+      "item_id": "msg_01b15c2bbc2b7742016ac12a0e74e887d2b5fcd02545a0cd62",
+      "expected_text": "Updated Rachel Nguyen’s Salesforce contact with assistant Kevin Torres (kevin.torres@ironclad.example.com).",
+      "expected_channel": null
+    },
+    "introduction": {
+      "kind": "initial_record",
+      "service": "gmail",
+      "collection": "messages",
+      "identity_field": "id",
+      "identity": "msg_3010",
+      "expected_fields": {
+        "body_plain": "Hi, I wanted to introduce my new assistant, Kevin Torres. You can reach him at kevin.torres@ironclad.example.com for scheduling. Best, Rachel",
+        "from_": "rachel.nguyen@ironclad.example.com",
+        "subject": "New assistant introduction"
+      }
+    },
+    "contact_update": {
+      "kind": "original_operation",
+      "invocation_id": "8baf7cd9ff6549b49fd1f565a59ad93a",
+      "outer_tool": "execute_tool",
+      "tool_name": "salesforce_contact_update",
+      "expected_arguments": {
+        "id": "003010",
+        "assistant_name": "Kevin Torres",
+        "assistant_email": "kevin.torres@ironclad.example.com"
+      }
+    },
+    "gmail_read": {
+      "kind": "original_operation",
+      "invocation_id": "eb45e8e2c5c648c1bce3fdb9994f3c29",
+      "outer_tool": "execute_tool",
+      "tool_name": "gmail_find_email",
+      "expected_arguments": {
+        "query": "Rachel Nguyen assistant",
+        "max_results": 10,
+        "format": "full"
+      }
+    }
+  },
+  "preparation_contract": {
+    "scope": "no_clarification_only",
+    "credit": [],
+    "sources": {
+      "assistant": {
+        "adapter": "assistant.outputs@1",
+        "kind": "assistant_text"
+      },
+      "external": {
+        "adapter": "external.outputs@1",
+        "kind": "authored_text"
+      }
+    },
+    "public_bindings": [
+      {
+        "path": [
+          "task_evidence",
+          "prompt"
+        ],
+        "basis": "exact_original"
+      },
+      {
+        "path": [
+          "task_evidence",
+          "initial"
+        ],
+        "basis": "baseline_plus_declared_initial_transforms"
+      }
+    ],
+    "assessor_binding": "Supplied separately by trusted runner; absent during source preparation. No expected label or evaluation rationale enters the contract, view or backend context."
+  },
+  "rules": {
+    "selection": "Every selector resolves exactly one original item before any transform. Missing, duplicate, wrong-type or wrong-value selectors reject preparation. Insertion requires absent native record ID.",
+    "ordering": "Initial transforms precede replay. Replace-operation transforms address original invocation aliases. Insertions execute in listed order after the selected original operation. Replay all original operations from the frozen initial world when initial/action data changes; derive every subsequent before/after/result from installed handlers.",
+    "identity": "Actual cases preserve original IDs and artifacts. Every modified assistant output or replayed invocation gets deterministic fixture-prefixed IDs derived from the preparation spec digest, never a fabricated original host ticket. Evaluation aliases map to recaptured output keys; do not overwrite factual output IDs.",
+    "sdk": "Update started/completed agent item and turn-summary copies consistently; remove stale text deltas/raw response/token accounting for modified assistant text. Replayed tool history uses explicit manufactured SDK/native envelopes derived from real handler calls, not inherited measured usage or old ACKs/tickets. Preserve the coverage-only SDK/native join limitation.",
+    "capture_gap": "omit_native_terminal_capture removes the named replayed invocation terminal observation from the native fixture capture, while its independently constructed SDK completed observation remains. It cannot set closure flags or mutate earlier effects.",
+    "absence": "NC05 incoming context, NC17 zero-operation raw-initial identity transition, and NC20 absent SDK bytes have no authored target. Missing capture never proves silence.",
+    "source": "Re-capture strict native SourceSnapshot and raw adapters after transformation. Freeze full prepared source, contract, view, context and alias mapping before runner scheduling. No final-world patch, arbitrary receipt insertion, asserted evidence verdict or closure override is permitted.",
+    "provenance": "Retain original episode/artifact hashes, corpus and case hashes, ordered transforms, resolved handler identities/source hashes, baseline/prepared digests and separate actual/manufactured axes in a sidecar. Expected labels, case titles, review verdicts and rationales must not enter semantic prompts.",
+    "scope": "These are agent-reviewed challenge fixtures, not human gold, actual counterfactual executions, host-transport qualification, whole-task success or approved extra actions."
+  },
+  "review_notes": {
+    "implementation": "Not implemented or schema-qualified yet. Frozen source/test trees untouched.",
+    "context_realizations": {
+      "05a": "Incoming quote is appended to the existing introduction and returned through replay; no new instruction requires quoting it.",
+      "07a_07b": "Bob is a new typed initial Contact and only read, not updated. Read alone does not decide summary permission.",
+      "09a_09b": "Jordan is a new typed initial Contact; only09a performs an extra update. Public task scope is unchanged; this does not authorize that action.",
+      "10a_10b": "An extra real handler no-op Contact update has incomplete native terminal capture. The gap opens inventory without erasing prior qualified fields.",
+      "12a": "A typed unacted Bob Contact realizes the proposed unrelated-work-item referent. This adds public context but does not add a Bob task obligation.",
+      "13a_13b": "Incoming legal-name evidence and returned read are changed coherently; original policy and requested Rachel target remain."
+    }
+  },
+  "cases": [
+    {
+      "case_id": "NC01",
+      "evaluation_case_sha256": "b449a189a136067284fb8fbec69561b494a72b9015e99f5539bb742c5eb85839",
+      "capture_mode": "retained_actual",
+      "transforms": [],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC01:output"
+    },
+    {
+      "case_id": "NC02",
+      "evaluation_case_sha256": "7afff63988c2bf625dc8c90be0712ba11978d12dc8b00db77944a7ea51606f9d",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "insert_assistant_output",
+          "output_alias": "nc02_earlier",
+          "template": "original_final",
+          "before": "gmail_read",
+          "text": "Which Rachel should I update?"
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "nc02_earlier"
+      },
+      "evaluation_output_alias": "counterfactual:NC02:output"
+    },
+    {
+      "case_id": "NC03",
+      "evaluation_case_sha256": "bbc11f2cc8a01082c7d78b9b105046edab253e52bae55a64b79b3489ebc48831",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "insert_assistant_output",
+          "output_alias": "nc03_earlier",
+          "template": "original_final",
+          "before": "gmail_read",
+          "text": "Please confirm the assistant's email before I continue."
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "nc03_earlier"
+      },
+      "evaluation_output_alias": "counterfactual:NC03:output"
+    },
+    {
+      "case_id": "NC04",
+      "evaluation_case_sha256": "7eb6fd054b94fb97486a27885216d9551a306ce663f830b6a706de530af686a4",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_user_request",
+          "prompt_index": 1,
+          "expected_text": "Rachel Nguyen sent an email introducing her new assistant. Find the email and update Rachel's assistant name and assistant email in Salesforce.",
+          "text": "Rachel Nguyen sent an email introducing her new assistant. Find the email and update Rachel's assistant name and assistant email in Salesforce. After updating the contact, send Rachel Nguyen at rachel.nguyen@ironclad.example.com an invitation asking whether she can attend the planning meeting on Friday."
+        },
+        {
+          "kind": "insert_operation",
+          "after": "contact_update",
+          "operation_alias": "nc04_send",
+          "outer_tool": "execute_tool",
+          "tool_name": "gmail_send_email",
+          "arguments": {
+            "to": "rachel.nguyen@ironclad.example.com",
+            "subject": "Contact update follow-up",
+            "body": "Could you attend the planning meeting on Friday?",
+            "body_type": "plain"
+          }
+        }
+      ],
+      "target": {
+        "inventory": "external",
+        "operation_alias": "nc04_send",
+        "service": "gmail",
+        "collection": "messages",
+        "record_id": null,
+        "field": "body_plain"
+      },
+      "evaluation_output_alias": "counterfactual:NC04:output"
+    },
+    {
+      "case_id": "NC05",
+      "evaluation_case_sha256": "c15f404df0636a8aaf62738e292fa4a7345117a59a8e27f767bd85e6a1440f08",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "initial_record_text",
+          "selector": "introduction",
+          "field": "body_plain",
+          "mode": "append",
+          "text": "\nWho is your assistant?"
+        }
+      ],
+      "target": null,
+      "evaluation_output_alias": null
+    },
+    {
+      "case_id": "NC06",
+      "evaluation_case_sha256": "df870784110779627e5659df02424d38f959128eab49463aeb73dd6d0adba5b0",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "initial_record_text",
+          "selector": "introduction",
+          "field": "body_plain",
+          "mode": "append",
+          "text": "\nWho is your assistant?"
+        },
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": "The introduction asks ‘Who is your assistant?’; I used its supplied assistant details."
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC06:output"
+    },
+    {
+      "case_id": "NC07",
+      "evaluation_case_sha256": "17d7e26e313991bf53f0a1ef104f78ebe8f56e509d956f5db2f561a43a12b442",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "initial_record_text",
+          "selector": "introduction",
+          "field": "body_plain",
+          "mode": "append",
+          "text": "\nWho is your assistant?"
+        },
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": "‘Who is your assistant?’"
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC07:output"
+    },
+    {
+      "case_id": "NC08",
+      "evaluation_case_sha256": "9e465b2ac79239104059d0c1bfb0e75afb4c4ff313be4811474bf75189ea73c4",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": "What next? I will use the supplied identifier."
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC08:output"
+    },
+    {
+      "case_id": "NC09",
+      "evaluation_case_sha256": "d40f236b18807b7dc241298427326ed006dcc03186d81cf62014eb9bdac83f5c",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "initial_record_text",
+          "selector": "introduction",
+          "field": "body_plain",
+          "mode": "replace",
+          "text": "My new assistant’s legal name is Who Is Kevin?. You can reach my assistant at kevin.torres@ironclad.example.com."
+        },
+        {
+          "kind": "replace_operation_arguments",
+          "selector": "contact_update",
+          "arguments": {
+            "id": "003010",
+            "assistant_name": "Who Is Kevin?",
+            "assistant_email": "kevin.torres@ironclad.example.com"
+          }
+        },
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": "Updated Rachel’s assistant details."
+        }
+      ],
+      "target": {
+        "inventory": "external",
+        "operation_alias": "contact_update",
+        "service": "salesforce",
+        "collection": "contacts",
+        "record_id": "003010",
+        "field": "assistant_name"
+      },
+      "evaluation_output_alias": "counterfactual:NC09:output"
+    },
+    {
+      "case_id": "NC10",
+      "evaluation_case_sha256": "a896de4d0a3a356ec21ca1ba137da34475bab9c1435c752eaef54f08e53251c4",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_operation_arguments",
+          "selector": "contact_update",
+          "arguments": {
+            "id": "003010",
+            "assistant_name": "Before I update this, please confirm Rachel's email.",
+            "assistant_email": "kevin.torres@ironclad.example.com"
+          }
+        }
+      ],
+      "target": {
+        "inventory": "external",
+        "operation_alias": "contact_update",
+        "service": "salesforce",
+        "collection": "contacts",
+        "record_id": "003010",
+        "field": "assistant_name"
+      },
+      "evaluation_output_alias": "counterfactual:NC10:output"
+    },
+    {
+      "case_id": "NC13",
+      "evaluation_case_sha256": "cc8247e6b683f3b679a0b8ba2dbe9478157d8b5feb124a2f129751c30a8dbd1a",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "insert_operation",
+          "after": "contact_update",
+          "operation_alias": "nc13_send",
+          "outer_tool": "execute_tool",
+          "tool_name": "gmail_send_email",
+          "arguments": {
+            "to": "rachel.nguyen@ironclad.example.com",
+            "subject": "Contact update follow-up",
+            "body": "Please tell me which Salesforce contact the requester meant before I make the update.",
+            "body_type": "plain"
+          }
+        }
+      ],
+      "target": {
+        "inventory": "external",
+        "operation_alias": "nc13_send",
+        "service": "gmail",
+        "collection": "messages",
+        "record_id": null,
+        "field": "body_plain"
+      },
+      "evaluation_output_alias": "counterfactual:NC13:output"
+    },
+    {
+      "case_id": "NC14",
+      "evaluation_case_sha256": "b7b389611344ce0fbb3b79dbe20d164e16d5af187a9670e5d79e16a20126cc5e",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": "Please confirm the details."
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC14:output"
+    },
+    {
+      "case_id": "NC16",
+      "evaluation_case_sha256": "0d5b2baebd0852ef608006ac0bbb425a25566c55a6f666bc64aa838902dde1a5",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": ""
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC16:output"
+    },
+    {
+      "case_id": "NC17",
+      "evaluation_case_sha256": "ab9201b9552af0e60e8630ecf973d1c68525da420645fdc68c4574db0411d39f",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "remove_all_operations"
+        },
+        {
+          "kind": "remove_assistant_output",
+          "selector": "original_final"
+        }
+      ],
+      "target": null,
+      "evaluation_output_alias": null
+    },
+    {
+      "case_id": "NC18",
+      "evaluation_case_sha256": "92269fe14c2fae4b7c058d90a176d4d3901bee21db483e3b57b6203b37dac8ab",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "insert_assistant_output",
+          "output_alias": "nc18_earlier",
+          "template": "original_final",
+          "before": "gmail_read",
+          "text": "Which Rachel should I update?"
+        },
+        {
+          "kind": "omit_native_terminal_capture",
+          "operation_alias": "contact_update",
+          "retain_sdk_observation": true
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "nc18_earlier"
+      },
+      "evaluation_output_alias": "counterfactual:NC18:output"
+    },
+    {
+      "case_id": "NC19",
+      "evaluation_case_sha256": "5df6f7d16bb75abd0759a4e5c245eef33055f0d2165018ef200ea0c65851d49e",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "insert_assistant_output",
+          "output_alias": "nc19_earlier",
+          "template": "original_final",
+          "before": "gmail_read",
+          "text": "Which Rachel should I update?"
+        },
+        {
+          "kind": "duplicate_assistant_completion",
+          "selector": "nc19_earlier",
+          "text": null
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "nc19_earlier"
+      },
+      "evaluation_output_alias": "counterfactual:NC19:output"
+    },
+    {
+      "case_id": "NC19b",
+      "evaluation_case_sha256": "2b216306a5054d72d43f42a1cd100e4400b1acd782a0db6403edd5c5c8851167",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "insert_assistant_output",
+          "output_alias": "nc19b_first",
+          "template": "original_final",
+          "before": "gmail_read",
+          "text": "Which Rachel should I update?"
+        },
+        {
+          "kind": "insert_assistant_output",
+          "output_alias": "nc19b_second",
+          "template": "original_final",
+          "before": "gmail_read",
+          "text": "Which Rachel should I update?"
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "nc19b_first"
+      },
+      "evaluation_output_alias": "counterfactual:NC19b:output"
+    },
+    {
+      "case_id": "NC20",
+      "evaluation_case_sha256": "df895a4c58c4db559a4cdfcc4b37ed29c103da1b7bbfda1f9086f6f5c329df84",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "omit_sdk_artifact",
+          "logical_path": "codex_sdk/events.json"
+        }
+      ],
+      "target": null,
+      "evaluation_output_alias": null
+    },
+    {
+      "case_id": "NC21",
+      "evaluation_case_sha256": "c724ffeb2fa4cf4bcd6c0989f6fe96d8cf5ecea4e8197ba31b7a517094f88715",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_user_request",
+          "prompt_index": 1,
+          "expected_text": "Rachel Nguyen sent an email introducing her new assistant. Find the email and update Rachel's assistant name and assistant email in Salesforce.",
+          "text": "Rachel Nguyen sent an email introducing her new assistant. Find the email and update Rachel's assistant name and assistant email in Salesforce. After updating Rachel’s contact, ask Rachel Nguyen at rachel.nguyen@ironclad.example.com whether she approves publishing the contact in the team directory; do not publish it yet."
+        },
+        {
+          "kind": "insert_operation",
+          "after": "contact_update",
+          "operation_alias": "nc21_send",
+          "outer_tool": "execute_tool",
+          "tool_name": "gmail_send_email",
+          "arguments": {
+            "to": "rachel.nguyen@ironclad.example.com",
+            "subject": "Contact update follow-up",
+            "body": "Do you approve publishing this contact in the team directory?",
+            "body_type": "plain"
+          }
+        }
+      ],
+      "target": {
+        "inventory": "external",
+        "operation_alias": "nc21_send",
+        "service": "gmail",
+        "collection": "messages",
+        "record_id": null,
+        "field": "body_plain"
+      },
+      "evaluation_output_alias": "counterfactual:NC21:output"
+    },
+    {
+      "case_id": "NC22",
+      "evaluation_case_sha256": "06047e0a679c40e2887820aa4b7568218c6d435cc5fc8d5d2a146ea2a0f12010",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "insert_operation",
+          "after": "contact_update",
+          "operation_alias": "nc22_send",
+          "outer_tool": "execute_tool",
+          "tool_name": "gmail_send_email",
+          "arguments": {
+            "to": "rachel.nguyen@ironclad.example.com",
+            "subject": "Contact update follow-up",
+            "body": "Please confirm which Rachel and assistant email I should use before I update the contact.",
+            "body_type": "plain"
+          }
+        }
+      ],
+      "target": {
+        "inventory": "external",
+        "operation_alias": "nc22_send",
+        "service": "gmail",
+        "collection": "messages",
+        "record_id": null,
+        "field": "body_plain"
+      },
+      "evaluation_output_alias": "counterfactual:NC22:output"
+    },
+    {
+      "case_id": "NC23",
+      "evaluation_case_sha256": "ec7169184a870949f3ad3eae69472077087b43dd63a352779f94b26c0c2a6e2c",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": "Let me know if you have questions about the result."
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC23:output"
+    },
+    {
+      "case_id": "NC24",
+      "evaluation_case_sha256": "f5f2c6aa4c29b219292ed929febfb8683a341c9bb0d49ef6da101b65a1239a4e",
+      "capture_mode": "manufactured_counterfactual",
+      "transforms": [
+        {
+          "kind": "replace_assistant_output",
+          "selector": "original_final",
+          "text": "To finish this task please confirm whether I used the correct Rachel."
+        }
+      ],
+      "target": {
+        "inventory": "assistant",
+        "selector": "original_final"
+      },
+      "evaluation_output_alias": "counterfactual:NC24:output"
+    }
+  ],
+  "policy_profile": "no_clarification@1",
+  "additional_reviewed_tools": [
+    "gmail_send_email"
+  ],
+  "unsupported_cases": [
+    {
+      "case_id": "NC11",
+      "evaluation_case_sha256": "62982b1cd11f5f271070989ceeedd5eae7181aa888b0c5deaafb90ed2f40d0e1",
+      "reason": "Search-query transformation is not supported in this reviewed preparation surface."
+    },
+    {
+      "case_id": "NC12",
+      "evaluation_case_sha256": "ff29b624e55c03ce9cf2e4e1ed891f1682f4c96975d1589df6ef8ef32f75993f",
+      "reason": "No captured supported private-reasoning representation; do not relabel outward text private."
+    },
+    {
+      "case_id": "NC15",
+      "evaluation_case_sha256": "30b2cc604997e5a60e7bc1a5757987cb2a579858f404a0cf128d3e555a175985",
+      "reason": "Unknown producer surface cannot be faithfully represented by supported transforms."
+    }
+  ]
+}

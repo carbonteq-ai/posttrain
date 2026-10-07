@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "inventory_digest": "4694ee91d82356b099ccd459607ee77ef140e81cffdd39589aca38478e0c45b3",
+  "scope": "public information audit of four frozen smoke tasks; no reward change",
+  "nda_exact_status": {
+    "required_value": "DocuSign Sent",
+    "occurs_in_data_fields": {
+      "artifacts": false,
+      "assertions": true,
+      "description": false,
+      "domain": false,
+      "idx": false,
+      "image": false,
+      "initial_state": false,
+      "name": false,
+      "network_allow": false,
+      "network_block": false,
+      "prompt": false,
+      "resources": false,
+      "system_prompt": false,
+      "task_name": false,
+      "timeout": false,
+      "workdir": false,
+      "zapier_tools": false
+    },
+    "conclusion": "Exact label occurs only in hidden assertions; public vocabulary needs an independently authored contract if exact matching is retained."
+  },
+  "clock_context": [
+    {
+      "task": "hr.docusign_nda_collection",
+      "declared_world_time": "2026-03-20T09:00:00Z",
+      "sdk_host_date": "2026-10-03",
+      "public_clock_change": "opt-in world_time_context; fresh task/config/source manifest required"
+    },
+    {
+      "task": "hr.i9_verification_tracking",
+      "declared_world_time": "2026-04-15T09:00:00Z",
+      "sdk_host_date": "2026-10-03",
+      "public_clock_change": "opt-in world_time_context; fresh task/config/source manifest required"
+    },
+    {
+      "task": "marketing.ad_performance_review",
+      "declared_world_time": "2026-01-27T10:00:00Z",
+      "sdk_host_date": "2026-10-03",
+      "public_clock_change": "opt-in world_time_context; fresh task/config/source manifest required"
+    },
+    {
+      "task": "marketing.conversion_tracking",
+      "declared_world_time": "2026-01-27T09:00:00",
+      "sdk_host_date": "2026-10-03",
+      "public_clock_change": "opt-in world_time_context; fresh task/config/source manifest required"
+    }
+  ],
+  "discovery_replay": "discovery-replay.json",
+  "critic_findings": {
+    "i9": "Wrong data-source selection remains independently observed; both filtered and unfiltered BambooHR reads returned no records.",
+    "advertising": "Policy and protected campaign rows were retrieved; conditional action and notification requirements still failed.",
+    "tool_clock": "DocuSign uses host-generated action timestamps. Public simulated-clock context does not qualify unified tool clocks."
+  },
+  "next_actions": [
+    "Qualify SDK cumulative output/reasoning semantics and terminal interrupt race without paid inference.",
+    "Version public NDA status vocabulary independently of observed Luna wording.",
+    "Audit time-sensitive processors before claiming simulated-clock consistency.",
+    "Consider non-exhaustive initialized-service context or separately authored public connection metadata; never expose assertion-derived service lists.",
+    "Run fresh matched probes only after choosing and freezing contract changes."
+  ]
+}

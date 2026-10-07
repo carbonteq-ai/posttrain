@@ -108,7 +108,10 @@ export function RolloutGroupTable({
   loadingMore,
   onLoadMore,
   onSelect,
+  stepLabel = (step) => step,
 }: {
+  /** How a recorded step is shown: its collection number when collections span several updates. */
+  stepLabel?: (step: number | null) => number | null;
   traces: TraceSummary[];
   allLoadedTraces: TraceSummary[];
   total: number;
@@ -158,7 +161,7 @@ export function RolloutGroupTable({
             <th scope="col" aria-sort={ariaSort('thinking')} className="border-l border-divider px-2 py-1.5 text-right">{sortable('thinking', 'Thinking')}</th><th scope="col" aria-sort={ariaSort('output')} className="px-2 py-1.5 text-right">{sortable('output', 'Output')}</th><th scope="col" aria-sort={ariaSort('total')} className="px-2 py-1.5 text-right">{sortable('total', 'Total', true, 'Total completion tokens, including thinking when recorded')}</th>
           </tr>
         </thead>
-        {paging.items.map((group) => <FragmentGroup key={group.id} group={group} expectedSize={expectedSize} metricColumns={metricColumns} selectedId={selectedId} expanded={expanded === group.id} onToggle={() => setExpanded(expanded === group.id ? null : group.id)} onSelect={onSelect} />)}
+        {paging.items.map((group) => <FragmentGroup key={group.id} stepLabel={stepLabel} group={group} expectedSize={expectedSize} metricColumns={metricColumns} selectedId={selectedId} expanded={expanded === group.id} onToggle={() => setExpanded(expanded === group.id ? null : group.id)} onSelect={onSelect} />)}
         {!paging.items.length && <tbody><tr><td colSpan={11 + metricColumns.length} className="px-3 py-8 text-center text-muted">{loadingMore ? 'Loading older rollouts…' : 'No loaded prompt groups match these filters.'}</td></tr></tbody>}
       </table>
     </div>
@@ -166,7 +169,8 @@ export function RolloutGroupTable({
   </section>;
 }
 
-function FragmentGroup({ group, expectedSize, metricColumns, selectedId, expanded, onToggle, onSelect }: {
+function FragmentGroup({ group, expectedSize, metricColumns, selectedId, expanded, onToggle, onSelect, stepLabel }: {
+  stepLabel: (step: number | null) => number | null;
   group: RolloutGroup;
   expectedSize: number | null;
   metricColumns: MetricColumn[];
@@ -177,12 +181,12 @@ function FragmentGroup({ group, expectedSize, metricColumns, selectedId, expande
 }) {
   return <tbody>
     <tr className="border-b border-divider bg-white hover:bg-subtle/50" aria-label={`Prompt group ${group.label}`}>
-      <td className="px-2 py-2 tabular-nums">{group.step ?? '—'}</td>
+      <td className="px-2 py-2 tabular-nums">{stepLabel(group.step) ?? '—'}</td>
       <th scope="row" className="px-2 py-2 font-normal"><button type="button" aria-expanded={expanded} onClick={onToggle} className="flex w-full items-center gap-1.5 text-left text-secondary hover:text-violet-700">{expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}<span className="truncate" title={`${group.label} · ${group.id}`}>{group.label}</span></button></th>
       <td className="px-2 py-2 tabular-nums">{group.traces.length}{expectedSize == null ? '' : ` / ${expectedSize}`}</td>
       <td className="border-l border-divider px-2 py-2 text-right tabular-nums">{formatReward(group.current?.mean)}</td>
       <td className="px-2 py-2 text-right tabular-nums">{formatReward(group.current?.std)}</td>
-      <td className="px-2 py-2 text-right tabular-nums" title={group.priorStep == null ? 'No complete earlier task group in the indexed facts' : `Optimizer step ${group.priorStep} · ${group.priorRollouts} rewarded rollouts across complete task groups`}>{group.prior ? `${formatReward(group.prior.mean)} / ${formatReward(group.prior.std)}` : '—'}</td>
+      <td className="px-2 py-2 text-right tabular-nums" title={group.priorStep == null ? 'No complete earlier task group in the indexed facts' : `Step ${stepLabel(group.priorStep)} · ${group.priorRollouts} rewarded rollouts across complete task groups`}>{group.prior ? `${formatReward(group.prior.mean)} / ${formatReward(group.prior.std)}` : '—'}</td>
       {metricColumns.map((metric) => <td key={metric.name} className="border-l border-divider px-2 py-2 text-right tabular-nums" title={`Mean of recorded ${metric.label} values`}>{formatReward(meanRecorded(group.traces, (trace) => componentValue(trace, metric.name))?.value)}</td>)}
       {groupMeanCell(group.traces, (trace) => trace.model_calls, 1, true)}
       {groupMeanCell(group.traces, (trace) => trace.tool_calls, 1)}

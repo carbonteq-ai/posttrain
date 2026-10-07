@@ -6,8 +6,9 @@ import asyncio
 import math
 import time
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
+from statistics import fmean
 from typing import Any, Literal, cast
 
 from posttrain.common import (
@@ -26,6 +27,7 @@ from ...reward_advantages import compute_capo_advantages, compute_gdpo_advantage
 from ...sampo_advantages import compute_sampo_advantages
 from ...update_plan import ExecutionCapabilities
 from ...update_records import InvalidPolicyUpdate, PolicyVersions, SemanticSpan
+from ...update_telemetry import collection_metrics
 from ..policy_update_admission import AdmittedNativePopulation
 from .update_totals import RolloutUpdateTotals
 
@@ -93,7 +95,64 @@ def collect_resolved_population(
         process_credit=process_credit,
     )
     context.artifact(artifact)
+    _observe_collection(context, request.settings, rollouts, admitted, step=applied + 1)
     return admitted
+
+
+class CandidateSource:
+    """Where an active collection's rounds take their candidate tasks (one row per prompt group)."""
+
+    kind = "abstract"
+
+    def take(self, count: int, *, round_index: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    def observe(self, groups: Sequence[tuple[str, Sequence[float]]]) -> None:
+        """Task rewards of each group of the round just generated."""
+
+
+@dataclass
+class ReservedCandidates(CandidateSource):
+    """A pool reserved before generation (the job's shuffled inventory slice), taken in order."""
+
+    rows: Sequence[dict[str, Any]]
+    cursor: int = 0
+    kind = "reserved"
+
+    def take(self, count: int, *, round_index: int) -> list[dict[str, Any]]:
+        taken = list(self.rows[self.cursor : self.cursor + count])
+        self.cursor += len(taken)
+        return taken
+
+
+@dataclass
+class CurriculumCandidates(CandidateSource):
+    """Each round asks the adaptive curriculum, which has observed every earlier round of the collection.
+
+    The curriculum models task success and whether a task yields reward spread on the
+    environment's task reward scale, so each episode's task reward is clamped to [0, 1]:
+    a penalty below zero counts as a failed attempt rather than invalidating the group.
+    """
+
+    runtime: Any
+    step: int
+    num_generations: int
+    kind = "adaptive_curriculum"
+
+    def take(self, count: int, *, round_index: int) -> list[dict[str, Any]]:
+        rows = self.runtime.select_task_groups(
+            count,
+            step=self.step,
+            selection_kind="initial_batch" if round_index == 1 else "active_sampling_refill",
+            round_index=round_index,
+        )
+        return [dict(row) for row in rows[:: self.num_generations]]
+
+    def observe(self, groups: Sequence[tuple[str, Sequence[float]]]) -> None:
+        self.runtime.observe_groups(
+            [(task, [min(max(float(value), 0.0), 1.0) for value in rewards]) for task, rewards in groups],
+            step=self.step,
+        )
 
 
 def collect_active_resolved_population(
@@ -101,7 +160,7 @@ def collect_active_resolved_population(
     request: SAMPORequest,
     tokenizer: Any,
     trainer: Any,
-    reserved: list[dict[str, Any]],
+    candidates: Sequence[dict[str, Any]] | CandidateSource,
     capabilities: ExecutionCapabilities,
     *,
     evidence_directory: Path,
@@ -114,7 +173,7 @@ def collect_active_resolved_population(
     totals: RolloutUpdateTotals | None = None,
     process_credit: Any = None,
 ) -> AdmittedNativePopulation:
-    """Run TRL post11 active rounds over one reserved task pool, then admit the selection.
+    """Run TRL post11 active rounds over reserved or curriculum-chosen candidates, then admit the selection.
 
     The resolved path collects explicit rows rather than TRL's dataloader, so the
     native refill cannot run here; ``ActiveRoundPlan`` applies TRL's exact round
@@ -134,8 +193,10 @@ def collect_active_resolved_population(
         getattr(bridge, "retain_population", None)
     ):
         raise InvalidPolicyUpdate("resolved collection requires native conditioning and retained artifact support")
-    if settings.policy_updates is None or active is None or settings.adaptive_curriculum is not None:
-        raise InvalidPolicyUpdate("resolved active collection requires explicit updates and no curriculum")
+    if settings.policy_updates is None or active is None:
+        raise InvalidPolicyUpdate("resolved active collection requires explicit updates and active sampling")
+    if (settings.adaptive_curriculum is not None) != isinstance(candidates, CurriculumCandidates):
+        raise InvalidPolicyUpdate("resolved active collection takes candidates from its selected curriculum only")
     if trainer.accelerator.num_processes != 1 or bool(getattr(trainer, "active_sampling", False)):
         raise InvalidPolicyUpdate("resolved active collection replaces, and cannot nest, native TRL refills")
     applied = trainer.state.global_step
@@ -145,16 +206,20 @@ def collect_active_resolved_population(
     plan = ActiveRoundPlan(
         settings.num_prompts_per_step, active.max_candidate_batches, active.oversample, active.oversample_refill
     )
-    tasks = [str(row["example_id"]) for row in reserved]
-    if len(tasks) != plan.pool or len(set(tasks)) != len(tasks):
-        raise InvalidPolicyUpdate("resolved active collection requires one distinct task per reserved candidate")
+    source = candidates if isinstance(candidates, CandidateSource) else ReservedCandidates(candidates)
+    if isinstance(source, ReservedCandidates):
+        tasks = [str(row["example_id"]) for row in source.rows]
+        if len(tasks) != plan.pool or len(set(tasks)) != len(tasks):
+            raise InvalidPolicyUpdate("resolved active collection requires one distinct task per reserved candidate")
     generations = settings.num_generations
     state: dict[str, Any] = {
         "schema": "posttrain.trl-active-collection@1",
         "sampler_step": applied,
         "metric": "shaped_reward",
         "reward_std_epsilon": 0.0,
-        "reserved": [{"uid": f"candidate-{index}", "task": task} for index, task in enumerate(tasks)],
+        "candidate_source": source.kind,
+        # Candidates as each round takes them (a curriculum chooses refills after observing earlier rounds).
+        "reserved": [],
         "rounds": [],
         "groups": [],
         "selected": None,
@@ -163,26 +228,35 @@ def collect_active_resolved_population(
     destination = evidence_directory.resolve()
     publish_collection_snapshot(context, destination, state)
     collector = rollout_function(context, request, tokenizer, totals, retain_native=True)
-    retained: list[tuple[str, tuple[EnvironmentRollout, ...]]] = []
+    retained: list[tuple[str, tuple[EnvironmentRollout, ...], float]] = []
     try:
         while (next_round := plan.next_round()) is not None:
             requested, size = next_round
             batch = list(range(plan.cursor, plan.cursor + size))
+            round_rows = source.take(size, round_index=plan.rounds + 1)
+            round_tasks = [str(row["example_id"]) for row in round_rows]
+            taken = {entry["task"] for entry in state["reserved"]}
+            if len(round_rows) != size or len(set(round_tasks)) != size or taken & set(round_tasks):
+                raise InvalidPolicyUpdate("resolved active round requires distinct tasks not taken earlier")
+            tasks_by_index = dict(zip(batch, round_tasks, strict=True))
+            state["reserved"].extend({"uid": f"candidate-{index}", "task": tasks_by_index[index]} for index in batch)
             state["rounds"].append({"index": plan.rounds + 1, "uids": [f"candidate-{index}" for index in batch]})
             state["status"] = "dispatching"
             publish_collection_snapshot(context, destination, state)
-            rows = [reserved[index] for index in batch for _ in range(generations)]
+            rows = [dict(row) for row in round_rows for _ in range(generations)]
             rollouts = collector([row["prompt"] for row in rows], trainer, inputs=rows)
             if not isinstance(rollouts, tuple):
                 raise InvalidPolicyUpdate("resolved collector returned flattened trainer rows")
             by_task: dict[str, list[EnvironmentRollout]] = {}
             for rollout in rollouts:
-                if rollout.example_id not in {tasks[index] for index in batch}:
+                if rollout.example_id not in tasks_by_index.values():
                     raise InvalidPolicyUpdate("resolved active round returned an unreserved task")
                 by_task.setdefault(rollout.example_id, []).append(rollout)
+            # The source sees every group's task rewards before the next round is chosen.
+            source.observe([(task, [rollout.reward for rollout in by_task.get(task, ())]) for task in round_tasks])
             kept = 0
             for index in batch:
-                group = tuple(by_task.get(tasks[index], ()))
+                group = tuple(by_task.get(tasks_by_index[index], ()))
                 complete = len(group) == generations
                 rewards = [
                     shape_online_reward(
@@ -193,6 +267,9 @@ def collect_active_resolved_population(
                 if complete and not all(math.isfinite(value) for value in rewards):
                     raise InvalidPolicyUpdate("resolved active classification requires finite shaped rewards")
                 eligible = complete and max(rewards) > min(rewards)
+                # Learning signal: how far the group's shaped rewards sit from their mean, the
+                # episode advantage magnitude under "mean" normalization.
+                signal = _learning_signal(rewards) if eligible else 0.0
                 state["groups"].append(
                     {
                         "uid": f"candidate-{index}",
@@ -200,24 +277,31 @@ def collect_active_resolved_population(
                         "traces": [rollout.trace.external_id for rollout in group],
                         "metric_values": rewards,
                         "spread_eligible": eligible,
+                        "learning_signal": signal,
                     }
                 )
                 if eligible:
                     kept += 1
-                    retained.append((f"candidate-{index}", group))
+                    retained.append((f"candidate-{index}", group, signal))
             plan.record(requested, size, kept)
             state["status"] = "round-observed"
             publish_collection_snapshot(context, destination, state)
         plan.require_full()
-        selected = retained[: settings.num_prompts_per_step]
-        state["selected"] = [uid for uid, _ in selected]
+        if active.retain == "learning_signal":
+            # Keep the groups that teach the most; the population stays in candidate order.
+            ranked = sorted(range(len(retained)), key=lambda position: (-retained[position][2], position))
+            selected = [retained[position] for position in sorted(ranked[: settings.num_prompts_per_step])]
+        else:
+            selected = retained[: settings.num_prompts_per_step]
+        state["retain"] = active.retain
+        state["selected"] = [uid for uid, _, _ in selected]
         state["status"] = "selected"
         publish_collection_snapshot(context, destination, state)
     except Exception:
         state["status"] = "failed"
         publish_collection_snapshot(context, destination, state)
         raise
-    population = tuple(rollout for _, group in selected for rollout in group)
+    population = tuple(rollout for _, group, _ in selected for rollout in group)
     artifact = bridge.retain_population(population)
     admitted = AdmittedNativePopulation.from_retained_artifact(
         artifact,
@@ -235,10 +319,146 @@ def collect_active_resolved_population(
         process_credit=process_credit,
     )
     context.artifact(artifact)
+    signals = {
+        "train/rl/active_sampling_retained_signal_mean": [signal for _, _, signal in selected],
+        "train/rl/active_sampling_eligible_signal_mean": [signal for _, _, signal in retained],
+    }
     context.metrics(
-        plan.metrics(generations), step=applied + 1, attributes={"measurement_scope": "resolved-active-collection"}
+        {**plan.metrics(generations), **{name: fmean(values) for name, values in signals.items() if values}},
+        step=applied + 1,
+        attributes={"measurement_scope": "resolved-active-collection"},
     )
+    _observe_collection(context, settings, population, admitted, step=applied + 1)
     return admitted
+
+
+def _report_device_memory(context: RunContext, step: int) -> None:
+    """Device memory the trainer holds as colocated vLLM wakes, and its peak since the last wake.
+
+    ``step`` is the logical step of the collection the wake precedes, the step
+    its rollout metrics are recorded at; tracking rejects steps that go back.
+
+    The sampler reclaims a fixed share of the device on wake; these values show
+    what the trainer still holds when it does, so a wake-up out-of-memory can be
+    attributed (live tensors versus allocator reservation versus other users).
+    """
+    import torch
+
+    if not torch.cuda.is_available():
+        return
+    free, total = torch.cuda.mem_get_info()
+    gib = 1024**3
+    values = {
+        "train/rl/device_memory_allocated_gib": torch.cuda.memory_allocated() / gib,
+        "train/rl/device_memory_reserved_gib": torch.cuda.memory_reserved() / gib,
+        "train/rl/device_memory_free_gib": free / gib,
+        "train/rl/device_memory_total_gib": total / gib,
+        "train/rl/device_memory_peak_allocated_gib": torch.cuda.max_memory_allocated() / gib,
+    }
+    torch.cuda.reset_peak_memory_stats()
+    print(  # noqa: T201 - also in job logs, next to the sampler's own wake-up errors
+        "device memory before sampler wake: "
+        + ", ".join(f"{name.rsplit('/', 1)[-1]}={value:.2f}" for name, value in values.items()),
+        flush=True,
+    )
+    for line in _device_memory_layout():
+        print(f"device memory before sampler wake: {line}", flush=True)  # noqa: T201
+    context.metrics(values, step=step, attributes={"measurement_scope": "sampler-wake"})
+
+
+def _device_memory_layout(top: int = 8) -> list[str]:
+    """Why reserved memory exceeds live memory: the allocator's mapped segments and the live tensors.
+
+    Live blocks are bucketed by size (a few small live blocks scattered through a
+    large mapped range keep that range from being released), and live tensors are
+    grouped by shape and dtype, one count per storage.
+    """
+    import gc
+    import warnings
+
+    import torch
+
+    mib = 1024**2
+    segments = torch.cuda.memory._snapshot()["segments"]
+    buckets = {"<1MiB": [0, 0], "1-20MiB": [0, 0], "20-200MiB": [0, 0], ">=200MiB": [0, 0]}
+    for segment in segments:
+        for block in segment["blocks"]:
+            if block["state"] != "active_allocated":
+                continue
+            size = block["size"]
+            key = (
+                "<1MiB"
+                if size < mib
+                else "1-20MiB"
+                if size < 20 * mib
+                else "20-200MiB"
+                if size < 200 * mib
+                else ">=200MiB"
+            )
+            buckets[key][0] += 1
+            buckets[key][1] += size
+    stats = torch.cuda.memory_stats()
+    lines = [
+        f"segments={len(segments)} mapped={sum(s['total_size'] for s in segments) / mib:.0f}MiB "
+        f"live={sum(s['allocated_size'] for s in segments) / mib:.0f}MiB "
+        f"inactive_split={stats.get('inactive_split_bytes.all.current', 0) / mib:.0f}MiB "
+        f"alloc_retries={stats.get('num_alloc_retries', 0)} "
+        + " ".join(f"live[{key}]={count}/{size / mib:.0f}MiB" for key, (count, size) in buckets.items())
+    ]
+    seen: set[int] = set()
+    groups: dict[tuple[str, str, str], list[int]] = {}
+    with warnings.catch_warnings():
+        # isinstance probes deprecated module attributes on some objects.
+        warnings.simplefilter("ignore")
+        tensors = [obj for obj in gc.get_objects() if isinstance(obj, torch.Tensor) and obj.is_cuda]
+    for obj in tensors:
+        try:
+            storage = obj.untyped_storage()
+        except Exception:  # noqa: BLE001 - lazily materialized or freed objects
+            continue
+        if storage.data_ptr() in seen:
+            continue
+        seen.add(storage.data_ptr())
+        kind = "parameter" if isinstance(obj, torch.nn.Parameter) else "tensor"
+        entry = groups.setdefault((kind, str(tuple(obj.shape)), str(obj.dtype)), [0, 0])
+        entry[0] += 1
+        entry[1] += storage.nbytes()
+    ranked = sorted(groups.items(), key=lambda item: -item[1][1])
+    lines.append(
+        f"live tensors: {sum(count for count, _ in groups.values())} storages "
+        f"{sum(size for _, size in groups.values()) / mib:.0f}MiB; largest groups: "
+        + "; ".join(
+            f"{kind} {shape} {dtype} x{count} {size / mib:.0f}MiB"
+            for (kind, shape, dtype), (count, size) in ranked[:top]
+        )
+    )
+    return lines
+
+
+def _learning_signal(rewards: Sequence[float]) -> float:
+    """Mean absolute deviation of a group's shaped rewards from their mean."""
+    mean = fmean(rewards)
+    return fmean(abs(value - mean) for value in rewards)
+
+
+def _observe_collection(
+    context: RunContext,
+    settings: Any,
+    population: tuple[EnvironmentRollout, ...],
+    admitted: AdmittedNativePopulation,
+    *,
+    step: int,
+) -> None:
+    """Report the admitted population once, at the first update that trains on it.
+
+    Rollout counts and timings stay with the candidate-scope rollout totals; these
+    values describe only the admitted groups that credit was prepared on.
+    """
+    values = collection_metrics(settings, population, credit_estimator_id=admitted.resolved.credit.estimator_id)
+    # The collection is identified by the step of its first update (this step);
+    # its applied updates carry the same collection step.
+    values["train/rl/collection_updates"] = len(admitted.resolved.updates)
+    context.metrics(values, step=step, attributes={"measurement_scope": "resolved-collection", "collection_step": step})
 
 
 def technique(request: GRPORequest | SAMPORequest | GDPORequest | CAPORequest) -> PolicyTechnique:
@@ -270,8 +490,6 @@ def rollout_function(
     update_totals = totals if totals is not None else RolloutUpdateTotals(context)
 
     rollout_execution = _rollout_execution_config(request)
-    if retain_native and rollout_execution is not None:
-        raise ValueError("resolved native collection has not qualified asynchronous rollout execution")
     rollout_batch_step: int | None = None
     rollout_batch_ordinal = 0
     collection_ordinal = 0
@@ -369,11 +587,21 @@ def rollout_function(
                     )
                     trainer._posttrain_async_collection_runtime = runtime  # noqa: SLF001 - backend lifecycle state
                 collection_ordinal += 1
+                if trainer.state.global_step != trainer._last_loaded_step:  # noqa: SLF001 - TRL's sync marker
+                    # TRL syncs before its own generation; resolved collection runs
+                    # outside it, so the sampler must receive the applied policy here.
+                    trainer.vllm_generation.sync_weights()
+                    trainer._last_loaded_step = trainer.state.global_step  # noqa: SLF001
                 # Waking colocated vLLM needs the memory the trainer's allocator still
-                # caches; TRL's batch generation path releases it the same way.
+                # caches; TRL's batch generation path releases it the same way. Collect
+                # unreachable objects first so no dead tensor keeps a block reserved.
+                import gc
+
                 from trl.generation.vllm_generation import empty_cache
 
+                gc.collect()
                 empty_cache()
+                _report_device_memory(context, optimizer_step)
                 outcomes = runtime.collect(
                     selected,
                     collection_id=f"step-{optimizer_step:08d}/collection-{collection_ordinal:06d}",
@@ -600,28 +828,11 @@ def _sampo_update_means(advantages: Any, settings: Any) -> dict[str, tuple[float
 
     The centred advantage means stay for continuity; the hierarchy evidence is
     what a reader can use (magnitudes, the turn share of credit and coverage).
+    The resolved engine reports the same credit evidence per collection.
     """
 
-    flat_turn_advantages = [value for values in advantages.turn_advantages for value in values]
-    flat_group_sizes = [value for values in advantages.anchor_group_sizes for value in values]
     return {
-        "train/rl/episode_advantage_mean": (
-            sum(advantages.episode_advantages) / len(advantages.episode_advantages),
-            len(advantages.episode_advantages),
-        ),
-        "train/rl/turn_advantage_mean": (
-            sum(flat_turn_advantages) / len(flat_turn_advantages),
-            len(flat_turn_advantages),
-        ),
-        "train/rl/anchor_group_size_mean": (
-            sum(flat_group_sizes) / len(flat_group_sizes),
-            len(flat_group_sizes),
-        ),
-        "train/rl/sparse_reward_projection_fraction": (
-            sum(advantages.used_sparse_rewards) / len(advantages.used_sparse_rewards),
-            len(advantages.used_sparse_rewards),
-        ),
-        **advantages.hierarchy_evidence(settings.step_advantage_weight),
+        **advantages.credit_evidence(settings.step_advantage_weight),
         **advantages.policy_credit_evidence(),
     }
 

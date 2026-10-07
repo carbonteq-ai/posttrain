@@ -1,0 +1,425 @@
+{
+  "registry_size": 549,
+  "source_matches_frozen_benchmark": true,
+  "results": [
+    {
+      "task": "hr.i9_verification_tracking",
+      "searches": [
+        {
+          "task": "hr.i9_verification_tracking",
+          "query": "I-9 employment verification recent hires status employee records compliance follow up actions HR",
+          "top_k": 5,
+          "returned": [
+            "twitter_follow_user",
+            "bamboohr_new_employee",
+            "pipefy_find_database_records",
+            "bamboohr_employeeList",
+            "xero_update_employee"
+          ],
+          "replay_equal": true,
+          "query_oov_terms": [
+            "i",
+            "9",
+            "employment",
+            "hires",
+            "compliance",
+            "hr"
+          ],
+          "declared_tool_ranks": [
+            {
+              "name": "gmail_find_email",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "gmail_get_email_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "gmail_send_email",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_get_many_rows",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_update_row",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_find_worksheet",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_get_spreadsheet_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "slack_send_channel_message",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            }
+          ]
+        },
+        {
+          "task": "hr.i9_verification_tracking",
+          "query": "HR I-9 form employment eligibility verification document status I9 cases records",
+          "top_k": 5,
+          "returned": [
+            "facebook_lead_ads_create_lead_ad",
+            "pipefy_find_database_records",
+            "salesforce_document_create",
+            "salesforce_case_create",
+            "zendesk_update_user"
+          ],
+          "replay_equal": true,
+          "query_oov_terms": [
+            "hr",
+            "i",
+            "9",
+            "employment",
+            "eligibility",
+            "i9",
+            "cases"
+          ],
+          "declared_tool_ranks": [
+            {
+              "name": "gmail_find_email",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "gmail_get_email_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "gmail_send_email",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_get_many_rows",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_update_row",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_find_worksheet",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_get_spreadsheet_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "slack_send_channel_message",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            }
+          ]
+        },
+        {
+          "task": "hr.i9_verification_tracking",
+          "query": "bamboohr employee list new hires onboarding tasks documents lookup employee files I9",
+          "top_k": 5,
+          "returned": [
+            "bamboohr_new_employee",
+            "bamboohr_employee_file_category",
+            "bamboohr_updated_employee_poll",
+            "bamboohr_terminated_employee",
+            "bamboohr_updated_employee"
+          ],
+          "replay_equal": true,
+          "query_oov_terms": [
+            "hires",
+            "onboarding",
+            "i9"
+          ],
+          "declared_tool_ranks": [
+            {
+              "name": "gmail_find_email",
+              "registry_present": true,
+              "rank": 68,
+              "score": 3.0767287361394025
+            },
+            {
+              "name": "gmail_get_email_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "gmail_send_email",
+              "registry_present": true,
+              "rank": 213,
+              "score": 0.9473003028496543
+            },
+            {
+              "name": "google_sheets_get_many_rows",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_update_row",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_find_worksheet",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_get_spreadsheet_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "slack_send_channel_message",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            }
+          ]
+        },
+        {
+          "task": "hr.i9_verification_tracking",
+          "query": "bamboohr_employeeList list employee records hire date limit",
+          "top_k": 5,
+          "returned": [
+            "bamboohr_employeeList",
+            "bamboohr_list_monitor_fields",
+            "bamboohr_updated_employee_poll",
+            "bamboohr_new_employee",
+            "bamboohr_terminated_employee"
+          ],
+          "replay_equal": true,
+          "query_oov_terms": [
+            "hire"
+          ],
+          "declared_tool_ranks": [
+            {
+              "name": "gmail_find_email",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "gmail_get_email_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "gmail_send_email",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_get_many_rows",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_update_row",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_find_worksheet",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_sheets_get_spreadsheet_by_id",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "slack_send_channel_message",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            }
+          ]
+        }
+      ],
+      "alternative_queries": [
+        {
+          "query": "gmail search email policy procedures",
+          "top5": [
+            "gmail_find_email",
+            "gmail_list_emails",
+            "gmail_send_email",
+            "chatgpt_check_moderations",
+            "helpcrunch_find_customer"
+          ]
+        },
+        {
+          "query": "google sheets read spreadsheet rows",
+          "top5": [
+            "google_sheets_get_many_rows",
+            "google_sheets_find_many_rows",
+            "google_sheets_append_row",
+            "google_sheets_lookup_row",
+            "google_sheets_find_worksheet"
+          ]
+        },
+        {
+          "query": "employment verification procedures",
+          "top5": [
+            "zendesk_update_user"
+          ]
+        },
+        {
+          "query": "I9",
+          "top5": []
+        }
+      ]
+    },
+    {
+      "task": "marketing.conversion_tracking",
+      "searches": [
+        {
+          "task": "marketing.conversion_tracking",
+          "query": "Google Ads upload conversion data offline conversions standard conversion tracking process list deals closed CRM sales this week",
+          "top_k": 10,
+          "returned": [
+            "google_ads_send_offline_conversion",
+            "linkedin_conversions_send_conversion_event",
+            "linkedin_ads_create_conversion_event",
+            "google_ads_find_customer_list",
+            "google_ads_create_customer_list",
+            "hubspot_get_all_deals",
+            "google_ads_add_email_to_customer_list",
+            "google_ads_remove_from_customer_list",
+            "google_ads_add_to_customer_list",
+            "facebook_conversions_send_lead_event"
+          ],
+          "replay_equal": true,
+          "query_oov_terms": [
+            "standard",
+            "process",
+            "crm",
+            "week"
+          ],
+          "declared_tool_ranks": [
+            {
+              "name": "gmail_list_emails",
+              "registry_present": true,
+              "rank": 108,
+              "score": 2.802127321015411
+            },
+            {
+              "name": "gmail_find_email",
+              "registry_present": true,
+              "rank": null,
+              "score": 0.0
+            },
+            {
+              "name": "google_ads_send_offline_conversion",
+              "registry_present": true,
+              "rank": 1,
+              "score": 29.121447703037155
+            },
+            {
+              "name": "google_sheets_get_many_rows",
+              "registry_present": true,
+              "rank": 113,
+              "score": 2.7783655355754444
+            },
+            {
+              "name": "google_sheets_get_spreadsheet_by_id",
+              "registry_present": true,
+              "rank": 36,
+              "score": 6.737505524611597
+            },
+            {
+              "name": "google_drive_find_multiple_files",
+              "registry_present": true,
+              "rank": 80,
+              "score": 3.483486189431903
+            },
+            {
+              "name": "google_sheets_find_worksheet",
+              "registry_present": true,
+              "rank": 71,
+              "score": 3.828504978458473
+            }
+          ]
+        }
+      ],
+      "alternative_queries": [
+        {
+          "query": "gmail search email conversion tracking process",
+          "top5": [
+            "linkedin_conversions_send_conversion_event",
+            "linkedin_ads_create_conversion_event",
+            "google_ads_send_offline_conversion",
+            "gmail_find_email",
+            "gmail_list_emails"
+          ]
+        },
+        {
+          "query": "google sheets read spreadsheet rows closed deals",
+          "top5": [
+            "google_sheets_get_many_rows",
+            "google_sheets_find_many_rows",
+            "google_sheets_append_row",
+            "google_sheets_lookup_row",
+            "google_sheets_find_worksheet"
+          ]
+        },
+        {
+          "query": "google ads offline conversion",
+          "top5": [
+            "google_ads_send_offline_conversion",
+            "linkedin_ads_create_conversion_event",
+            "linkedin_conversions_send_conversion_event",
+            "google_ads_get_all_campaigns",
+            "google_ads_find_customer_list"
+          ]
+        }
+      ]
+    }
+  ]
+}

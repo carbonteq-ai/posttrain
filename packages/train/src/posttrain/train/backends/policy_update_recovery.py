@@ -6,16 +6,16 @@ import hashlib
 import json
 import math
 import os
-from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
-from types import MappingProxyType, SimpleNamespace
+from types import SimpleNamespace
 from typing import Any
 
+import numpy as np
 import torch
 
 from ..checkpoints import CheckpointComponent
-from ..update_records import ActionRef, InvalidPolicyUpdate, record_digest
+from ..update_records import InvalidPolicyUpdate, record_digest
 from ..update_recovery import (
     FILENAME,
     UpdateRecoveryIdentity,
@@ -34,21 +34,21 @@ NATIVE_EVIDENCE_FILENAME = "posttrain-native-population.bin"
 CORRECTION_FILENAME = "posttrain-sampler-correction.json"
 
 
-def _correction_payload(correction: Mapping[ActionRef, float] | None) -> Any:
-    return None if correction is None else [(asdict(action), value) for action, value in sorted(correction.items())]
+def _correction_payload(correction: np.ndarray | None) -> Any:
+    return None if correction is None else np.asarray(correction, dtype=np.float64).tolist()
 
 
-def _correction_digest(correction: Mapping[ActionRef, float] | None) -> str:
+def _correction_digest(correction: np.ndarray | None) -> str:
     return hashlib.sha256(
         json.dumps(_correction_payload(correction), sort_keys=True, allow_nan=False).encode()
     ).hexdigest()
 
 
-def load_sampler_correction(checkpoint: Path, identity: UpdateRecoveryIdentity) -> Mapping[ActionRef, float] | None:
+def load_sampler_correction(checkpoint: Path, identity: UpdateRecoveryIdentity) -> np.ndarray | None:
     """Read detached correction only after every checkpoint component verifies.
 
     The caller still admits runtime/recipe identities independently. Uncorrected
-    legacy checkpoints keep their existing identity and need no extra component.
+    checkpoints keep their existing identity and need no extra component.
     """
     state = load_update_recovery(checkpoint, identity)
     components = [item for item in state.components if item.role == "sampler-correction"]
@@ -60,28 +60,30 @@ def load_sampler_correction(checkpoint: Path, identity: UpdateRecoveryIdentity) 
         raise InvalidPolicyUpdate("corrected checkpoint lacks sealed sampler correction")
     try:
         payload = json.loads((checkpoint / CORRECTION_FILENAME).read_text())
-        if set(payload) != {"schema", "weights"} or payload["schema"] != "posttrain.sampler-correction.v1":
+        if set(payload) != {"schema", "weights"} or payload["schema"] != "posttrain.sampler-correction.v2":
             raise ValueError("unsupported correction schema")
-        pairs = [(ActionRef(**action), value) for action, value in payload["weights"]]
-        correction = dict(pairs)
-        if len(correction) != len(pairs) or any(
-            type(value) not in (float, int) or not math.isfinite(value) or value < 0 for value in correction.values()
+        weights = payload["weights"]
+        if not isinstance(weights, list) or any(
+            type(value) not in (float, int) or not math.isfinite(value) or value < 0 for value in weights
         ):
             raise ValueError("invalid correction weights")
+        correction = np.asarray(weights, dtype=np.float64)
         retained = decode_population_payload(json.loads((checkpoint / POPULATION_FILENAME).read_text()))
-        actions = {record.action for record in retained.resolved.snapshot.actions}
-        if set(correction) != actions or _correction_digest(correction) != identity.sampler_correction_digest:
+        if correction.shape != (retained.resolved.snapshot.size,) or (
+            _correction_digest(correction) != identity.sampler_correction_digest
+        ):
             raise ValueError("correction differs from complete frozen population")
     except (OSError, ValueError, TypeError, KeyError) as error:
         raise InvalidPolicyUpdate("retained sampler correction differs from the sealed population identity") from error
-    return MappingProxyType(correction)
+    correction.setflags(write=False)
+    return correction
 
 
 def load_retained_population(
     checkpoint: Path,
     identity: UpdateRecoveryIdentity,
     *,
-    sampler_correction: Mapping[ActionRef, float] | None,
+    sampler_correction: np.ndarray | None,
 ) -> RetainedResolvedPopulation:
     """Reconstruct verified sidecar records before loading native parameters.
 
@@ -192,7 +194,7 @@ def save_population_recovery(
             score_contract=population.score_contract,
             score_temperature=population.score_temperature,
         )
-        values[role] = torch.stack([frozen.values[record.action].detach().cpu() for record in snapshot.actions])
+        values[role] = frozen.values.detach().cpu().clone()
     if population.spec.beta and "reference" not in values:
         raise InvalidPolicyUpdate("KL recovery requires retained population-frozen reference scores")
     # Check counters and native component presence before any sidecar mutation.
@@ -222,12 +224,10 @@ def save_population_recovery(
 
     correction_component = ()
     if population.sampler_correction is not None:
-        correction = population.sampler_correction
-        if set(correction) != {record.action for record in snapshot.actions} or any(
-            type(value) not in (int, float) or not math.isfinite(value) or value < 0 for value in correction.values()
-        ):
+        correction = np.asarray(population.sampler_correction, dtype=np.float64)
+        if correction.shape != (snapshot.size,) or not np.isfinite(correction).all() or (correction < 0).any():
             raise InvalidPolicyUpdate("checkpoint correction requires complete finite detached action weights")
-        payload = {"schema": "posttrain.sampler-correction.v1", "weights": _correction_payload(correction)}
+        payload = {"schema": "posttrain.sampler-correction.v2", "weights": _correction_payload(correction)}
         with (checkpoint / CORRECTION_FILENAME).open("x") as stream:
             json.dump(payload, stream, sort_keys=True, allow_nan=False)
             stream.flush()
@@ -237,7 +237,7 @@ def save_population_recovery(
     reader = getattr(population, "read_input", None)
     if isinstance(reader, NativePopulationInputs):
         evidence = reader.retained_evidence
-        if hashlib.sha256(evidence).hexdigest() != snapshot.native_evidence_digest:
+        if reader.evidence.digest != snapshot.native_evidence_digest:
             raise InvalidPolicyUpdate("checkpoint native evidence differs from its frozen population")
         with (checkpoint / NATIVE_EVIDENCE_FILENAME).open("xb") as stream:
             stream.write(evidence)
@@ -308,7 +308,7 @@ def restore_population_recovery(
     if json.loads(json.dumps(canonical, allow_nan=False)) != expected:
         raise InvalidPolicyUpdate("recovery retained population/credit differs from selected resolved inputs")
     try:
-        payload = torch.load(checkpoint / SCORES_FILENAME, weights_only=True, map_location=device)
+        payload = torch.load(checkpoint / SCORES_FILENAME, weights_only=True, map_location="cpu")
     except (OSError, ValueError, RuntimeError) as error:
         raise InvalidPolicyUpdate("retained frozen policy scores cannot be loaded") from error
     expected_roles = {"old"} | ({"reference"} if population.spec.beta else set())
@@ -321,7 +321,7 @@ def restore_population_recovery(
             version is None
             or not isinstance(tensor, torch.Tensor)
             or not tensor.is_floating_point()
-            or tensor.shape != (len(snapshot.actions),)
+            or tensor.shape != (snapshot.size,)
         ):
             raise InvalidPolicyUpdate("recovery scores do not align with the admitted action population")
         scores = FrozenPopulationScores(
@@ -329,12 +329,7 @@ def restore_population_recovery(
             version,
             population.score_contract,
             population.score_temperature,
-            MappingProxyType(
-                {
-                    record.action: value.detach().clone()
-                    for record, value in zip(snapshot.actions, tensor.unbind(), strict=True)
-                }
-            ),
+            tensor.detach().clone(),
         )
         scores.validate(
             snapshot,

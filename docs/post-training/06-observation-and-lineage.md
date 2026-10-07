@@ -133,6 +133,23 @@ describe (`source_step`); tracking readers return every point at this logical
 step, and such replayed points replace live points of the same name for that
 update.
 
+An online run trains on **collections**: a collection is one population of
+episodes sampled at one policy version and applied as one or more optimizer
+updates. Values that describe the population itself (episode rewards and their
+spread, completion length and truncation, rollout counts and seconds, admission
+and active-sampling counters, credit evidence, sampler state) are collection
+metrics: one value per collection, written at the step of the collection's
+first update. A collection is identified by that step, its `collection_step`,
+and records how many updates it feeds (`train/rl/collection_updates`). Each
+applied update's metrics carry the `collection_step` of the population it
+trained on and its 1-based position in it (`collection_update`). A run whose
+updates each train on their own population needs neither tag: its collection
+step is its update step. Traces of a collection carry its collection step as
+their rollout step. Tracking readers present collections as their own grain, one
+row per collection with its updates rolled up by each measure's declared
+aggregation; per-update views never repeat a collection value across its updates
+or divide it among them.
+
 ### Namespaces
 
 ```text
@@ -218,6 +235,23 @@ Throughput and latency percentiles are **computed** from measured traces +
 | `eval/rollout/num_tool_calls` | |
 | `eval/rollout/num_model_calls` | |
 | `eval/environment/*` | Env-native diagnostics worth indexing |
+
+The `eval/environment/*` diagnostics are realized as **environment metrics**: the
+numeric per-episode values a Verifiers environment reports in its native trace
+(`metrics`; AutomationBench reports `tool_mistakes`, `tool_unknown_id`,
+`tool_invalid_arguments`, `tool_missing_arguments`, `tool_unknown_tool` and
+`tool_empty_results`). The integration projects them once per trace, at the
+episode grain, as name and finite-number rows beside the trace facts (fact
+calculator `verifiers-trace-facts.v11`; the tracking provider stores one row per
+trace, projection and name and exposes the current ones to readers). The
+environment owns every name and its meaning; the framework never classifies raw
+tool results or interprets a name. Whether a tool call failed is therefore the
+environment's judgment, not a rule of the framework. Views compute means and
+rates (for example the mean mistakes per episode and the share of episodes with
+at least one) from these rows; they are not persisted as a second copy. A trace
+projected before this field existed has no environment metrics, and a view
+shows that as missing, never as zero. A projection keeps at most 128 metrics
+per trace and records in the fact provenance when it dropped any.
 
 **On the run (`eval/run/*`):**
 
@@ -347,6 +381,16 @@ advantage summaries, and admission failures/retries. Raw critiques remain
 derived native-trace records referenced immutably. Checkpoint compatibility
 includes algorithm, reward schema, scorer, and normalization identity. Judge
 sampling attempts and token costs remain individually attributable.
+
+Native assessment evidence distinguishes the assessed subject, permitted source
+views, exact prepared inputs, cited evidence, and credit recipients. Retain input
+builder/configuration identity, transformations, invocation/result links and raw
+responses before parsing. Domain assignments retain accepted parent findings,
+rule identity, signal meaning, allocation, gates and attribution status separately
+from token-alignment fidelity and algorithm advantages. During training, full
+assessment inputs, transcripts and masks remain in native compressed artifacts;
+tracking receives results and artifact references. These records do not change
+the policy's original conditioning context.
 
 For an API-only judge, evidence also retains the requested hosted-model id and
 revision, external-service id and revision, safe endpoint origin, resolved

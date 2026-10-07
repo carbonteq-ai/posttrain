@@ -1,6 +1,17 @@
 # Post-training docs (canonical baseline)
 
 **Status: FROZEN — 2026-07-21** (implementation checkpoint)
+**Amendment — native assessment and domain credit assignment (2026-10-03):**
+Verifiers owns assessment input preparation and reusable, versioned domain
+assignment rules linking findings to recipient actions. Assessed subjects,
+permitted context, actual assessor inputs, cited evidence, and credit recipients
+are distinct. Native alignment supplies original-token mappings; training
+validates consumer alignment and owns returns, advantages, population
+normalization, and objectives. This clarifies the earlier term “algorithm credit”
+without changing existing losses or scalar rewards. It accepts the design, not
+implementation qualification. See [API proposal](../research/verifiers-assessment-api.md)
+and [execution runbook](../plan/verifiers-assessment-api-and-environment-migration-runbook.md).
+
 **Amendment — resolved policy updates (2026-10-02):** synchronous text-policy
 training may select an explicit optimizer schedule independently of execution
 packing. Complete native populations determine credit; selected contributions

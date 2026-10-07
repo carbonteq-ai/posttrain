@@ -29,6 +29,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { FilterPopover } from './components/FilterPopover';
+import { collectionAxis } from './lib/collections';
 import { evaluationsByParent, formatScore, shortSuiteLabels, stepLabel } from './lib/evaluations';
 import { RolloutTimeline, RolloutTimeSummary } from './components/RolloutTime';
 import { PhaseMemoryTimeline } from './components/PhaseMemoryTimeline';
@@ -626,6 +627,16 @@ function grpoRolloutParameters(
     : null;
   const promptGroups = configuredPromptGroups ?? derivedPromptGroups;
   const promptGroupsValue = methodValue(promptGroups);
+  // One collection (sampled population) may feed several optimizer updates.
+  const rolloutsPerCollection = typeof promptGroups === 'number' && typeof generations === 'number'
+    ? promptGroups * generations
+    : globalBatch;
+  const scheduleUnit = nestedValue(settings, 'policy_updates', 'schedule', 'unit');
+  const scheduleBudget = nestedValue(settings, 'policy_updates', 'schedule', 'budget');
+  const scheduleEpochs = nestedValue(settings, 'policy_updates', 'schedule', 'epochs');
+  const updateSchedule = typeof scheduleUnit === 'string' && typeof scheduleBudget === 'number'
+    ? `${scheduleBudget} ${scheduleUnit}${scheduleBudget === 1 ? '' : 's'} per update${typeof scheduleEpochs === 'number' && scheduleEpochs > 1 ? ` · ${scheduleEpochs} passes` : ''}`
+    : null;
   const speculativeMethod = nestedValue(rolloutInference, 'engine', 'speculative_config', 'method');
   const speculativeTokens = nestedValue(rolloutInference, 'engine', 'speculative_config', 'num_speculative_tokens');
   const acceleration = typeof speculativeMethod === 'string'
@@ -636,9 +647,10 @@ function grpoRolloutParameters(
     methodValue(nestedValue(settings, 'max_completion_length'), 'tokens'),
   ].filter(Boolean).join(' / ') || null;
   return [
-    ['Prompt groups / update', promptGroupsValue && configuredPromptGroups == null ? `${promptGroupsValue} · derived` : promptGroupsValue],
+    ['Prompt groups / collection', promptGroupsValue && configuredPromptGroups == null ? `${promptGroupsValue} · derived` : promptGroupsValue],
     ['Rollouts / prompt', methodValue(generations)],
-    ['Rollouts / update', methodValue(globalBatch)],
+    ['Rollouts / collection', methodValue(rolloutsPerCollection)],
+    ['Update schedule', updateSchedule],
     ['Environment concurrency', methodValue(nestedValue(environment, 'max_concurrent'))],
     ['Inference sequence cap', methodValue(nestedValue(rolloutInference, 'engine', 'max_num_seqs'))],
     ['Temperature / top-p', [
@@ -961,7 +973,14 @@ export default function App() {
     try {
       if (!sourceKey) return;
       const sourceComparison = await api.comparisonKey(sourceKey);
-      const candidates = runs.filter((run) => run.locator.source_id === selected?.locator.source_id && run.run.project_id === selected?.run.project_id && run.run.job_kind === sourceComparison.job_kind);
+      const jobKind = sourceComparison.job_kind ?? selected?.run.job_kind;
+      const candidates = runs.filter((run) => run.locator.source_id === selected?.locator.source_id && run.run.project_id === selected?.run.project_id && run.run.job_kind === jobKind);
+      // Training runs have no shared evaluation population; any run of the job kind is a candidate and
+      // the comparison lists the training inputs that differ.
+      if (sourceComparison.comparison_key == null) {
+        setCompareCandidates(candidates);
+        return;
+      }
       const candidateKeys = await Promise.all(candidates.map((run) => api.comparisonKey(run.run_key).catch(() => null)));
       setCompareCandidates(candidates.filter((_, index) => candidateKeys[index]?.comparison_key === sourceComparison.comparison_key));
     } catch (cause) {
@@ -1199,12 +1218,12 @@ export default function App() {
   }, [sidebarPackages]);
 
   const response = selected != null && loadedView?.runKey === selected.run_key ? loadedView.response : null;
-  const activeChartKey = response?.view.charts?.[Math.min(activeChart, Math.max((response.view.charts?.length ?? 0) - 1, 0))]?.key;
+  const activeChartView = response?.view.charts?.[Math.min(activeChart, Math.max((response.view.charts?.length ?? 0) - 1, 0))];
   const rolloutBehaviorKey = section === 'Overview'
     && response?.view.grpo != null
     && response.view.trace_evaluation_enabled
     && (response.view.trace_count ?? 0) > 0
-    && activeChartKey === 'optimization'
+    && (activeChartView?.series.some((series) => series.name === 'train/rl/reward_mean') ?? false)
     && selected != null
     ? selected.run_key
     : null;
@@ -1787,9 +1806,12 @@ function GenericOverview({
     [view.metric_help],
   );
   const baseChart = charts[Math.min(activeChart, Math.max(charts.length - 1, 0))];
+  const axis = useMemo(() => collectionAxis(view.collection_steps), [view.collection_steps]);
   const isGroupPolicy = policyOptimizationJobKinds.has(selected.run.job_kind);
   const groupPolicyLabel = isGroupPolicy ? selected.run.job_kind.slice('train.'.length).toUpperCase() : null;
-  const rolloutSeries: MetricSeries[] = isGroupPolicy && baseChart?.key === 'optimization'
+  // Episode behavior belongs with the population's reward (per collection when collections span updates).
+  const holdsReward = (item: { series: MetricSeries[] } | undefined) => item?.series.some((series) => series.name === 'train/rl/reward_mean') ?? false;
+  const rolloutSeries: MetricSeries[] = isGroupPolicy && holdsReward(baseChart)
     ? [
       ['trace/rollout/avg_thinking_tokens', 'thinking_tokens'],
       ['trace/rollout/avg_output_tokens', 'output_tokens'],
@@ -1802,24 +1824,59 @@ function GenericOverview({
       return points.length ? [{ name, points }] : [];
     })
     : [];
-  const chart = baseChart == null ? undefined : { ...baseChart, series: [...baseChart.series, ...rolloutSeries] };
+  // Steps are collections. When a run trains on each collection with several updates, population values
+  // sit at their collection's number and updates at fractions leading up to it, so runs with different
+  // update schedules share one axis (see lib/collections).
+  const collectionNames = new Set([...(baseChart?.collection_series ?? []), ...rolloutSeries.map((series) => series.name)]);
+  const chart = baseChart == null ? undefined : {
+    ...baseChart,
+    series: [...baseChart.series, ...rolloutSeries].map((series) => (axis.remapped
+      ? {
+        ...series,
+        points: series.points.map((point) => (point.step == null
+          ? point
+          : { ...point, step: axis.position(point.step, collectionNames.has(series.name) ? 'collection' : 'update') })),
+      }
+      : series)),
+  };
+  const chartXAxis = useMemo(() => ({ name: 'Step', formatValue: axis.label }), [axis]);
+  // A collection's population values describe the rollouts its updates trained on: hold each across
+  // those updates (from the previous collection up to its own number) instead of a point at the end.
+  const heldSeries = useMemo(() => (axis.remapped ? [...collectionNames] : []), [axis.remapped, collectionNames]);
   const lead = summary[0];
   const leadPoints = charts
     .flatMap((item) => item.series)
     .find((series) => series.name === lead?.metric)?.points ?? [];
   const previousLeadPoint = leadPoints.at(-2);
   const latestLeadPoint = leadPoints.at(-1);
-  const leadDelta = previousLeadPoint && latestLeadPoint
-    ? latestLeadPoint.value - previousLeadPoint.value
-    : null;
+  const leadWindow = lead?.window ?? null;
+  // A windowed headline (for example the mean of the last 8 collections) compares with the window before it.
+  const windowMean = (points: typeof leadPoints) => points.reduce((total, point) => total + point.value, 0) / points.length;
+  const leadDelta = leadWindow != null
+    ? (leadPoints.length >= 2 * leadWindow
+      ? windowMean(leadPoints.slice(-leadWindow)) - windowMean(leadPoints.slice(-2 * leadWindow, -leadWindow))
+      : null)
+    : previousLeadPoint && latestLeadPoint
+      ? latestLeadPoint.value - previousLeadPoint.value
+      : null;
+  const leadComparison = leadWindow != null
+    ? `previous ${leadWindow} collections`
+    : `step ${previousLeadPoint?.step != null ? axis.collection(previousLeadPoint.step) : leadPoints.length - 1}`;
+  const leadScope = leadWindow != null ? `last ${leadWindow} collections` : null;
   const recordedSteps = chart?.series.flatMap((series) => series.points.flatMap((point) => point.step == null ? [] : [point.step])) ?? [];
   const latestStep = recordedSteps.length ? Math.max(...recordedSteps) : null;
   const unrecordedSeries = chart?.series.filter((series) => series.points.length === 0) ?? [];
   const [selectedStep, setSelectedStep] = useState<number | null>(latestStep);
   useEffect(() => setSelectedStep(latestStep), [activeChart, latestStep, selected.run.run_id]);
+  // The readout shows the selected step's values: each series' latest point within that collection.
+  const selectedCollection = selectedStep == null ? null : Math.ceil(selectedStep - 1e-9);
   const selectedSeries = chart?.series.map((series) => ({
     name: series.name,
-    value: series.points.find((point) => point.step === selectedStep)?.value ?? null,
+    value: selectedStep == null || selectedCollection == null
+      ? null
+      : [...series.points].reverse().find((point) => point.step != null
+        && point.step <= selectedStep + 1e-9
+        && point.step > selectedCollection - 1 + 1e-9)?.value ?? null,
   })) ?? [];
   const model = selectionValue(view.resolved_inputs, 'model');
   const student = selectionValue(view.resolved_inputs, 'student')
@@ -1941,7 +1998,7 @@ function GenericOverview({
                     metric={grpoReward?.metric ?? null}
                     help={grpoReward?.metric ? helpByMetric.get(grpoReward.metric) : undefined}
                     state={grpoReward?.state ?? 'missing'}
-                    note={leadDelta == null ? undefined : `${leadDelta >= 0 ? '+' : ''}${formatValue(leadDelta, grpoReward?.unit)} vs step ${previousLeadPoint?.step ?? leadPoints.length - 1}`}
+                    note={[leadScope, leadDelta == null ? null : `${leadDelta >= 0 ? '+' : ''}${formatValue(leadDelta, grpoReward?.unit)} vs ${leadComparison}`].filter(Boolean).join(' · ') || undefined}
                   />
                   <HeadlineMetric
                     label="Policy entropy"
@@ -1990,7 +2047,7 @@ function GenericOverview({
                 </div>
               ) : (
                 <div className="grid border-b border-divider lg:grid-cols-[260px_minmax(0,1fr)]">
-                  <div className="px-5 py-4"><MetricLabel label={lead.label} metric={lead.metric} help={lead.metric ? helpByMetric.get(lead.metric) : undefined} className="text-xs text-secondary" /><div className="mt-1 flex items-end gap-3"><strong className="font-serif text-[52px] font-normal leading-none">{formatValue(lead.value, lead.unit)}</strong>{lead.state !== 'available' && <span className="pb-1 text-[11px] text-amber-700">{lead.state}</span>}</div>{leadDelta != null && <p className="mt-2 text-[10px] text-muted">{leadDelta >= 0 ? '+' : ''}{formatValue(leadDelta, lead.unit)} vs step {previousLeadPoint?.step ?? leadPoints.length - 1}</p>}</div>
+                  <div className="px-5 py-4"><MetricLabel label={lead.label} metric={lead.metric} help={lead.metric ? helpByMetric.get(lead.metric) : undefined} className="text-xs text-secondary" /><div className="mt-1 flex items-end gap-3"><strong className="font-serif text-[52px] font-normal leading-none">{formatValue(lead.value, lead.unit)}</strong>{lead.state !== 'available' && <span className="pb-1 text-[11px] text-amber-700">{lead.state}</span>}</div>{leadDelta != null && <p className="mt-2 text-[10px] text-muted">{leadDelta >= 0 ? '+' : ''}{formatValue(leadDelta, lead.unit)} vs {leadComparison}</p>}</div>
                   <div className="grid grid-cols-2 border-divider sm:grid-cols-3 lg:border-l">{primarySummary.map((metric) => <div key={metric.key} className="border-b border-l border-divider px-4 py-3 first:border-l-0 lg:first:border-l"><MetricLabel label={metric.label} metric={metric.metric} help={metric.metric ? helpByMetric.get(metric.metric) : undefined} className="text-[11px] text-muted" /><strong className="mt-1 block font-serif text-xl font-normal">{formatValue(metric.value, metric.unit)}</strong>{metric.state !== 'available' && <small className="text-[10px] text-amber-700">{metric.state}</small>}</div>)}</div>
                 </div>
               )}
@@ -1999,18 +2056,18 @@ function GenericOverview({
                 <span className="max-w-xl text-right text-[11px] text-muted">{chart?.question ?? 'Select a point to inspect exact evidence'}</span>
               </div>
               <div className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 border-b border-divider bg-subtle/45 px-4 py-2 text-[11px]">
-                <span className="font-medium text-ink">Step {selectedStep ?? '—'}</span>
+                <span className="font-medium text-ink">{selectedStep == null ? 'Step —' : axis.label(selectedStep)}</span>
                 {selectedSeries.map((item) => <span key={item.name} className="inline-flex items-center text-secondary"><MetricLabel label={chartLabels[item.name] ?? helpByMetric.get(item.name)?.label ?? metricLabel(item.name)} metric={item.name} help={helpByMetric.get(item.name)} className="text-muted" /> <strong className="ml-1 font-medium text-ink">{formatValue(item.value, chartUnits[item.name] ?? metricUnits[item.name] ?? helpByMetric.get(item.name)?.unit)}</strong></span>)}
               </div>
-              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
+              {chart && <div className="px-2 pb-1 pt-2"><Suspense fallback={<ChartFallback height={330} />}><EvidenceChart series={chart.series} metricLabels={chartLabels} metricUnits={chartUnits} selectedStep={selectedStep} onPointSelect={setSelectedStep} xAxis={chartXAxis} heldSeries={heldSeries} ariaLabel={`${chart.title} metric series for ${selected.run.display_name}`} /></Suspense></div>}
               {unrecordedSeries.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Not recorded by this run: {unrecordedSeries.map((series) => chartLabels[series.name] ?? helpByMetric.get(series.name)?.label ?? metricLabel(series.name)).join(', ')}.
-                  {isSampo && chart?.key === 'hierarchical_credit' ? ' This run\'s trainer predates the credit metrics; SAMPO runs from newer trainers record them each update.' : ''}
+                  {isSampo && chart?.key === 'hierarchical_credit' ? ' This run\'s trainer predates the credit metrics; SAMPO runs from newer trainers record them for each collection.' : ''}
                 </p>
               )}
-              {isGroupPolicy && chart?.key === 'optimization' && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
-              {isGroupPolicy && chart?.key === 'optimization' && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
+              {isGroupPolicy && holdsReward(baseChart) && rolloutBehaviorLoading && <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">Reading retained rollout evidence…</p>}
+              {isGroupPolicy && holdsReward(baseChart) && rolloutBehavior?.state === 'partial' && rolloutBehavior.points.length > 0 && (
                 <p className="border-t border-divider px-4 py-2 text-[10px] text-muted">
                   Rollout behavior is partial: {rolloutBehavior.included.toLocaleString()} of {(rolloutBehavior.expected ?? rolloutBehavior.scanned).toLocaleString()} retained training traces were read (steps {rolloutBehavior.points[0]?.step}–{rolloutBehavior.points.at(-1)?.step}).
                 </p>
@@ -2106,10 +2163,11 @@ function CompareView({ runs, jobKind, selectedKeys, comparison, loading, candida
   onCompare: () => void;
 }) {
   const runLabel = new Map(runs.map((run) => [run.run.run_id, run.run.display_name]));
+  const training = !jobKind.startsWith('eval.');
   return <>
-    <PageHeading eyebrow="CROSS-RUN EVALUATION" title="Compare runs" subtitle={`Candidates are filtered to ${jobKind}. Compare models only against the same evaluation population; dataset, task selection, and metric schema must still match.`} />
+    <PageHeading eyebrow={training ? 'CROSS-RUN TRAINING' : 'CROSS-RUN EVALUATION'} title="Compare runs" subtitle={training ? `Candidates are ${jobKind} runs in this project. Steps are collections in every run; inputs that change what reward, step time or gradient scale mean are listed beside the result.` : `Candidates are filtered to ${jobKind}. Compare models only against the same evaluation population; dataset, task selection, and metric schema must still match.`} />
     <section className="obs-card mt-5 overflow-hidden" aria-label="Comparison run selection">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3"><div><p className="type-eyebrow">SELECT RUNS</p><h2 className="mt-1 font-serif text-xl font-normal">Evaluation candidates</h2></div><button type="button" disabled={selectedKeys.length < 2 || loading} onClick={onCompare} className="rounded-[4px] bg-violet-700 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-violet-200">{loading ? 'Comparing…' : `Compare ${selectedKeys.length || ''}`}</button></div>
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-divider px-4 py-3"><div><p className="type-eyebrow">SELECT RUNS</p><h2 className="mt-1 font-serif text-xl font-normal">{training ? 'Training candidates' : 'Evaluation candidates'}</h2></div><button type="button" disabled={selectedKeys.length < 2 || loading} onClick={onCompare} className="rounded-[4px] bg-violet-700 px-3 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:bg-violet-200">{loading ? 'Comparing…' : `Compare ${selectedKeys.length || ''}`}</button></div>
       <div className="divide-y divide-divider">
         {candidateLoading && <p className="px-4 py-6 text-xs text-muted">Resolving runs with the same evaluation population…</p>}
         {runs.map((run) => <label key={run.run_key} className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-subtle"><input type="checkbox" checked={selectedKeys.includes(run.run_key)} onChange={() => onToggle(run.run_key)} className="accent-violet-700" /><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-medium">{run.run.display_name}</strong><span className="mt-1 block text-[10px] text-muted">{run.run.job_kind} · {run.run.work_package_id}</span></span><Status value={run.run.status} /></label>)}
@@ -2117,7 +2175,11 @@ function CompareView({ runs, jobKind, selectedKeys, comparison, loading, candida
       </div>
     </section>
     {comparison && comparison.state === 'incomparable' && <section className="mt-4 border border-amber-200 bg-[#fffaf1] px-4 py-4" aria-label="Runs are not comparable"><div className="flex items-start gap-2"><Warning size={16} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><div><h2 className="text-xs font-medium text-amber-950">These runs cannot be compared</h2><p className="mt-1 text-xs leading-5 text-amber-900">{comparison.reason}</p>{comparison.basis.length > 0 && <p className="mt-2 text-[10px] text-amber-800">Required match: {comparison.basis.join(' · ')}.</p>}</div></div></section>}
-    {comparison && comparison.state === 'comparable' && <section className="obs-card mt-4 overflow-hidden" aria-label="Run comparison matrix"><div className="border-b border-divider px-4 py-3"><p className="type-eyebrow">SAME POPULATION</p><h2 className="mt-1 font-serif text-xl font-normal">Model comparison matrix</h2><p className="mt-1 text-xs text-muted">{comparison.basis.join(' · ')}</p></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="bg-subtle text-[10px] uppercase tracking-[.1em] text-muted"><tr><th className="px-4 py-3">Run / model</th>{comparison.columns.map((column) => <th key={column} className="px-4 py-3 text-right">{humanizeKey(column)}</th>)}<th className="px-4 py-3">Inference</th></tr></thead><tbody className="divide-y divide-divider">{comparison.rows.map((row) => <tr key={row.run_id}><th className="max-w-[260px] px-4 py-3 font-medium"><span className="block truncate">{runLabel.get(row.run_id) ?? row.run_id}</span><code className="mt-1 block truncate text-[10px] font-normal text-muted">{String(row.context.model ?? 'model not recorded')}</code></th>{comparison.columns.map((column) => <td key={column} className="px-4 py-3 text-right font-medium">{row.values[column] == null ? '—' : typeof row.values[column] === 'number' ? Number(row.values[column]).toFixed(3) : String(row.values[column])}</td>)}<td className="max-w-[220px] px-4 py-3 text-[10px] text-muted">{String(row.context.inference ?? 'not recorded')}</td></tr>)}</tbody></table></div></section>}
+    {comparison && comparison.state === 'comparable' && <section className="obs-card mt-4 overflow-hidden" aria-label="Run comparison matrix"><div className="border-b border-divider px-4 py-3"><p className="type-eyebrow">{comparison.differences?.length ? 'DIFFERENT TRAINING INPUTS' : 'SAME POPULATION'}</p><h2 className="mt-1 font-serif text-xl font-normal">Model comparison matrix</h2><p className="mt-1 text-xs text-muted">{comparison.basis.join(' · ')}</p></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="bg-subtle text-[10px] uppercase tracking-[.1em] text-muted"><tr><th className="px-4 py-3">Run / model</th>{comparison.columns.map((column) => <th key={column} className="px-4 py-3 text-right">{humanizeKey(column)}</th>)}<th className="px-4 py-3">Inference</th></tr></thead><tbody className="divide-y divide-divider">{comparison.rows.map((row) => <tr key={row.run_id}><th className="max-w-[260px] px-4 py-3 font-medium"><span className="block truncate">{runLabel.get(row.run_id) ?? row.run_id}</span><code className="mt-1 block truncate text-[10px] font-normal text-muted">{String(row.context.model ?? 'model not recorded')}</code></th>{comparison.columns.map((column) => <td key={column} className="px-4 py-3 text-right font-medium">{row.values[column] == null ? '—' : typeof row.values[column] === 'number' ? Number(row.values[column]).toFixed(3) : String(row.values[column])}</td>)}<td className="max-w-[220px] px-4 py-3 text-[10px] text-muted">{String(row.context.inference ?? 'not recorded')}</td></tr>)}</tbody></table></div></section>}
+    {comparison && comparison.state === 'comparable' && (comparison.differences?.length ?? 0) > 0 && <section className="mt-4 border border-amber-200 bg-[#fffaf1]" aria-label="Training inputs that differ">
+      <div className="flex items-start gap-2 px-4 py-3"><Warning size={16} weight="fill" className="mt-0.5 shrink-0 text-amber-600" /><div><h2 className="text-xs font-medium text-amber-950">These runs differ in what their numbers measure</h2><p className="mt-1 text-xs leading-5 text-amber-900">Steps are collections in both runs, but the inputs below change what reward, step time and gradient scale mean. Read the matrix as context, not a like-for-like result.</p></div></div>
+      <div className="overflow-x-auto border-t border-amber-200"><table className="w-full min-w-[720px] text-left text-xs"><thead className="text-[10px] uppercase tracking-[.1em] text-amber-800"><tr><th className="px-4 py-2">Input</th>{comparison.rows.map((row) => <th key={row.run_id} className="max-w-[260px] truncate px-4 py-2">{runLabel.get(row.run_id) ?? row.run_id}</th>)}</tr></thead><tbody className="divide-y divide-amber-100">{(comparison.differences ?? []).map((difference) => <tr key={difference.key}><th className="px-4 py-2 font-medium text-amber-950">{difference.label}</th>{difference.values.map((value, index) => <td key={comparison.rows[index]?.run_id ?? index} className="break-all px-4 py-2 text-amber-950">{value == null ? '—' : String(value)}</td>)}</tr>)}{comparison.rows.some((row) => row.context.collections != null) && <tr><th className="px-4 py-2 font-medium text-amber-950">Collections recorded</th>{comparison.rows.map((row) => <td key={row.run_id} className="px-4 py-2 text-amber-950">{row.context.collections == null ? '—' : String(row.context.collections)}</td>)}</tr>}</tbody></table></div>
+    </section>}
     {!comparison && <div className="mt-4 border border-dashed border-divider bg-subtle/50 px-4 py-5 text-xs text-muted">Select at least two runs from this filtered population, then compare. Runs from a different dataset, task selection, revision, split/seed, environment source, or native metric schema are excluded before comparison.</div>}
   </>;
 }
@@ -2398,9 +2460,14 @@ function TraceView({
   const traces = pageTraces;
   if (!page) return <EmptyState title="Loading trace summaries" body="Fetching the first bounded page without loading transcript bodies." />;
   if (!total && !page.items.length) return <EmptyState title="No traces were captured" body="This job has run-level evidence only. Trace-derived evaluation and example-level investigation are unavailable." />;
+  // A step is a collection (one sampled population). When collections feed several updates, a
+  // rollout's recorded step is its collection's first update, so number collections 1, 2, 3, ...
+  // Steps are collections; the run view already carries them, so labels never wait on the filter scan.
+  const stepAxis = collectionAxis(response.view.collection_steps?.length ? response.view.collection_steps : filterOptions?.collection_steps);
+  const stepLabel = (value: number | null) => (value == null ? null : stepAxis.collection(value));
   const stepOptions = [
     { value: 'all', label: 'Any' },
-    ...(filterOptions?.steps ?? []).map((value) => ({ value: String(value), label: String(value) })),
+    ...(filterOptions?.steps ?? []).map((value) => ({ value: String(value), label: String(stepLabel(value)) })),
   ];
   const sliceOptions = [
     { value: 'all', label: 'Any' },
@@ -2461,7 +2528,7 @@ function TraceView({
       <div className="space-y-3">
         {!filterLoading && <RolloutTimeSummary view={rolloutTime} />}
         {filterLoading ? <EmptyState title="Filtering the full run" body="Reading matching trace summaries across the recorded population." /> : <Suspense fallback={<ChartFallback height={430} />}>{canGroupRollouts
-          ? <RolloutGroupTable traces={traces} allLoadedTraces={pageTraces} total={visiblePage?.total ?? total} filtered={activeFilters > 0} expectedSize={expectedGroupSize} rewards={groupRewards} rewardError={groupRewardError} metricColumns={metricColumns} selectedId={detail?.summary.external_id ?? null} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} onSelect={(trace) => void onSelect(trace)} />
+          ? <RolloutGroupTable traces={traces} allLoadedTraces={pageTraces} stepLabel={stepLabel} total={visiblePage?.total ?? total} filtered={activeFilters > 0} expectedSize={expectedGroupSize} rewards={groupRewards} rewardError={groupRewardError} metricColumns={metricColumns} selectedId={detail?.summary.external_id ?? null} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} onSelect={(trace) => void onSelect(trace)} />
           : <TraceTable traces={traces} total={visiblePage?.total ?? total} hasMore={visiblePage?.next_cursor != null} loadingMore={activeFilters ? filteredLoadingMore : loadingMore} onLoadMore={activeFilters ? () => void loadMoreFiltered() : onLoadMore} selectedId={detail?.summary.external_id ?? null} metricColumns={metricColumns} presentation={presentation} sorting={sorting} onSortingChange={setSorting} onSelect={(trace) => void onSelect(trace)} distillation={distillation} />}</Suspense>}
       </div>
       {(!canGroupRollouts || detail) && <div ref={inspectorRef}><TraceInspector

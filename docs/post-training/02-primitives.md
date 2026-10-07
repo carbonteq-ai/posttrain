@@ -486,6 +486,16 @@ Episode and turn scheduling remain independent of execution packs. Existing
 Turn-row semantic masks are initially unsupported. This accepts the explicit
 objective, not backend qualification or replication of the full author recipe.
 
+**Amendment — SAMPO's reference objective is turn rows (2026-10-06):** the
+authors' SAMPO applies GSPO to each turn row (one environment step per row), so
+its importance ratio and clip act on one sampled turn and each turn weighs
+equally. A catalog `policy_updates` that leaves `objective_variant` unset now
+selects each algorithm's reference objective: `turn-rows` (`sampo-turns@1`) for
+SAMPO and `algorithm` for every other technique. An explicit `algorithm` keeps
+SAMPO's episode-wide ratio (`sampo@1`). TRL's resolved engine is qualified for
+SAMPO turn rows; a backend without that qualification rejects the default and
+asks for an explicit variant.
+
 
 Training is selected **per job kind**, but **algorithm**, **how parameters
 update**, **train runtime**, and **rollout runtime** are different seats.
@@ -652,7 +662,13 @@ boundary receives one curriculum decision before its generation batch. When an
 algorithm such as OLMo 3 requests another candidate group before updating model
 weights, each refill is a new curriculum decision informed by earlier groups
 from that same fixed-policy collection phase. Post-generation retained-group
-sampling remains separately attributable to the selected algorithm.
+sampling remains separately attributable to the selected algorithm. When more
+complete groups with reward variation finish than the update needs, the
+selection states which it keeps: `first` keeps candidate order, and
+`learning_signal` keeps the groups whose shaped rewards differ most from their
+group mean (mean absolute deviation, ties in candidate order); the collection
+evidence records each group's score and the rule, and an engine that cannot
+apply the selected rule refuses it.
 
 SAMPO is a separate selection for multi-turn tool-using agents. It combines one
 sequence-level importance ratio per trajectory with a token-aligned advantage
@@ -664,6 +680,31 @@ loss mask. Sparse environments assign the terminal trajectory reward to the
 final sampled turn and zero to earlier turns before discounted returns are
 computed. A backend without both sequence-level clipping and hierarchical
 agentic advantages rejects `train.sampo`; GSPO alone is not SAMPO.
+
+Amendment (2026-10-07): SAMPO may add goal-relative turn credit with
+`goal_credit: group-relative`. The reward projection then selects per-turn
+verified outcomes (`turn_goal_prefix`, `turn_harm_key`): each turn names the
+environment goals it first achieved, with a weight, and its harm debit. A turn
+earns each goal's weight times one minus the share of its prompt group's attempts
+that achieved that goal, and loses its harm debit, whether or not the turn has an
+anchor sibling. Goals compare attempts by named outcome rather than by identical
+observation, so a turn with a singleton anchor still receives the credit its own
+verified outcomes earned. The episode advantage is unchanged, and goal and harm
+credit do not enter the anchor returns.
+
+Amendment (2026-10-07): `goal_credit: verified-sign` keeps that goal term, scales
+it by `goal_credit_scale`, and lets the turn's own verified outcome decide its
+sign. A turn that first achieved a goal receives `max(episode + anchor, 0)` plus
+its goal term, so its attempt's failure cannot push it negative. A turn that
+caused a harm receives `min(episode + anchor + goal, 0)` minus its harm debit, so
+its attempt's success cannot push it positive. Every other turn keeps the episode
+and anchor credit, so all turns stay covered.
+
+Amendment (2026-10-07): `anchor_fallback: environment-state` groups a turn whose
+exact-observation anchor has no sibling in its prompt group with the group's
+other such turns that share its environment-declared state key (reward
+projection `turn_state_key`). Exact anchor groups are unchanged. The population
+snapshot records the same anchor groups that the credit uses.
 
 ```text
 train.distill seats

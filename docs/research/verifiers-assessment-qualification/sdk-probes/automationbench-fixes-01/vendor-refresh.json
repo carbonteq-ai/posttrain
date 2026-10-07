@@ -1,0 +1,22 @@
+{
+  "fork_base": "e193bce99af1ea7cca272644a2b3a1676a587b4a",
+  "status": "local unpublished fork candidate deliberately copied into editable vendored benchmark",
+  "files": [
+    {
+      "path": "domains/hr/tasks.py",
+      "old_sha256": "98a8a4e9d6d788d78bcbd1482c5ed400a1227623448fdff5408885209be3f0cf",
+      "new_sha256": "954f7b871b00c487cf34a826bcde49bb247a52b5aed5a7c21efb205f8cad9f37",
+      "copied_from": "/home/hammad/projects/automationbench/automationbench/domains/hr/tasks.py",
+      "copied_to": "/home/hammad/projects/verifiers-environments/environments/automationbench_v1/src/automationbench/domains/hr/tasks.py"
+    },
+    {
+      "path": "tools/zapier/docusign/envelope.py",
+      "old_sha256": "48e31f45bb2df9701db0a978a246f8a7f9591534850e2abad0e109206820f2cc",
+      "new_sha256": "831562c2663227a43ed3fabb4a8d1c53b2f9838f189e29b766d5074d27625ce4",
+      "copied_from": "/home/hammad/projects/automationbench/automationbench/tools/zapier/docusign/envelope.py",
+      "copied_to": "/home/hammad/projects/verifiers-environments/environments/automationbench_v1/src/automationbench/tools/zapier/docusign/envelope.py"
+    }
+  ],
+  "task_assertions_changed": false,
+  "official_scoring_changed": false
+}

@@ -14,6 +14,8 @@ from ...update_objectives import resolve_objective_term
 from ...update_plan import ExecutionCapabilities
 from ...update_records import InvalidPolicyUpdate
 from ...update_recovery import inspect_update_recovery
+from ...update_sampler_correction import sampler_correction_recipe
+from ...update_telemetry import update_metrics
 from ..policy_update_admission import AdmittedNativePopulation
 from .contracts import VerlLaunchManifest
 from .policy_job import ResolvedVeRLCollectionHost
@@ -104,32 +106,34 @@ class ResolvedVeRLActorSession:
             raise InvalidPolicyUpdate("native actor did not commit exactly one resolved optimizer update")
         population = self.host.run.active()
         adjoints = population.last_adjoints
-        term = resolve_objective_term(
-            population.updates[population.next_update - 1], population.spec, population.credit
-        )
-        advantages = {value.action: value.advantage for value in population.credit.values}
-        selected = [advantages[value.action] for value in term.policy_weights]
+        update = population.updates[population.next_update - 1]
+        term = resolve_objective_term(update, population.spec, population.credit)
+        evaluation = adjoints.evaluation
         metrics = {
             "train/rl/loss": float(output["loss"]),
             "train/rl/policy_loss": float(output["policy_loss"]),
             "train/rl/kl_loss": float(output["kl_loss"]),
             "train/rl/applied_optimizer_updates": float(after["applied"]),
             "train/rl/optimizer_attempts": float(after["attempts"]),
-            "train/rl/selected_policy_actions": float(len(term.policy_weights)),
-            "train/rl/selected_kl_actions": float(len(term.kl_weights)),
+            "train/rl/selected_policy_actions": float(term.policy_positions.size),
+            "train/rl/selected_kl_actions": float(term.kl_positions.size),
             "train/grad_norm": float(output["metrics"]["grad_norm"]),
         }
-        if selected:
-            mean = sum(selected) / len(selected)
-            metrics.update(
-                {
-                    "train/rl/advantage_mean": mean,
-                    "train/rl/advantage_abs_mean": sum(abs(value) for value in selected) / len(selected),
-                    "train/rl/advantage_std": (sum((value - mean) ** 2 for value in selected) / len(selected)) ** 0.5,
-                    "train/rl/advantage_nonzero_fraction": sum(value != 0 for value in selected) / len(selected),
-                    "train/rl/clip_fraction": len(adjoints.evaluation.clipped_actions) / len(selected),
-                }
+        # The same selected-action credit, clipping and correction evidence as
+        # the resolved TRL job. Entropy is not measured on the score-adjoint path.
+        metrics.update(
+            update_metrics(
+                term,
+                population.credit,
+                episode_of=update.population.episode_of,
+                ratios=evaluation.ratios.detach().double().cpu().numpy(),
+                clipped=evaluation.clipped,
+                sampler_correction=population.sampler_correction,
+                correction_recipe=sampler_correction_recipe(self.settings),
+                old_scores=(None if population.old is None else population.old.values.detach().double().cpu().numpy()),
+                sampled_scores=population.sampled_scores,
             )
+        )
         for name, value in self.engine.last_loss_scale_metrics.items():
             metrics[f"train/{name}"] = float(value)
         return metrics

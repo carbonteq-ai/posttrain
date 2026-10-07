@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "task_name": "simple.zendesk_resolve_email",
+  "status": "draft_native_component_qualification_passed_acceptance_pending",
+  "component": "same_initial_native_ticket_retained_status",
+  "public_request": {
+    "ticket_id": "ZD-501",
+    "desired_status": "solved",
+    "remaining_email_recipient": "elena.voss@retail.example.com",
+    "remaining_email_meaning": "password-reset resolution"
+  },
+  "authority": {
+    "pack_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-10.json",
+    "pack_sha256": "a99c6aa6fca047d97221b28679aec5811c74e9c7e651d352c8b5f4161d53e42c",
+    "public_input_sha256": "3899a605929cffcb4a298bbc1b9ad546453b42dbc6eace69cb4cacf66241f0a3",
+    "bindings": [
+      {
+        "path": ["task_evidence", "prompt"],
+        "canonical_sha256": "403ff6ea73310752e3f404979663e0120f7bc17fc18cbe5839c484d4705c9d02"
+      },
+      {
+        "path": ["task_evidence", "initial", "zendesk", "tickets"],
+        "canonical_sha256": "6535653abf05c3023a38ce864034e112c3ecfb1ec61570016a82ce3cdc56a7ce"
+      }
+    ],
+    "initial_population_is_evidence_not_fixed_expected_outcomes": true,
+    "reviewed_initial_authority_inventory_is_bound": true
+  },
+  "recorded_evidence": {
+    "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b492a4a55e7c1dff9976e9e59f4d7d68eb300b8c1cc5b6d015b4b26e8189561e/episode.json",
+    "episode_sha256": "e04a068ad087b52ff28c8294f99cb539cf7f282c0914a795f654a115bd4439c9",
+    "trace_id": "53ebbeba533d417183fda46331d2c5d2",
+    "final_path": ["traces", 0, "info", "automationbench", "end_state", "zendesk", "tickets"],
+    "final_target_count": 1,
+    "final_status": "solved",
+    "completed": true,
+    "policy_source": false
+  },
+  "scope": {
+    "operator": "records.retained_when@1",
+    "outcome_only": true,
+    "credit": [],
+    "whole_task_qualified": false,
+    "manifest_installed": false,
+    "email_purpose_open": true,
+    "invented_comment_priority_or_order_requirements": false
+  },
+  "qualification": {
+    "schema_validated": true,
+    "draft_path": "docs/research/verifiers-assessment-qualification/reward-candidate/zendesk-retained-component-draft.json",
+    "test_path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_zendesk_retained_manifest.py",
+    "core_and_small_native_cases_passed": 33,
+    "security_cases": ["forged_retained_projection", "self_consistent_alternate_raw_source", "direct_assessor_without_sealed_source"],
+    "ruff_passed": true,
+    "scoped_pyright_errors": 0,
+    "native_replay_passed": true,
+    "full_suite_cases_passed": 34,
+    "full_suite_seconds": 2.98,
+    "recorded_component_outcome": 1,
+    "recorded_action_credit_count": 0,
+    "recorded_source_bytes_and_scalar_unchanged": true,
+    "rescore_current_wave_semantics_preserved": true,
+    "native_episode_reload_passed": true,
+    "qualified_hashes": {
+      "draft_sha256": "5c8b4d898d693bf3684da6e9ba71738b5faad1982fa50a724eccc264afdda0ca",
+      "test_sha256": "52f4379408e103aad773d3df10848d68690b556744fffdc4c2c3c6c6e6d579c5",
+      "retained_records_sha256": "7772db6c362e16e4f7b4530f47388f86f55a19496346d23d8dfef628f65ebce6",
+      "native_publisher_sha256": "d62006e33d4e96533e766924abf2b49b3456152e9f091634681f9a59a5b9ee5e"
+    },
+    "test_repair_history": "First full suite had 33 passes and one pre-scoring assertion failure comparing native message models with public dictionaries. The test now compares the native data JSON projection; exact prompt content matches. No shared source changed.",
+    "pending": [
+      "Independent review and root acceptance"
+    ]
+  }
+}

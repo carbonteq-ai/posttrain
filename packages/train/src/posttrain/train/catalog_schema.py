@@ -73,7 +73,9 @@ class PolicyExecutionBudgetSchema(TrainCatalogSchema):
 class PolicyUpdateSettingsSchema(TrainCatalogSchema):
     schedule: PolicyUpdateScheduleSchema
     execution: PolicyExecutionBudgetSchema
-    objective_variant: Literal["algorithm", "semantic-spans", "turn-rows"] = "algorithm"
+    # Unset selects the algorithm's reference objective (SAMPO: turn rows, as the authors apply
+    # GSPO to each turn row; every other algorithm: its own objective).
+    objective_variant: Literal["algorithm", "semantic-spans", "turn-rows"] | None = None
     policy_selection: ActionSelectionSchema = Field(default_factory=ActionSelectionSchema)
     kl_selection: ActionSelectionSchema = Field(default_factory=ActionSelectionSchema)
     denominator: Literal["selected", "original-eligible"] = "selected"
@@ -82,13 +84,17 @@ class PolicyUpdateSettingsSchema(TrainCatalogSchema):
     credit_estimator: str | None = None
 
 
-def _decode_policy_updates(payload: PolicyUpdateSettingsSchema | None) -> PolicyUpdateSettings | None:
+def _decode_policy_updates(
+    payload: PolicyUpdateSettingsSchema | None,
+    *,
+    reference: Literal["algorithm", "turn-rows"] = "algorithm",
+) -> PolicyUpdateSettings | None:
     if payload is None:
         return None
     return PolicyUpdateSettings(
         schedule=PolicyUpdateSchedule(**payload.schedule.model_dump()),
         execution=PolicyExecutionBudget(**payload.execution.model_dump()),
-        objective_variant=payload.objective_variant,
+        objective_variant=payload.objective_variant or reference,
         policy_selection=ActionSelection(**payload.policy_selection.model_dump()),
         kl_selection=ActionSelection(**payload.kl_selection.model_dump()),
         denominator=payload.denominator,
@@ -233,6 +239,14 @@ class ActiveGroupSamplingSchema(TrainCatalogSchema):
             "a refill round never exceeds the first round."
         ),
     )
+    retain: Literal["first", "learning_signal"] = Field(
+        default="first",
+        description=(
+            "Which groups with reward spread to keep when more finish than the update needs: first (candidate "
+            "order) or learning_signal (largest mean absolute deviation of shaped rewards from the group mean, "
+            "ties in candidate order). learning_signal requires policy_updates."
+        ),
+    )
 
 
 class AdaptiveCurriculumSchema(TrainCatalogSchema):
@@ -312,6 +326,9 @@ class SAMPOSettingsSchema(TrainCatalogSchema):
     beta: float = Field(default=0.0, ge=0)
     discount_gamma: float = Field(default=0.95, gt=0, le=1, allow_inf_nan=False)
     step_advantage_weight: float = Field(default=1.0, ge=0, allow_inf_nan=False)
+    goal_credit: Literal["none", "group-relative", "verified-sign"] = "none"
+    goal_credit_scale: float = Field(default=1.0, gt=0, allow_inf_nan=False)
+    anchor_fallback: Literal["none", "environment-state"] = "none"
     advantage_normalization: Literal["mean", "mean_std"] = "mean"
     clip_epsilon_low: float = Field(default=0.003, gt=0, allow_inf_nan=False)
     clip_epsilon_high: float = Field(default=0.004, gt=0, allow_inf_nan=False)
@@ -382,6 +399,9 @@ class RewardProjectionSchema(TrainCatalogSchema):
     turn_reward_key: str | None = None
     turn_error_key: str | None = None
     turn_reward_includes_terminal_outcome: bool | None = None
+    turn_goal_prefix: str | None = None
+    turn_harm_key: str | None = None
+    turn_state_key: str | None = None
 
 
 type TrainingSelectionSchema = Annotated[
@@ -442,6 +462,9 @@ def decode_training_selection(
             payload.turn_reward_key,
             payload.turn_error_key,
             payload.turn_reward_includes_terminal_outcome,
+            payload.turn_goal_prefix,
+            payload.turn_harm_key,
+            payload.turn_state_key,
         )
     if isinstance(payload, GDPOSettingsSchema | CAPOSettingsSchema):
         settings_type = GDPOSettings if isinstance(payload, GDPOSettingsSchema) else CAPOSettings
@@ -496,7 +519,7 @@ def decode_training_selection(
         )
     if isinstance(payload, SAMPOSettingsSchema):
         values = payload.model_dump(exclude={"selection_type", "id", "revision", "loop"})
-        values["policy_updates"] = _decode_policy_updates(payload.policy_updates)
+        values["policy_updates"] = _decode_policy_updates(payload.policy_updates, reference="turn-rows")
         values["active_sampling"] = ActiveGroupSampling(**values["active_sampling"])
         adaptive_curriculum = values.pop("adaptive_curriculum")
         if adaptive_curriculum is not None:

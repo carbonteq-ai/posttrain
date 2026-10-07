@@ -45,6 +45,32 @@ def test_catalog_roundtrip_preserves_explicit_settings(algorithm) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("algorithm", "reference"),
+    [("sampo", "turn-rows"), ("grpo", "algorithm"), ("gdpo", "algorithm"), ("capo", "algorithm")],
+)
+def test_unset_catalog_objective_selects_the_algorithm_reference(algorithm, reference) -> None:
+    updates = asdict(update_settings())
+    del updates["objective_variant"]
+    payload = {
+        "selection_type": f"{algorithm}-settings",
+        "id": "reference-objective",
+        "revision": "1",
+        "loop": {"max_steps": 3},
+        "num_prompts_per_step": 4,
+        "num_generations": 2,
+        "policy_updates": updates,
+    }
+    if algorithm == "gdpo":
+        payload.update(component_names=["outcome"], component_weights=[1.0])
+    decoded = decode_training_selection(CatalogRef("training", "reference-objective"), payload, {})
+    assert isinstance(decoded, GRPOSettings | SAMPOSettings | GDPOSettings | CAPOSettings)
+    assert decoded.policy_updates is not None and decoded.policy_updates.objective_variant == reference
+    explicit = {**payload, "policy_updates": {**updates, "objective_variant": "algorithm"}}
+    selected = decode_training_selection(CatalogRef("training", "reference-objective"), explicit, {})
+    assert selected.policy_updates.objective_variant == "algorithm"  # type: ignore[union-attr]
+
+
 def test_legacy_catalog_retains_batch_equality_without_explicit_settings() -> None:
     loop = TrainingLoop(max_steps=3, per_device_batch_size=2)
     assert GRPOSettings("legacy-grpo", loop).policy_updates is None
@@ -103,7 +129,7 @@ def test_native_request_rejects_unqualified_explicit_executor_before_launch() ->
     from posttrain.train import GRPORequest
 
     settings = GRPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=update_settings())
-    with pytest.raises(ValueError, match="transformers generation, not vLLM rollouts"):
+    with pytest.raises(ValueError, match="require colocated async vLLM and rollout_execution"):
         GRPORequest(
             QWEN_35_2B,
             FakeRLBridge(),
@@ -122,6 +148,7 @@ def test_native_request_rejects_unqualified_explicit_executor_before_launch() ->
         ("verl@1", "vllm@1", "SAMPO", "algorithm", True),
         ("trl@1", "vllm@1", "SAMPO", "algorithm", False),
         ("trl@1", "transformers@1", "SAMPO", "semantic-spans", True),
+        ("trl@1", "transformers@1", "SAMPO", "turn-rows", True),
         ("verl@1", "vllm@1", "SAMPO", "semantic-spans", False),
         ("verl@1", "vllm@1", "SAMPO", "turn-rows", False),
         ("verl@1", "vllm@1", "GRPO", "algorithm", False),
@@ -146,8 +173,34 @@ def test_public_admission_matches_the_gpu_qualified_resolved_matrix(backend, rol
     problem = _resolved_selection_problem(
         technique,
         settings,  # pyright: ignore[reportArgumentType]
-        SimpleNamespace(backend=backend, target=SimpleNamespace(placement={})),  # pyright: ignore[reportArgumentType]
-        SimpleNamespace(backend=rollout),  # pyright: ignore[reportArgumentType]
+        SimpleNamespace(backend=backend, target=SimpleNamespace(placement={}), backend_options={}),  # pyright: ignore[reportArgumentType]
+        SimpleNamespace(backend=rollout, engine={}),  # pyright: ignore[reportArgumentType]
+    )
+    assert (problem is None) == admitted, problem
+
+
+@pytest.mark.parametrize(
+    ("engine", "rollout_execution", "admitted"),
+    [
+        ({"mode": "colocate", "request_mode": "async"}, {"env_workers": 1}, True),
+        ({"mode": "colocate", "request_mode": "batch"}, None, False),
+        ({"mode": "server", "request_mode": "async"}, {"env_workers": 1}, False),
+        ({"mode": "colocate", "request_mode": "async"}, None, False),
+    ],
+)
+def test_resolved_trl_admits_vllm_only_through_colocated_async_collection(engine, rollout_execution, admitted):
+    from types import SimpleNamespace
+
+    from posttrain.train.profiles import SAMPOSettings
+    from posttrain.train.requests import _resolved_selection_problem
+
+    settings = SAMPOSettings("explicit", TrainingLoop(max_steps=3), policy_updates=update_settings())
+    options = {} if rollout_execution is None else {"rollout_execution": rollout_execution}
+    problem = _resolved_selection_problem(
+        "SAMPO",
+        settings,
+        SimpleNamespace(backend="trl@1", target=SimpleNamespace(placement={}), backend_options=options),  # pyright: ignore[reportArgumentType]
+        SimpleNamespace(backend="vllm@1", engine=engine),  # pyright: ignore[reportArgumentType]
     )
     assert (problem is None) == admitted, problem
 

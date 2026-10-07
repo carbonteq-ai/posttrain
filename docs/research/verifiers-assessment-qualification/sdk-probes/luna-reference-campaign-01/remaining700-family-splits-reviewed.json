@@ -1,0 +1,2807 @@
+{
+  "schema_version": 1,
+  "reviewed": true,
+  "method": "Conservative domain/workflow name groups linked to exact factory source, declared toolsets and assertion types; first-match pattern rules require semantic review. Known smoke families and unresolved workflows forced development. Remaining families deterministically allocated 70/15/15 hash buckets. Evaluation reserved prospectively; historical exposure not qualified. Remaining700 excludesallHR, and familiesnamedinpreviousSAMPOreport arealsoforceddevelopment; historicalexposurebeyondcitedreportremainunqualified. Rootreview2026-10-03approvedprospectivefamilyallocationwithhistoricalexposurelimit; reservedreward_test/evaluationrawtracesmuststayoutsideAstra/rewarddesign.",
+  "tasks": {
+    "simple.email_sf_contact_phone_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_email_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_title_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_city_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_account_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_lead_description_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_mobile_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_fax_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_department_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_assistant_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_closed_won": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_stage_proposal": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_amount_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_close_date_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_probability_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_description_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_stage_value_prop": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_campaign_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_next_step_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_opp_type_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_create_followup_task": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_create_proposal_task": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_log_task": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_create_account_note": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_create_contact_note": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_create_case": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_case_in_progress": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_case_priority_high": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_case_closed": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_create_event": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_lead_status_working": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_lead_status_qualified": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_lead_source_web": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_lead_company_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_lead_revenue_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_create_lead_from_card": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_lead_rating_hot": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_lead_description_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.sf_lead_employees_update": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_sf_create_contact_from_lead": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.hs_create_contact": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.email_hs_create_contact": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.hs_update_contact_title": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.hs_create_deal": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.hs_update_deal_stage": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.hs_update_deal_amount": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.email_hs_create_contact_inbound": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.hs_update_contact_tag": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.hs_create_deal_with_contact": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.hs_update_contact_phone": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.buffer_twitter_product_launch": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_linkedin_partnership": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_facebook_blog_post": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_twitter_quarterly_results": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_webinar_dual_post": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_customer_success_story": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_job_opening": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_company_award": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_product_tip": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.buffer_trade_show": {
+      "family": "simple.social-publishing",
+      "split": "reward_test"
+    },
+    "simple.gmail_meeting_confirm": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_demo_followup": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_weekly_status": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_reply_customer_inquiry": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_reply_pricing_inquiry": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_reply_meeting_request": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_invoice_email": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_reply_complaint": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_onboarding_welcome": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.gmail_contract_renewal_reminder": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.slack_marketing_campaign": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_office_closure": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_ceo_announcement": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_dm_meeting_reminder": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_dm_task_assignment": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_sales_closed_deal": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_customer_escalation": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_deployment_notice": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_dm_project_status": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.slack_weekly_metrics": {
+      "family": "simple.slack-communication",
+      "split": "development"
+    },
+    "simple.mailchimp_add_subscriber": {
+      "family": "simple.subscriber-management",
+      "split": "reward_test"
+    },
+    "simple.mailchimp_email_request": {
+      "family": "simple.email-communication",
+      "split": "development"
+    },
+    "simple.mailchimp_full_contact": {
+      "family": "simple.subscriber-management",
+      "split": "reward_test"
+    },
+    "simple.mailchimp_conference_lead": {
+      "family": "simple.subscriber-management",
+      "split": "reward_test"
+    },
+    "simple.mailchimp_dual_list": {
+      "family": "simple.subscriber-management",
+      "split": "reward_test"
+    },
+    "simple.sheets_add_lead": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_log_email_inquiry": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_update_status": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_project_tracker": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_closed_deal": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_read_then_email": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_read_then_slack_dm": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_budget_expense": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_update_status_report": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_log_support_email": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_webinar_registration": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_log_sales_call": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_update_from_email": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_add_vendor": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.sheets_content_calendar": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.asana_api_docs_task": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_dark_mode_from_email": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_board_presentation": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_vendor_contracts_urgent": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_sprint_section_task": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_monitoring_alerts": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_performance_reviews": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_checkout_bug_from_email": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_rfp_response": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.asana_team_offsite": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_auth_improvements": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_login_bug_from_email": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_search_filter_story": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_dashboard_perf_bug": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_legacy_data_migration": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_rotate_api_keys": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_mobile_redesign_epic": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_data_sync_bug_from_email": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_cicd_pipeline": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.jira_accessibility_audit": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_q1_marketing_budget": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_onboard_agency_from_email": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_catering_contract": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_competitor_pricing": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_move_card_to_inprog": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_urgent_support_card": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_case_study_draft": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_manager_feedback_from_email": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_employee_handbook": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.trello_event_planning_checklist": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.gcal_weekly_standup": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_client_discovery_call": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_product_review_from_email": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_company_holiday": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_quarterly_business_review": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_one_on_one": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_customer_success_checkin": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_team_offsite": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_partnership_call_from_email": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.gcal_new_hire_orientation": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_engineering_sync": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_client_demo": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_ai_webinar": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_client_call_from_email": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_daily_standup": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_board_meeting_password": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_vendor_onboarding_with_slack": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_team_retro": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_sales_pipeline_review": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zoom_customer_training": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.zendesk_billing_ticket": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.zendesk_login_ticket": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.zendesk_wrong_order_ticket": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.zendesk_feature_request": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.zendesk_urgent_reply": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.email_sf_update_slack_notify": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_asana_task_reply": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.email_jira_bug_slack": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.email_hubspot_contact_reply": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.email_sf_contact_onboard": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.email_zendesk_ack_reply": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.email_sheets_log_reply": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.email_calendar_meeting_reply": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.email_hubspot_deal_slack": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.email_sheets_update_reply": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.close_deal_sf_slack": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.new_hire_asana_email": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.zoom_meeting_email_invite": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.feature_launch_slack": {
+      "family": "simple.unresolved-workflows",
+      "split": "development"
+    },
+    "simple.weekly_report_sheets_email": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.zendesk_resolve_email": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.new_lead_sf_jira": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.event_asana_calendar": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.api_key_jira_slack": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.launch_announcement_email": {
+      "family": "simple.unresolved-workflows",
+      "split": "development"
+    },
+    "simple.airtable_create_contact": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.email_airtable_lead": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.airtable_update_deal": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.airtable_event_attendee": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.email_airtable_project": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.airtable_find_update": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.airtable_followup_task": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.email_airtable_customer_welcome": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.airtable_update_slack_notify": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.airtable_new_vendor": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.zoom_calendar_sync": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.escalation_zendesk_slack": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.subscriber_welcome_email": {
+      "family": "simple.subscriber-management",
+      "split": "reward_test"
+    },
+    "simple.milestone_sheets_slack": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.csat_sheets_slack_alert": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.weekly_digest_sheets_email": {
+      "family": "simple.spreadsheet-work",
+      "split": "reward_test"
+    },
+    "simple.invoice_airtable_slack": {
+      "family": "simple.airtable-records",
+      "split": "development"
+    },
+    "simple.partner_hubspot_asana": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "simple.email_jira_story_reply": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.campaign_launch_asana": {
+      "family": "simple.unresolved-workflows",
+      "split": "development"
+    },
+    "simple.demo_request_zoom_email": {
+      "family": "simple.meeting-scheduling",
+      "split": "development"
+    },
+    "simple.sprint_retro_jira_slack": {
+      "family": "simple.project-issue-work",
+      "split": "development"
+    },
+    "simple.customer_question_zendesk_reply": {
+      "family": "simple.support-tickets",
+      "split": "development"
+    },
+    "simple.new_customer_sf_onboard_email": {
+      "family": "simple.salesforce-crm",
+      "split": "development"
+    },
+    "simple.partnership_hubspot_zoom": {
+      "family": "simple.hubspot-crm",
+      "split": "development"
+    },
+    "sales.multi_hop_lookup": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.negative_selection": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.recency_selection": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.priority_selection": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.format_ambiguity": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.implicit_rules": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.cross_reference_validation": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.soft_matching": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.weighted_priority": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.dependency_chain": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.calendar_crm_meeting": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.sheets_reconciliation": {
+      "family": "sales.unresolved-workflows",
+      "split": "development"
+    },
+    "sales.five_level_conditional": {
+      "family": "sales.conditional-crm-selection",
+      "split": "development"
+    },
+    "sales.zoom_crm_meeting": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.zoom_calendar_conflict": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.email_zoom_fuzzy": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.create_important_draft": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.mark_vip_emails_read": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.apply_project_label": {
+      "family": "sales.unresolved-workflows",
+      "split": "development"
+    },
+    "sales.create_draft_reply": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.update_contact_phone": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.advance_opportunity_stage": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.create_contact_for_account": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.add_contact_to_campaign": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.qualify_lead": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.create_new_opportunity": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.create_note_on_contact": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.slack_deal_notification": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.linkedin_prospect_research": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.linkedin_connection_outreach": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.calendly_no_show_followup": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.docusign_contract_send": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.docusign_deal_workspace": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.calendly_reschedule_chain": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.send_customer_email": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.zoom_meeting_followup": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.linkedin_job_change": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.calendly_meeting_prep": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.docusign_compliance_template": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.zoom_recording_distribution": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.calendly_capacity_management": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.zoom_attendance_pipeline": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.slack_channel_for_new_account": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.docusign_void_resend": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.calendly_sla_monitoring": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.zoom_webinar_lead_capture": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.docusign_sequential_signing": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.zoom_customer_health": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.calendly_lead_scoring": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.linkedin_signal_monitoring": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.linkedin_sales_prospecting": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.demo_scheduling": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.deal_escalation": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.milestone_celebration": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.call_transcription": {
+      "family": "sales.unresolved-workflows",
+      "split": "development"
+    },
+    "sales.partnership_contract": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.feedback_routing": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.linkedin_profile_enrichment": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.job_posting_contact": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.cold_email_personalization": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.multi_step_drip_campaign": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.linkedin_event_promotion": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.linkedin_content_engagement": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.event_followup_outreach": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.competitive_displacement_outreach": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.meeting_action_items": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.champion_change_alert": {
+      "family": "sales.prospect-research-and-outreach",
+      "split": "evaluation"
+    },
+    "sales.form_to_crm_qualification": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.calendly_discovery_call": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.invalid_email_cleanup": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "sales.sheets_multi_channel_campaign_router": {
+      "family": "sales.unresolved-workflows",
+      "split": "development"
+    },
+    "sales.chatgpt_lead_classification_pipeline": {
+      "family": "sales.model-assisted-pipelines",
+      "split": "development"
+    },
+    "sales.cross_platform_account_health_score": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.chatgpt_lead_summary_generator": {
+      "family": "sales.model-assisted-pipelines",
+      "split": "development"
+    },
+    "sales.chatgpt_proposal_customization": {
+      "family": "sales.model-assisted-pipelines",
+      "split": "development"
+    },
+    "sales.chatgpt_email_sentiment_routing": {
+      "family": "sales.model-assisted-pipelines",
+      "split": "development"
+    },
+    "sales.chatgpt_contract_summary": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.calendly_multi_stakeholder_scheduling": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.calendly_timezone_aware_scheduling": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.calendly_sequential_meetings": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.calendly_availability_based_routing": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.docusign_renewal_automation": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.docusign_conditional_template_selection": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.docusign_completion_processor": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.docusign_bulk_nda_sender": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.zoom_webinar_lead_scoring": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.zoom_meeting_roi_analysis": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.zoom_recurring_meeting_optimizer": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.zoom_regional_webinar_coordinator": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.gcal_travel_time_buffer": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.gcal_deal_milestone_tracker": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.full_sales_cycle_orchestrator": {
+      "family": "sales.pipeline-analytics",
+      "split": "development"
+    },
+    "sales.event_to_opportunity_pipeline": {
+      "family": "sales.meeting-and-event-workflows",
+      "split": "development"
+    },
+    "sales.contract_renewal_coordinator": {
+      "family": "sales.document-contract-workflows",
+      "split": "development"
+    },
+    "sales.historical_context_pipeline_report": {
+      "family": "sales.pipeline-analytics",
+      "split": "development"
+    },
+    "sales.cross_modal_renewal_processing": {
+      "family": "sales.unresolved-workflows",
+      "split": "development"
+    },
+    "sales.unreliable_label_account_review": {
+      "family": "sales.crm-record-mutations",
+      "split": "development"
+    },
+    "sales.historical_win_loss_recap": {
+      "family": "sales.pipeline-analytics",
+      "split": "development"
+    },
+    "sales.vendor_review_prep": {
+      "family": "sales.pipeline-analytics",
+      "split": "development"
+    },
+    "sales.overdue_followup_flag": {
+      "family": "sales.email-and-customer-followup",
+      "split": "development"
+    },
+    "marketing.social_engagement_response": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.lead_enrichment": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.contact_data_cleanup": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.ad_performance_review": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.ad_platform_audit": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.conversion_tracking": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.campaign_launch_checklist": {
+      "family": "marketing.campaign-launch-and-coordination",
+      "split": "development"
+    },
+    "marketing.influencer_outreach": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.landing_page_alert": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.referral_processing": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.partner_comarketing": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.seasonal_campaign": {
+      "family": "marketing.campaign-launch-and-coordination",
+      "split": "development"
+    },
+    "marketing.lead_scoring": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.event_registration_sync": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.content_performance": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.press_release_distribution": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.budget_reallocation": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.content_syndication": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.newsletter_dedup": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.seo_audit": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.content_gap_analysis": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.trending_topic": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.content_localization": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.keyword_cannibalization": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.industry_news": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.brand_mention_analysis": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.market_trend": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.competitive_response_plan": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.social_scheduling": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.social_contest": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.community_engagement": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.social_roi": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.ugc_moderation": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.social_benchmark": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.campaign_attribution": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.campaign_calendar": {
+      "family": "marketing.campaign-launch-and-coordination",
+      "split": "development"
+    },
+    "marketing.landing_page_optimization": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.campaign_handoff": {
+      "family": "marketing.campaign-launch-and-coordination",
+      "split": "development"
+    },
+    "marketing.campaign_retrospective": {
+      "family": "marketing.campaign-launch-and-coordination",
+      "split": "development"
+    },
+    "marketing.creative_asset": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.vendor_management": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.seo_competitor_gap": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.content_repurpose": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.editorial_calendar": {
+      "family": "marketing.unresolved-workflows",
+      "split": "development"
+    },
+    "marketing.link_building": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.topic_cluster": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.content_scoring": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.featured_snippet": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.voice_of_customer": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.analyst_briefing": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.tam_analysis": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.social_audit": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.social_content_calendar": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.hashtag_performance": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.video_repurpose": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.engagement_optimization": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.trial_extension_processing": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.customer_milestone": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.lifecycle_stage": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.product_adoption": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.podcast_episode_promotion": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.guest_post_outreach": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.newsletter_unsubscribe_processing": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.content_expiration_alert": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.competitor_product_launch": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.industry_event_tracking": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.analyst_mention_tracking": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.patent_monitoring": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.customer_feedback_aggregation": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.influencer_contract_tracking": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.social_crisis_response": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.social_mention_response": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.partner_content_approval": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.multi_touch_attribution": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.campaign_roi_analysis": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.email_campaign_analytics": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.landing_page_conversion": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.seo_brief_prioritization": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.blog_refresh_queue": {
+      "family": "marketing.content-seo-and-editorial",
+      "split": "development"
+    },
+    "marketing.customer_story_intake": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.event_sponsorship_screen": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.news_digest_dedup": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "marketing.app_review_triage": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.utm_audit_and_fix": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.social_comment_response_queue": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.product_launch_channel_plan": {
+      "family": "marketing.campaign-launch-and-coordination",
+      "split": "development"
+    },
+    "marketing.influencer_contract_reminders": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.email_blast_suppression": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.newsletter_sponsor_invoicing": {
+      "family": "marketing.customer-lifecycle-and-data",
+      "split": "development"
+    },
+    "marketing.webinar_cancellation_workflow": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.twitter_influencer_followup": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.facebook_photo_highlight": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.instagram_approved_asset_publish": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.linkedin_company_update": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.linkedin_speaker_outreach": {
+      "family": "marketing.social-and-community",
+      "split": "development"
+    },
+    "marketing.google_ads_pause_low_ctr": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.google_ads_high_intent_list_from_hubspot": {
+      "family": "marketing.paid-advertising-and-attribution",
+      "split": "development"
+    },
+    "marketing.event_followup_personalization": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.partner_commission_calculation": {
+      "family": "marketing.events-partners-and-influencers",
+      "split": "reward_test"
+    },
+    "marketing.win_loss_analysis": {
+      "family": "marketing.research-and-monitoring",
+      "split": "development"
+    },
+    "operations.asana_fire_drill": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.trello_basecamp_compliance": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.monday_email_update": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.jira_confluence_incident": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.drive_notion_archive": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.calendar_airtable_maintenance": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.pipefy_vendor_onboarding": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.asana_safety_walk_log": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.trello_vendor_hold_email": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.monday_slack_inventory": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.confluence_gmail_policy_notice": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.drive_slack_dock_schedule": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.notion_gmail_checklist_update": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.pipefy_gmail_vendor_approval": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.asana_basecamp_move_planning": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.monday_calendar_emergency_drill": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.drive_notion_lease_archive": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.calendar_slack_training": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.sheets_asana_approved_request": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.sheets_monday_maintenance_queue": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.pipefy_slack_purchase_request": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.airtable_gmail_visitor_followup": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.notion_slack_playbook": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.asana_slack_sheets_audit": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.calendar_airtable_gmail_maintenance_notice": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.trello_basecamp_slack_compliance_followup": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.salesforce_escalated_customer": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.twilio_afterhours_incident": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.calendly_equipment_inspection": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.zoom_change_advisory": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.docusign_lease_renewal": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.zoom_dr_drill": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.insurance_cert_validation": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.docusign_contractor_offboard": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.zoom_training_setup": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.access_request_validation": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.zoom_board_meeting": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.twilio_facilities_emergency": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.zoom_deal_review": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.twilio_production_incident": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.docusign_prospect_nda": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.zoom_project_kickoff": {
+      "family": "operations.project-records-and-coordination",
+      "split": "reward_test"
+    },
+    "operations.docusign_annual_review": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.hubspot_ticket_escalation": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.mailchimp_subscriber_sync": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.chatgpt_feedback_analysis": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.hubspot_lead_qualification": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.mailchimp_campaign_tracking": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.google_ads_budget_alert": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.canva_asset_management": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.hubspot_personalized_outreach": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.linkedin_job_change": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.contractor_onboarding_workflow": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.hubspot_churn_prediction": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.hubspot_payment_failure": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.mailchimp_ecommerce_sync": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.training_compliance_check": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.facebook_roas_monitoring": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.hubspot_mailchimp_sync": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.linkedin_abm_outreach": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.buffer_engagement_optimization": {
+      "family": "operations.customer-and-marketing-workflows",
+      "split": "development"
+    },
+    "operations.sensor_monitoring_alert": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.invoice_shipping_trigger": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.inventory_enrichment": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.overdue_inspection_summary": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.housekeeping_schedule": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.vendor_compliance_audit": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.facility_incident_triage": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.equipment_lease_processing": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.safety_certification_gap_analysis": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.server_capacity_threshold_alerts": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.fleet_vehicle_maintenance": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.energy_consumption_anomaly": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.sla_breach_early_warning": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.role_based_access_audit": {
+      "family": "operations.incident-security-and-access",
+      "split": "development"
+    },
+    "operations.contractor_badge_expiration": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.purchase_order_three_way_match": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.perishable_inventory_expiry": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.fire_extinguisher_inspection_schedule": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.equipment_calibration_scheduling": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.overtime_threshold_monitoring": {
+      "family": "operations.workforce-and-financial-allocation",
+      "split": "reward_test"
+    },
+    "operations.holiday_coverage_planning": {
+      "family": "operations.workforce-and-financial-allocation",
+      "split": "reward_test"
+    },
+    "operations.contract_renewal_pipeline": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.utility_cost_allocation": {
+      "family": "operations.workforce-and-financial-allocation",
+      "split": "reward_test"
+    },
+    "operations.conference_room_booking_conflicts": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.cross_department_budget_reconciliation": {
+      "family": "operations.workforce-and-financial-allocation",
+      "split": "reward_test"
+    },
+    "operations.safety_incident_investigation_routing": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.parking_allocation_management": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.space_utilization_analysis": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.chemical_inventory_safety_audit": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.mailroom_package_routing": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.temporary_worker_placement": {
+      "family": "operations.workforce-and-financial-allocation",
+      "split": "reward_test"
+    },
+    "operations.cross_training_assignment": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.procurement_card_reconciliation": {
+      "family": "operations.procurement-vendors-and-contracts",
+      "split": "development"
+    },
+    "operations.hazmat_shipping_compliance": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.loading_dock_scheduling": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.fire_suppression_testing": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.compressed_gas_cylinder_tracking": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "operations.office_supply_budget_monitoring": {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "split": "development"
+    },
+    "operations.generator_load_testing_schedule": {
+      "family": "operations.safety-training-and-compliance",
+      "split": "development"
+    },
+    "support.zendesk_sf_case_sync": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.helpscout_jira_bugs": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.gorgias_order_lookup": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.zoho_sf_enrichment": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zendesk_maintenance_notify": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.intercom_demo_scheduling": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.helpscout_weekly_report": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.zendesk_hubspot_org_sync": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.freshdesk_faq_drafts": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.zoho_freshdesk_escalation": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.intercom_winback": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.intercom_freshdesk_escalation": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.gorgias_refund_processing": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.zoho_calendar_callbacks": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.hiver_inbox_report": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.zendesk_intercom_company_sync": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.helpscout_daily_digest": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.gorgias_freshdesk_migration": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.freshdesk_reamaze_migration": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.zendesk_hubspot_churn_risk": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.reamaze_intercom_migration": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.zoho_desk_ticket_categorization": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.hiver_csat_analysis": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.freshdesk_onboarding_automation": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.intercom_usage_health_scoring": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.helpscout_knowledge_gap_analysis": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.hiver_team_performance": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.freshdesk_sla_monitoring": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.zoho_desk_warranty_processing": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zendesk_freshdesk_sync": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.freshdesk_zoho_migration": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.helpscout_hubspot_deal_alerts": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.gorgias_quality_audit": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.hiver_slack_digest": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.zendesk_customer_360": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.intercom_sf_opportunity_alerts": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.helpscout_reamaze_migration": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.zendesk_automated_responses": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.helpcrunch_engagement_scoring": {
+      "family": "support.helpcrunch-workflows",
+      "split": "development"
+    },
+    "support.helpcrunch_zoho_desk_bridge": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.zendesk_gdpr_purge": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.zendesk_cross_org_merge": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.zendesk_weekend_handoff": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.zendesk_data_quality": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.freshdesk_contract_renewal": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.freshdesk_compliance_tagging": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.freshdesk_journey_mapping": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.freshdesk_auto_merge": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.freshdesk_escalation_matrix": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.intercom_sentiment_escalation": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.intercom_feature_request": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.intercom_auto_response_drafts": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.helpscout_response_audit": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.helpscout_customer_merge": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.helpscout_health_sync": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.helpscout_auto_categorization": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.gorgias_defect_tracking": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.gorgias_channel_consolidation": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.reamaze_knowledge_routing": {
+      "family": "support.reamaze-workflows",
+      "split": "development"
+    },
+    "support.reamaze_lifecycle_tagging": {
+      "family": "support.reamaze-workflows",
+      "split": "development"
+    },
+    "support.reamaze_multilanguage": {
+      "family": "support.reamaze-workflows",
+      "split": "development"
+    },
+    "support.reamaze_cross_platform_dedup": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.reamaze_feedback_sentiment": {
+      "family": "support.reamaze-workflows",
+      "split": "development"
+    },
+    "support.reamaze_campaign_tracking": {
+      "family": "support.reamaze-workflows",
+      "split": "development"
+    },
+    "support.zoho_vendor_tickets": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zoho_risk_scoring": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zoho_multitenant_isolation": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zoho_account_health": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zoho_resolution_patterns": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.helpcrunch_usage_alerts": {
+      "family": "support.helpcrunch-workflows",
+      "split": "development"
+    },
+    "support.helpcrunch_trial_nurture": {
+      "family": "support.helpcrunch-workflows",
+      "split": "development"
+    },
+    "support.helpcrunch_satisfaction": {
+      "family": "support.helpcrunch-workflows",
+      "split": "development"
+    },
+    "support.hiver_cross_team_handoff": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.hiver_mailbox_audit": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.hiver_workload_forecast": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.hiver_escalation_patterns": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.hiver_coaching_pipeline": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.zendesk_escalation_waterfall": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.zendesk_customer_sentiment": {
+      "family": "support.zendesk-workflows",
+      "split": "development"
+    },
+    "support.freshdesk_csat_followup": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.freshdesk_warranty_adjudication": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.freshdesk_multi_queue_routing": {
+      "family": "support.freshdesk-workflows",
+      "split": "evaluation"
+    },
+    "support.intercom_multi_product_routing": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.intercom_reactivation_campaign": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.intercom_conversation_quality": {
+      "family": "support.intercom-workflows",
+      "split": "development"
+    },
+    "support.helpscout_customer_effort": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.helpscout_kb_feedback": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.helpscout_cross_team_handoff": {
+      "family": "support.helpscout-workflows",
+      "split": "development"
+    },
+    "support.gorgias_fraud_detection": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.gorgias_inventory_routing": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.gorgias_loyalty_program": {
+      "family": "support.gorgias-workflows",
+      "split": "development"
+    },
+    "support.reamaze_multi_channel_dedup": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.zoho_desk_capacity_planning": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zoho_desk_customer_journey": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.zoho_desk_root_cause": {
+      "family": "support.zoho-workflows",
+      "split": "development"
+    },
+    "support.hiver_response_sla": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.hiver_quality_coaching": {
+      "family": "support.hiver-workflows",
+      "split": "development"
+    },
+    "support.zendesk_freshdesk_reconciliation": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.intercom_zoho_customer_360": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "support.reamaze_intercom_sync": {
+      "family": "support.cross-platform-migration-and-sync",
+      "split": "development"
+    },
+    "finance.invoice_email_extract": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.expense_anomaly_detection": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.overdue_invoice_followup": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.weekly_expense_summary": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.timesheet_to_invoice": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.po_email_logging": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.slack_receipt_capture": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.invoice_reconciliation": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.vendor_payment_approval": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.monthend_journal_entries": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.qb_customer_onboard": {
+      "family": "finance.record-and-catalog-management",
+      "split": "evaluation"
+    },
+    "finance.qb_invoice_from_orders": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.xero_bill_entry": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.wave_freelance_invoice": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.payment_reconciliation": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.budget_variance_analysis": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.multicurrency_invoice": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.xero_credit_allocation": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.dept_expense_rollup": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.tax_prep_summary": {
+      "family": "finance.tax-and-statutory-reporting",
+      "split": "development"
+    },
+    "finance.invoice_dispute": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.xero_vendor_onboard": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.revenue_recognition": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.petty_cash_reconciliation": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.ap_aging_report": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.airtable_expense_approval": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.duplicate_payment_detection": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.invoice_file_organization": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.payroll_variance_check": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.late_fee_calculation": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.vendor_spend_analysis": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.intercompany_transfer": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.qb_estimate_conversion": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.expense_reclassification": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.cash_flow_forecast": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.xero_bank_reconcile": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.commission_calculation": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.wave_product_catalog": {
+      "family": "finance.record-and-catalog-management",
+      "split": "evaluation"
+    },
+    "finance.contract_billing": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.financial_close_checklist": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.refund_processing": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.xero_batch_invoice_send": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.wave_tax_compliance": {
+      "family": "finance.tax-and-statutory-reporting",
+      "split": "development"
+    },
+    "finance.po_three_way_match": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.payment_terms_tracking": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.qb_sales_receipt_batch": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.expense_policy_violation": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.vendor_credit_application": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.monday_project_billing": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.subscription_billing": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.credit_card_reconciliation": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.grant_expense_tracking": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.wire_transfer_approval": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.depreciation_schedule": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.cost_center_allocation": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.invoice_aging_followup": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.xero_multicurrency_payment": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.prepaid_amortization": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.bad_debt_writeoff": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.vendor_1099_prep": {
+      "family": "finance.tax-and-statutory-reporting",
+      "split": "development"
+    },
+    "finance.qb_bill_payment_batch": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.sales_tax_remittance": {
+      "family": "finance.tax-and-statutory-reporting",
+      "split": "development"
+    },
+    "finance.travel_advance_settlement": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.inventory_valuation": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.bank_fee_analysis": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.lease_payment_schedule": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.profit_margin_analysis": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.intercompany_invoice": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.employee_reimbursement": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.gl_variance_analysis": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.qb_customer_balance_review": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.xero_po_matching": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.wave_client_statement": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.closing_journal_automation": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.vendor_statement_reconciliation": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.qb_void_stale_invoices": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.project_profitability": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.annual_budget_prep": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.escrow_tracking": {
+      "family": "finance.unresolved-workflows",
+      "split": "development"
+    },
+    "finance.year_end_audit_prep": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.credit_limit_review": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.vendor_early_pay_discount": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.qb_recurring_journal": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.ap_turnover_analysis": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.xero_quote_to_invoice": {
+      "family": "finance.invoicing-billing-and-receivables",
+      "split": "development"
+    },
+    "finance.wave_expense_categorization": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.quarterly_tax_estimate": {
+      "family": "finance.tax-and-statutory-reporting",
+      "split": "development"
+    },
+    "finance.intercompany_balance_recon": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.vendor_insurance_verification": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.forex_gain_loss": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.capex_approval": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.expense_split_allocation": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.qb_undeposited_funds": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.financial_ratio_analysis": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.xero_expense_claim_review": {
+      "family": "finance.expenses-and-reimbursements",
+      "split": "development"
+    },
+    "finance.cash_sweep": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.payment_fraud_detection": {
+      "family": "finance.payment-and-vendor-controls",
+      "split": "development"
+    },
+    "finance.deferred_revenue_tracking": {
+      "family": "finance.budget-forecast-and-analytics",
+      "split": "development"
+    },
+    "finance.audit_sample_selection": {
+      "family": "finance.reconciliation-and-close",
+      "split": "development"
+    },
+    "finance.fiscal_year_rollover": {
+      "family": "finance.tax-and-statutory-reporting",
+      "split": "development"
+    }
+  }
+}

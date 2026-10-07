@@ -16,7 +16,7 @@ from pydantic import Field
 
 from .models import MetricHelp, ObservatoryModel
 
-type CatalogEntity = Literal["update", "run"]
+type CatalogEntity = Literal["collection", "update", "run"]
 
 RESOLVED_UPDATE_KINDS = ("train.capo", "train.gdpo", "train.grpo", "train.sampo")
 """Job kinds whose explicit `policy_updates` engines emit resolved-update evidence."""
@@ -51,6 +51,13 @@ class MetricEntry(ObservatoryModel):
             caveat=self.caveat,
             unit=self.unit,
         )
+
+
+COLLECTION_TIME_METRIC = "train/rl/collection_time_seconds"
+"""Derived by Observatory, not recorded: the summed step time of the updates that trained on one collection."""
+
+DERIVED_COLLECTION_METRICS = frozenset({COLLECTION_TIME_METRIC})
+"""Per-collection series Observatory derives from recorded metrics; never read from a tracking provider."""
 
 
 def _entry(metric: str, name: str, label: str, description: str, **fields: object) -> MetricEntry:
@@ -141,6 +148,16 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         unit="s",
         entity="update",
         job_kinds=("train.capo", "train.distill", "train.dpo", "train.gdpo", "train.grpo", "train.sampo", "train.sft"),
+    ),
+    _entry(
+        COLLECTION_TIME_METRIC,
+        "collection_time",
+        "Collection time",
+        "Wall-clock time of one collection: rollout, scoring and every optimizer update that trained on it. Observatory sums the step times of the collection's updates; when each collection feeds one update it equals step time.",
+        interpretation="Compare runs on this rather than step time: it covers the same work (one sampled population, end to end) whether a run applies one or several updates per collection.",
+        caveat="Derived, not recorded. A collection still being trained is left out until all its planned updates are recorded.",
+        unit="s",
+        job_kinds=RESOLVED_UPDATE_KINDS,
     ),
     _entry(
         "train/num_tokens",
@@ -443,7 +460,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Mean reward",
         "Mean verifier reward across the sampled rollout group.",
         interpretation="An upward trend suggests policy improvement when the verifier and sampling policy are unchanged.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -452,7 +469,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Reward standard deviation",
         "Spread of verifier rewards within sampled rollout groups.",
         interpretation="Some spread supplies a learning signal; collapse near zero can make relative advantages uninformative.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -507,9 +524,9 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "train/rl/dynamic_sampling_candidate_batches",
         "dynamic_candidate_batches",
         "Dynamic-sampling candidate batches",
-        "Number of candidate rollout batches consumed to fill one optimizer update.",
+        "Number of candidate rollout batches consumed to fill one collection.",
         interpretation="Values near the configured bound indicate the current policy is producing too many reward-constant groups and may exhaust the sampler.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -519,16 +536,16 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of candidate rollout rows retained after filtering for within-group reward variation.",
         interpretation="A low fraction means the effective environment population is being spent on discarded groups rather than learning signal.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
         "train/rl/active_sampling_generation_rounds",
         "generation_rounds",
         "Active-sampling generation rounds",
-        "Number of sequential candidate-generation rounds needed to fill one optimizer update.",
+        "Number of sequential candidate-generation rounds needed to fill one collection.",
         interpretation="More rounds mean the sampler had to replace more reward-constant candidates before it could assemble an informative update.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -536,18 +553,18 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "retained_share",
         "Active-sampling retained fraction",
         "Share of generated candidate rows retained after the reward-variation filter.",
-        interpretation="A low fraction means the update required substantial replacement sampling; inspect it with the candidate-row accounting.",
+        interpretation="A low fraction means the collection required substantial replacement sampling; inspect it with the candidate-row accounting.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
         "train/rl/active_sampling_generated_rows",
         "generated_rows",
         "Active-sampling generated rows",
-        "Candidate rows actually generated while filling one optimizer update.",
+        "Candidate rows actually generated while filling one collection.",
         interpretation="Compare this with retained rows to quantify the rollout work spent on replacement sampling.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -557,7 +574,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Active-sampling candidate rows reserved",
         "Candidate rows reserved by the dataloader for the bounded active-sampling window.",
         interpretation="Reserved rows that remain unused are capacity held in reserve rather than rollout work already performed.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -567,7 +584,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Active-sampling candidate rows generated",
         "Candidate rows whose rollouts were generated and scored.",
         interpretation="This is the generated candidate population before filtering, not the final optimizer population.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -576,8 +593,8 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "active_sampling_candidate_groups_retained",
         "Active-sampling candidate rows retained",
         "Generated candidate rows kept because their reward group had usable variation.",
-        interpretation="This is the population from which the optimizer update is assembled after any bounded oversupply is trimmed.",
-        entity="update",
+        interpretation="This is the population the collection's updates train on after any bounded oversupply is trimmed.",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -587,7 +604,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Active-sampling candidate rows unused",
         "Reserved candidate rows never generated because the target population was already filled.",
         interpretation="A high value is expected when early candidate rounds are productive; it is not a failed rollout count.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -597,7 +614,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Active-sampling oversampled groups",
         "Prompt groups generated beyond the groups each round was missing, from the oversample and oversample_refill settings.",
         interpretation="This is the extra rollout work spent to avoid serial refill rounds; compare it with generation rounds.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.grpo", "train.sampo"),
     ),
@@ -605,9 +622,9 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "train/rl/active_sampling_discarded_groups",
         "active_sampling_discarded_groups",
         "Active-sampling discarded groups",
-        "Prompt groups with reward spread that were generated but dropped because the update was already full.",
-        interpretation="Discarded groups are the part of oversampling that did not reach the update; they never carry over to a later update.",
-        entity="update",
+        "Prompt groups with reward spread that were generated but dropped because the collection was already full.",
+        interpretation="Discarded groups are the part of oversampling that did not reach the collection; they never carry over to a later collection.",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.grpo", "train.sampo"),
     ),
@@ -682,7 +699,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of rollout groups whose rewards contain no within-group variation.",
         interpretation="High values mean GRPO cannot rank alternatives inside many groups even when reward varies globally.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -846,7 +863,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Requested rollouts",
         "Number of rollout attempts requested for the logical step.",
         interpretation="Compare it with terminal attempts to distinguish a smaller configured batch from work that never reached a terminal trace.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -855,7 +872,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Terminal rollouts",
         "Number of requested rollout attempts that reached a retained terminal trace.",
         interpretation="This is the observed population denominator for completion, failure, truncation, and scoring coverage.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -865,7 +882,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Missing rollout evidence",
         "Requested rollout attempts that did not reach a retained terminal trace.",
         interpretation="This is not a failure count: inspect cancellation and runtime evidence before assigning a cause.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -873,8 +890,8 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "rollouts_completed",
         "Completed rollouts",
         "Number of rollout attempts that returned a terminal result.",
-        interpretation="Compare it with attempted rollouts; a gap means the policy update saw less evidence than configured.",
-        entity="update",
+        interpretation="Compare it with attempted rollouts; a gap means the collection's updates saw less evidence than configured.",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -884,7 +901,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Failed rollouts",
         "Number of rollout attempts that ended in an execution or environment error.",
         interpretation="Any non-zero value requires trace-level inspection because failed work can bias the effective batch.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -894,7 +911,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Truncated rollouts",
         "Number of completed rollouts stopped by a token, step, or time limit.",
         interpretation="Truncation can hide task completion and bias rewards toward shorter trajectories.",
-        entity="update",
+        entity="collection",
         aggregation="sum",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
@@ -904,7 +921,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Unscorable rollouts",
         "Number of returned rollouts without a finite verifier reward.",
         interpretation="Unscorable trajectories cannot contribute a valid relative learning signal and should be treated as evidence loss.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -914,7 +931,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Average generated completion length for the rollout population.",
         interpretation="Length drift can indicate changing task behavior, truncation pressure, or reward exploitation.",
         unit="tokens",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -924,7 +941,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Longest generated completion in the observed rollout population.",
         interpretation="Repeated contact with the configured limit suggests generation is capacity constrained.",
         unit="tokens",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -934,7 +951,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of completions stopped at the configured generation limit.",
         interpretation="A rising rate means reward and completion statistics increasingly describe partial trajectories.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -944,7 +961,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Effective completion-token throughput during rollout generation.",
         interpretation="Compare runs only when model, hardware, sequence distribution, and rollout topology are comparable.",
         unit="tokens/s",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -999,17 +1016,17 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Average number of policy versions between trajectory generation and optimization.",
         interpretation="Higher staleness weakens on-policy assumptions and should be read with importance ratios and reward progress.",
         unit="versions",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
         "train/rl/policy_staleness_max",
         "policy_staleness_max",
         "Maximum policy staleness",
-        "Largest observed policy-version delay for trajectories consumed by the update.",
+        "Largest observed policy-version delay for trajectories consumed by the collection.",
         interpretation="A high tail can reveal queue backlog that is hidden by an acceptable mean.",
         unit="versions",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1019,7 +1036,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Average policy-version span represented within an optimization batch.",
         interpretation="Wide batches mix behavior from different policy states and make update interpretation less direct.",
         unit="versions",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1029,7 +1046,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of rollouts that invoked at least one environment tool.",
         interpretation="A change can represent better task engagement or reward gaming; inspect linked traces to distinguish them.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -1039,7 +1056,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of rollouts with at least one failed tool invocation.",
         interpretation="Failures reduce usable evidence and often explain reward degradation or longer trajectories.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -1049,7 +1066,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Wall-clock time spent generating trajectories for a logical step.",
         interpretation="Use it with total step time to locate generation-bound runs.",
         unit="s",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -1059,7 +1076,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Wall-clock time spent evaluating verifier rewards.",
         interpretation="A large share of step time identifies verifier or environment evaluation as the bottleneck.",
         unit="s",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1089,7 +1106,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Wall-clock time spent moving updated policy weights to the rollout runtime.",
         interpretation="This is a direct tax of decoupled serving and should be judged against rollout throughput gains.",
         unit="s",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1109,7 +1126,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Number of tokens proposed by the speculative MTP path.",
         interpretation="This is opportunity volume, not acceleration by itself; pair it with accepted tokens and measured throughput.",
         unit="tokens",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1119,7 +1136,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Number of drafted tokens accepted by target-model verification.",
         interpretation="More accepted tokens can reduce target decoding work, but only measured throughput establishes a speedup.",
         unit="tokens",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1129,7 +1146,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of drafted MTP tokens accepted by target-model verification.",
         interpretation="Acceptance describes draft quality; it does not account for drafting overhead or prove end-to-end acceleration.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -1139,7 +1156,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Mean accepted speculative-token run length per verification cycle.",
         interpretation="Longer accepted runs usually reduce target decode iterations, subject to drafting and synchronization cost.",
         unit="tokens",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1149,7 +1166,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Runtime-reported token capacity for the selected KV-cache representation.",
         interpretation="Capacity is a configuration outcome and must not be inferred from the selected TurboQuant dtype alone.",
         unit="tokens",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo"),
     ),
     _entry(
@@ -1159,7 +1176,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Highest observed share of the runtime KV-cache capacity used during the run.",
         interpretation="A high value signals limited headroom; a missing value means quantized-cache qualification is incomplete.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
     ),
     _entry(
@@ -1297,7 +1314,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Episode advantage",
         "Mean trajectory-level advantage assigned from the complete episode return.",
         interpretation="Centred within each prompt group, so it is zero by construction; read episode credit for its size.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1306,7 +1323,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Turn advantage",
         "Mean step-aware advantage assigned to sampled assistant turns.",
         interpretation="Centred within each anchor group, so it is zero by construction; read turn credit and its share instead.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1314,8 +1331,8 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "episode_advantage_magnitude",
         "Episode credit",
         "Mean absolute trajectory-level advantage: how strongly whole episodes are ranked within their prompt group.",
-        interpretation="Zero means every attempt at a task scored the same, so the update carries no episode-level signal.",
-        entity="update",
+        interpretation="Zero means every attempt at a task scored the same, so the collection carries no episode-level signal.",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1324,7 +1341,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Turn credit",
         "Mean absolute turn-level advantage: how strongly turns are ranked against other attempts from the same state.",
         interpretation="Compare with episode credit; turn credit near zero means SAMPO is behaving like episode-level GRPO.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1334,7 +1351,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Share of each turn's credit (episode advantage plus weighted turn advantage) that comes from the turn level.",
         interpretation="The headline SAMPO signal: 0% is plain episode credit; higher values mean turns are judged on their own consequences.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1344,7 +1361,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of sampled turns whose turn advantage is non-zero, so they were ranked against a comparable attempt.",
         interpretation="Low coverage means most turns had no peer from the same state or all peers earned the same return.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1354,7 +1371,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of sampled turns whose anchor state no other attempt in the group reached.",
         interpretation="These turns get no relative turn credit; rising values mean attempts diverge early.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1363,7 +1380,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Anchor group size",
         "Mean number of comparable turns contributing to each step-aware advantage anchor.",
         interpretation="Small groups provide weak relative evidence; compare this value across runs using the same sampling policy.",
-        entity="update",
+        entity="collection",
         job_kinds=("train.sampo",),
     ),
     _entry(
@@ -1373,7 +1390,7 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
         "Fraction of sampled trajectories whose terminal reward was projected back across intermediate turns.",
         interpretation="A high value means SAMPO is relying heavily on its sparse-reward credit-assignment path.",
         unit="ratio",
-        entity="update",
+        entity="collection",
         transform="one_minus",
         job_kinds=("train.sampo",),
     ),
@@ -1540,6 +1557,34 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
             ("retained", "Prompt groups from active-sampling round {round_index} with reward spread that were kept."),
         )
     ),
+    _entry(
+        "train/rl/collection_updates",
+        "planned_updates",
+        "Planned updates per collection",
+        "Optimizer updates the trainer planned for the collection when it admitted it.",
+        unit="updates",
+        entity="collection",
+        aggregation="last",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/active_sampling_retained_signal_mean",
+        "retained_signal",
+        "Learning signal of trained groups",
+        "Mean learning signal of the prompt groups kept for training: how far each group's shaped rewards sit from their group mean (the episode advantage magnitude under mean normalization).",
+        interpretation="Higher means the trained groups separate better from worse attempts more sharply; with learning-signal retention it should sit at or above the eligible-group mean.",
+        entity="collection",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
+    _entry(
+        "train/rl/active_sampling_eligible_signal_mean",
+        "eligible_signal",
+        "Learning signal of eligible groups",
+        "Mean learning signal of every generated prompt group with reward spread, kept or not; compare with the trained groups to see what selection added.",
+        interpretation="The gap to the trained groups is what choosing groups added; with candidate-order retention the two agree up to which groups happened to come first.",
+        entity="collection",
+        job_kinds=RESOLVED_UPDATE_KINDS,
+    ),
     # One rate per episode ending (`posttrain.common.EpisodeEnding`); the
     # per-rollout label is the `rollout.ending` dimension.
     *(
@@ -1547,9 +1592,9 @@ METRIC_CATALOG: tuple[MetricEntry, ...] = (
             f"train/rl/ending_{ending}_rate",
             f"ending_{ending}_rate",
             f"Ending: {ending.replace('_', ' ')}",
-            f"Share of the update's attempted rollouts that ended {ending}. {meaning}",
+            f"Share of the collection's attempted rollouts that ended {ending}. {meaning}",
             unit="ratio",
-            entity="update",
+            entity="collection",
             job_kinds=("train.capo", "train.gdpo", "train.grpo", "train.sampo"),
         )
         for ending, meaning in EPISODE_ENDING_DESCRIPTIONS.items()
@@ -1565,6 +1610,8 @@ def metric_help(*metrics: str) -> tuple[MetricHelp, ...]:
 __all__ = [
     "ACTIVE_SAMPLING_CATALOG_ROUNDS",
     "CATALOG_BY_METRIC",
+    "COLLECTION_TIME_METRIC",
+    "DERIVED_COLLECTION_METRICS",
     "METRIC_CATALOG",
     "RESOLVED_UPDATE_KINDS",
     "MetricEntry",

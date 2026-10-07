@@ -1,0 +1,139 @@
+{
+  "native_module": "/home/hammad/projects/verifiers-credit-candidate-20261003/verifiers/v1/__init__.py",
+  "adapter_module": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/hr_evidence.py",
+  "cases": [
+    {
+      "task_name": "hr.offboarding_automation",
+      "episode_sha256": "ed4d1ba9f45b9807d3a4a03166d962d22e8ae74e05b325339761da6f7ebd9423",
+      "attempt": "b03c8dc88e1661f65e7150a31c48e55a20e3f372d6ceedd4bb37753bb55ef9cb",
+      "source_snapshot_id": "4ddd09b7a7f602d85b5592591a9d1c824acf244b68272cc872f0aec062a1e1e7",
+      "findings": [
+        {
+          "key": "offboarding.future_notification:Greg Foster",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "690e9068557947dd8d724f6725c205c2"
+        },
+        {
+          "key": "offboarding.future_notification:Greg Foster",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "e33da0198b1940d0be7808d39675d195"
+        },
+        {
+          "key": "offboarding.future_notification:Diana Reese",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "270aad1ce8924b72a9660b3a9c2d83c7"
+        },
+        {
+          "key": "offboarding.future_notification:Diana Reese",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "f3256e7305af474c999391e6364e6c79"
+        },
+        {
+          "key": "offboarding.future_notification:Greg Foster",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "8339d2c5f58e4e968b4f478b80f6368f"
+        },
+        {
+          "key": "offboarding.future_notification:Diana Reese",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "8339d2c5f58e4e968b4f478b80f6368f"
+        },
+        {
+          "key": "offboarding.future_notification:Raj Patel",
+          "value": 1.0,
+          "reason": "delivered",
+          "occurrence": "8339d2c5f58e4e968b4f478b80f6368f"
+        },
+        {
+          "key": "offboarding.future_notification:Greg Foster",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "8ec1a5b4d0e9479292e690f4e24e6192"
+        },
+        {
+          "key": "offboarding.future_notification:Diana Reese",
+          "value": 0.0,
+          "reason": "resolved_nonfuture_nonviolation",
+          "occurrence": "8ec1a5b4d0e9479292e690f4e24e6192"
+        },
+        {
+          "key": "offboarding.future_notification:Raj Patel",
+          "value": 1.0,
+          "reason": "delivered",
+          "occurrence": "8ec1a5b4d0e9479292e690f4e24e6192"
+        },
+        {
+          "key": "hr.coverage",
+          "value": 1.0,
+          "reason": "acknowledged_retained_action_scope",
+          "occurrence": null
+        }
+      ]
+    },
+    {
+      "task_name": "hr.referral_bonus_tracking",
+      "episode_sha256": "e2d5f1764e05fa6a233c113db9d9fef5c84d5b5fc02d44ccc2c44d407e800863",
+      "attempt": "e4c34498de35028e1c3df57ece9ab088b4c68fd14a48783b17572cc62dbc0cdb",
+      "source_snapshot_id": "6389c0fe5920fc9ce8fb7babb4374a18bd0f3ae119b3a4f48fb872f352c1a0c4",
+      "findings": [
+        {
+          "key": "referral.finance_individual_payout",
+          "value": 1.0,
+          "reason": "delivered_to_finance",
+          "occurrence": "810a3f7432f04ec3b3314d0d89057dba"
+        },
+        {
+          "key": "hr.coverage",
+          "value": 1.0,
+          "reason": "acknowledged_retained_action_scope",
+          "occurrence": null
+        }
+      ]
+    },
+    {
+      "task_name": "hr.docusign_nda_collection",
+      "episode_sha256": "a3d82b4cc6eefd141e2fc9f7e26e3c2b60345d5479287443c9406d7b70b9dc74",
+      "attempt": "d04ff33def4156b3bc56e7a885a4cc80e00b4fd05085c5681260f52fde7ac6b9",
+      "source_snapshot_id": "839e255afe79851cdc8c750856d3af66c6878c4d926600de5d475e3f1eeaf117",
+      "findings": [
+        {
+          "key": "nda.completed:alicia.fernandez@company.example.com",
+          "value": 1.0,
+          "reason": "sent_and_applied_status",
+          "occurrence": null
+        },
+        {
+          "key": "nda.completed:tyrone.washington@company.example.com",
+          "value": 1.0,
+          "reason": "sent_and_applied_status",
+          "occurrence": null
+        },
+        {
+          "key": "nda.signed_preservation:sarah.nakamura@company.example.com",
+          "value": 0.0,
+          "reason": "covered_scope",
+          "occurrence": null
+        },
+        {
+          "key": "nda.completed:meiling.chow@company.example.com",
+          "value": 1.0,
+          "reason": "sent_and_applied_status",
+          "occurrence": null
+        },
+        {
+          "key": "hr.coverage",
+          "value": 1.0,
+          "reason": "acknowledged_retained_action_scope",
+          "occurrence": null
+        }
+      ]
+    }
+  ],
+  "scope": "three HR development attempts only"
+}

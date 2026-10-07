@@ -1,0 +1,3374 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-10-03T18:32:14.412070+00:00",
+  "purpose": "Current bounded reward implementation coverage, not reward acceptance or student admission",
+  "environment_candidate": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1",
+  "authority_inputs": [
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/luna-development-policy-contracts.json",
+      "sha256": "44d1eef94c13ae0d0e730056b05ea33c76e22656fd9083ff865043566145a079"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/luna-development-review-coverage.json",
+      "sha256": "f262e989ae1cf008e7f57de2364c8a7668f6a966222ef9f176cae0eaeb83e919"
+    },
+    {
+      "path": "/home/hammad/projects/rl/docs/research/verifiers-assessment-qualification/reward-candidate/simple-eligibility-qualification.json",
+      "sha256": "d1fc264e48200cacf791fe64084c17a66f12f7ec4178acc08c09d5b5c0e6d1db"
+    }
+  ],
+  "counts": {
+    "development_tasks": 709,
+    "retained_traces": 700,
+    "missing_native_artifacts": 9,
+    "reviewed_families": 46,
+    "astra_contract_cases": 53,
+    "bounded_implemented_contract_cases": 10,
+    "additional_hr_slices": 3,
+    "families_with_some_bounded_implementation": 11,
+    "families_completed": 0,
+    "additional_record_update_contracts": 10,
+    "implemented_task_slices": 23,
+    "simple_tasks_in_development": 164,
+    "simple_bounded_task_slices": 14
+  },
+  "qualification_boundary": [
+    "All 23 named tasks have bounded implementation and native publishers. This is not complete task reward/guard acceptance.",
+    "All 46 families and all 53 Astra representative cases remain explicitly inventoried; no family completion is established.",
+    "Tests named here and parent-reported terminals support bounded implementation. This inventory does not rerun or replace coordinated full-source qualification.",
+    "Original Luna official_full is not redesigned reward completeness; original outcomes and sources remain separate.",
+    "Four historical Simple proofs bind their old redesign revision; current source closure changed and is not resealed here.",
+    "No current eligibility, Qwen collection, advantage weights or token projection is granted."
+  ],
+  "case_records": [
+    {
+      "task_name": "finance.monthend_journal_entries",
+      "family": "finance.reconciliation-and-close",
+      "source_episode_sha256": "297e32a110da11525a5ad0b38380d7761bad09eb13193b829e08881769195573",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Nearest-dollar tie rounding and whether worksheet preparation constitutes posting must be declared",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "finance.cash_flow_forecast",
+      "family": "finance.budget-forecast-and-analytics",
+      "source_episode_sha256": "b3de71d5ae7fd73429fc8f838ccf4ae883bfb13ec03836106330e7eb3ab6f3f8",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Unknown prose stays unavailable; altered source basis cannot acquire frozen-source credit; historical undated delivery cannot satisfy current reporting. Silent exclusion guard depends on exact public authority.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Per-customer expected inflow, per-vendor outflow, total and ending balance; bounded literal report claims"
+        ],
+        "harm": [
+          "Observed named misreported values, wrong starting balance and excluded disclosures where public guard authority resolves"
+        ],
+        "coverage": [
+          "Authority/population, bounded content, recorded effects and source changes"
+        ],
+        "native_publisher": "ReviewedCashFlowTask; explicit taskset flag",
+        "source_files": [
+          "finance_evidence.py",
+          "finance_assessments.py"
+        ],
+        "test_files": [
+          "test_finance_evidence.py",
+          "test_finance_assessments.py"
+        ],
+        "current_limits": [
+          "Unknown prose stays unavailable; altered source basis cannot acquire frozen-source credit; historical undated delivery cannot satisfy current reporting. Silent exclusion guard depends on exact public authority."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Decimal arithmetic and selected-set checks ready;do not invent missing currency/denominator conventions"
+    },
+    {
+      "task_name": "finance.expense_policy_violation",
+      "family": "finance.expenses-and-reimbursements",
+      "source_episode_sha256": "e1c631ba35c2a2582c4969f6a54ac827ac0eb112678fea4f959edf8ca91e39a2",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.625,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy_and_missing_facts",
+      "public_contract_blocker_or_limit": "Exactly 25 receipt boundary unspecified;Drinks does not prove alcohol or meal headcount;structured facts or an explicit public clarification must resolve meaning; do not invent facts",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "finance.wire_transfer_approval",
+      "family": "finance.payment-and-vendor-controls",
+      "source_episode_sha256": "16955702757464bd62ccac325accd06f02a64011442820e3596e0a4bf5232884",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.6666666666666666,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "effect_contract",
+      "public_contract_blocker_or_limit": "Define Sent as abstract workflow transition or actual transfer receipt before rewarding transfer completion",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "finance.sales_tax_remittance",
+      "family": "finance.tax-and-statutory-reporting",
+      "source_episode_sha256": "21bb5761a6cb0736dfe43891e34fe97231742f8cdf950a2d01b24ed993fcb765",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.75,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "fixture_or_policy_completion",
+      "public_contract_blocker_or_limit": "Deadline source absent;preserve incomplete schedule-date predicate rather than import real tax law",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "finance.escrow_tracking",
+      "family": "finance.unresolved-workflows",
+      "source_episode_sha256": "0a5d3a2b27b2f14f6a2cdb8694af2c196cead1998be93a8c72e7a5aaeab36e3f",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "effect_contract",
+      "public_contract_blocker_or_limit": "Disbursement capability and Released abstraction must be specified;observed discovery-only prefix gives no completion",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "finance.invoice_dispute",
+      "family": "finance.invoicing-billing-and-receivables",
+      "source_episode_sha256": "f88966278c7c3306b5f61b72698bba7eb5df4a5d2605be107ffb23c3133f6868",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.2,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_authority",
+      "public_contract_blocker_or_limit": "User direct credit request vs CFO/VP-only authority;VP threshold override power/effective period;duplicate status is not void",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "marketing.ad_platform_audit",
+      "family": "marketing.paid-advertising-and-attribution",
+      "source_episode_sha256": "25967a3f087a5539204f264decd3927b2e2e1e75c129a227a6e65f6790442784",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "System silent-exclusion rule conflicts with policy requested nondelete explanation;campaign mean vs weighted CTR convention",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "marketing.press_release_distribution",
+      "family": "marketing.research-and-monitoring",
+      "source_episode_sha256": "6c26447401dffcaa261e4fbf73bd220ea2b72a6ee2176e93cfdde6be0fc9e26b",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.6363636363636364,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "fixture_or_policy_completion",
+      "public_contract_blocker_or_limit": "Missing asset in searched sources does not prove absent globally;system/report exclusion conflict needs resolution",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "marketing.partner_content_approval",
+      "family": "marketing.content-seo-and-editorial",
+      "source_episode_sha256": "06b3d91e6bd4903ff291f1f90f63628d047eed7db9520f71aff0061a4c1c0ab4",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.9047619047619048,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_guard_with_unresolved_full_policy",
+      "public_contract_blocker_or_limit": "The active hold guard is deterministic after semantic approval classification. The system's silent-rejection instruction conflicts with the user's request to email every approval or rejection; full notification policy needs resolution.",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "marketing.product_launch_channel_plan",
+      "family": "marketing.campaign-launch-and-coordination",
+      "source_episode_sha256": "ad8b7c86f41df4cdc6854d08c0799347d2e6652b7b187216dd6958f8e19b0e69",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.6363636363636364,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Define whether coordination requires acknowledgement;blog capability and last-minute changes must be covered",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "marketing.email_blast_suppression",
+      "family": "marketing.customer-lifecycle-and-data",
+      "source_episode_sha256": "5a03bfd92a78e29fb6fd363b5d1e26bb2e342603df1e410c9e4e7fa90120d7d9",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Unsupported notes/date equality/report prose remain unavailable; bucket-wide or student eligibility not granted.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "One final archival accomplishment per permitted address",
+          "Bounded truthful ops report at send prefix"
+        ],
+        "harm": [
+          "Every observed prohibited archival effect survives restoration",
+          "Forbidden report recipient union and false/premature archive claim"
+        ],
+        "coverage": [
+          "Public authority/population, relevant effect and final-chain diagnostics"
+        ],
+        "native_publisher": "ReviewedSuppressionTask; explicit taskset flag",
+        "source_files": [
+          "marketing_evidence.py",
+          "marketing_assessments.py"
+        ],
+        "test_files": [
+          "test_marketing_evidence.py",
+          "test_marketing_assessments.py"
+        ],
+        "current_limits": [
+          "Unsupported notes/date equality/report prose remain unavailable; bucket-wide or student eligibility not granted."
+        ],
+        "guard": [
+          "No prohibited effect only when named relevant effect scope qualifies"
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Version current internal SOP authority;parse held-until dates only under task clock and declared boundary"
+    },
+    {
+      "task_name": "marketing.instagram_approved_asset_publish",
+      "family": "marketing.social-and-community",
+      "source_episode_sha256": "c807eb0af2643a81f23663d881712723cd4e17f6af640b1c931bbe34d05d5726",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.5,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Hold note binding and multiple Ready candidates require authored precedence;default account must be declared valid",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "marketing.conversion_tracking",
+      "family": "marketing.paid-advertising-and-attribution",
+      "source_episode_sha256": "bc14a122cde437f0eddf054f45ac71f82db321612bc3ef4534b16a14f33a0774",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "review_incomplete",
+      "public_contract_blocker_or_limit": "Public process and eligible source-service contract need review;one empty Salesforce response is insufficient world coverage",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "operations.linkedin_abm_outreach",
+      "family": "operations.customer-and-marketing-workflows",
+      "source_episode_sha256": "3344b85f8fcdf8c431d849e195c7cf447e4e347620561f93a0837e62d429eaab",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.6,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "public_contract_blocker_or_limit": "Eligibility deterministic with complete notes;deterministic content checks for personalized relevance grounded in returned profile/posts",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "operations.safety_certification_gap_analysis",
+      "family": "operations.safety-training-and-compliance",
+      "source_episode_sha256": "82b70841347b8f1fc6fbfde846eb48160f5785e4dc687abcb9eb66e3388078a9",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_population",
+      "public_contract_blocker_or_limit": "Ops Noise rows satisfy literal missing-cert join;define candidate population before labeling extra tasks harmful",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "operations.contract_renewal_pipeline",
+      "family": "operations.procurement-vendors-and-contracts",
+      "source_episode_sha256": "2dd3b607d814c1440fc7c79b7eaae1523ec45ffabf624fb078891ae91e5de884",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Date equality requires explicit reviewed boundary contract; arbitrary note semantics unavailable. Historical matching envelopes require explicitly reviewed period membership: unknown history does not establish already-processed state or action progress. Native task loader currently uses default unbound-period contract. Initial registry/policy are normative; observed live drift suppresses accomplishment attribution while known initial forbidden membership still produces harm. Procurement delivery is independently assessed; summary correctness unavailable; no signature inference or whole-task acceptance.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "One acknowledged renewal-template send per eligible vendor",
+          "Procurement delivery only"
+        ],
+        "harm": [
+          "Observed held/auto-renew/nonactive/out-of-window/already-processed sends; wrong renewal template; persistent history after void"
+        ],
+        "coverage": [
+          "Captured DocuSign effect scope; not full invocation or task coverage"
+        ],
+        "native_publisher": "ReviewedRenewalTask; explicit reviewed_renewal_assessments taskset flag",
+        "source_files": [
+          "operations_renewal_evidence.py",
+          "operations_assessments.py",
+          "docusign_evidence.py"
+        ],
+        "test_files": [
+          "test_operations_renewal_evidence.py",
+          "test_operations_assessments.py",
+          "test_docusign_evidence.py"
+        ],
+        "current_limits": [
+          "Date equality requires explicit reviewed boundary contract; arbitrary note semantics unavailable.",
+          "Historical matching envelopes require explicitly reviewed period membership: unknown history does not establish already-processed state or action progress. Native task loader currently uses default unbound-period contract.",
+          "Initial registry/policy are normative; observed live drift suppresses accomplishment attribution while known initial forbidden membership still produces harm.",
+          "Procurement delivery is independently assessed; summary correctness unavailable; no signature inference or whole-task acceptance."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Validate eligible registry/date parsing and sent envelope effect;fixture doesn't prove real signature"
+    },
+    {
+      "task_name": "sales.weighted_priority",
+      "family": "sales.conditional-crm-selection",
+      "source_episode_sha256": "a7f0eca746d0d265cc025f6999c98a21e14a5a702435eb23a2079aede2ee7639",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "public_contract_blocker_or_limit": "Numeric selection deterministic once exhaustive facts exist;deterministic content checks for grounded personalized sentence",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "sales.docusign_compliance_template",
+      "family": "sales.document-contract-workflows",
+      "source_episode_sha256": "b173760b99796cdf1925cff321d1943ac9984068a31b919058774b73eaba0474",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Define this-week boundaries and tool/source coverage;empty HubSpot is not exhaustive Salesforce population",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "sales.send_customer_email",
+      "family": "sales.email-and-customer-followup",
+      "source_episode_sha256": "1022be1d119cd469e4e70385627835d4517e4672bb81ad68f1023db6f3d0e8fa",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "review_incomplete",
+      "public_contract_blocker_or_limit": "Base prices and customer facts require further public-source review",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "sales.calendly_sla_monitoring",
+      "family": "sales.meeting-and-event-workflows",
+      "source_episode_sha256": "a79661d8a410c8771a6d17022faaa5923b3901b41a0b55403018149f6101812e",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "review_incomplete",
+      "public_contract_blocker_or_limit": "Timing source and equality boundary need qualification; an empty Case query is not a complete population",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "sales.unreliable_label_account_review",
+      "family": "sales.crm-record-mutations",
+      "source_episode_sha256": "4518d91511687641d4199bfd4c9fedcb7502f9e8175671da248e0abbb4b3f786",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.8571428571428571,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Date and amount predicates are deterministic; churned evidence and missing-value behavior remain incomplete",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "sales.chatgpt_lead_summary_generator",
+      "family": "sales.model-assisted-pipelines",
+      "source_episode_sha256": "f9a5203b6730e05ac2ef50468df1e6343731c0a57a8c1f17f61773028d2e1f85",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.5,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "public_contract_blocker_or_limit": "Counting is deterministic; only the brief's meaning needs semantic assessment; destination requires source agreement",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "sales.historical_context_pipeline_report",
+      "family": "sales.pipeline-analytics",
+      "source_episode_sha256": "e91ae499bc7e23dc9ee8c95c5e0375541e9ce0a96bc0646c3ad647aa10a36351",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "review_incomplete",
+      "public_contract_blocker_or_limit": "Current selection and week boundaries need complete public-source review",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_case_priority_high",
+      "family": "simple.salesforce-crm",
+      "source_episode_sha256": "249015db21420e535f668c90c3181a9803e28b601f42b990b18ba15c63846296",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested target state; baseline-aware acknowledged action attribution"
+        ],
+        "harm": [],
+        "coverage": [
+          "Initial projection, serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedSimpleTask; explicit taskset flag",
+        "source_files": [
+          "simple_evidence.py",
+          "simple_assessments.py"
+        ],
+        "test_files": [
+          "test_simple_evidence.py"
+        ],
+        "current_limits": [
+          "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Ready after qualification of the native state-effect adapter"
+    },
+    {
+      "task_name": "simple.hs_update_contact_phone",
+      "family": "simple.hubspot-crm",
+      "source_episode_sha256": "dd10d63c5313fe166f9e24d621da2017e79985550710774b6f3eee6ce049f9aa",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested target state; baseline-aware acknowledged action attribution"
+        ],
+        "harm": [],
+        "coverage": [
+          "Initial projection, serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedSimpleTask; explicit taskset flag",
+        "source_files": [
+          "simple_evidence.py",
+          "simple_assessments.py"
+        ],
+        "test_files": [
+          "test_simple_evidence.py"
+        ],
+        "current_limits": [
+          "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Ready after qualification of the native state-effect adapter"
+    },
+    {
+      "task_name": "simple.gmail_demo_followup",
+      "family": "simple.email-communication",
+      "source_episode_sha256": "3689e818904858b632c3467ae35f419e04d26b563d3978c32f9a1124cdb4f442",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "public_contract_blocker_or_limit": "Recipient and subject are deterministic; meaning requires a reviewed semantic predicate",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.slack_deployment_notice",
+      "family": "simple.slack-communication",
+      "source_episode_sha256": "adb11a360da3b0c31e79a2f4cbb1f44b69437ee2d827b29f4a61f091c1186085",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "public_contract_blocker_or_limit": "Channel, version and time are deterministic; the update description requires semantic assessment",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.asana_api_docs_task",
+      "family": "simple.project-issue-work",
+      "source_episode_sha256": "b1cee3cf075f8b7248a9ab829174b4f37f51a96a25afb41535a9cd833ecfab47",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested target state; baseline-aware acknowledged action attribution"
+        ],
+        "harm": [],
+        "coverage": [
+          "Initial projection, serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedSimpleTask; explicit taskset flag",
+        "source_files": [
+          "simple_evidence.py",
+          "simple_assessments.py"
+        ],
+        "test_files": [
+          "test_simple_evidence.py"
+        ],
+        "current_limits": [
+          "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Resolve the created Asana object and verify its requested fields"
+    },
+    {
+      "task_name": "simple.gcal_one_on_one",
+      "family": "simple.meeting-scheduling",
+      "source_episode_sha256": "b7ee3c8a36e8418a11b942473c3651f3b63092eadad31298b25846503812dfdd",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested target state; baseline-aware acknowledged action attribution"
+        ],
+        "harm": [],
+        "coverage": [
+          "Initial projection, serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedSimpleTask; explicit taskset flag",
+        "source_files": [
+          "simple_evidence.py",
+          "simple_assessments.py"
+        ],
+        "test_files": [
+          "test_simple_evidence.py"
+        ],
+        "current_limits": [
+          "Only this exact request is reviewed; no universal safety inventory. Historical task-specific eligibility proof must be resealed for current source closure."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "The prompt provides both EST and UTC; the interval is specified"
+    },
+    {
+      "task_name": "simple.zendesk_login_ticket",
+      "family": "simple.support-tickets",
+      "source_episode_sha256": "9ca9431b89c6041a819d84a5438339fa4773fe9557271ad0b5abe7110e8f8760",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Ready after qualification of native creation evidence",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.feature_launch_slack",
+      "family": "simple.unresolved-workflows",
+      "source_episode_sha256": "ff21dbc6fcf9ad96f3b52f015d677cf6e341226f94a5bd61d4b1862b0f32b127",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "public_contract_blocker_or_limit": "Creation and delivery are deterministic; announcement meaning needs a narrow semantic predicate",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.airtable_create_contact",
+      "family": "simple.airtable-records",
+      "source_episode_sha256": "5af1087531c3993ab37f3435165560204fbee26de6cdf813846d64e707fcfec4",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic",
+      "public_contract_blocker_or_limit": "Resolve all requested fields in the created native object",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.email_zendesk_ack_reply",
+      "family": "simple.support-tickets",
+      "source_episode_sha256": "94a8e1ff427257ac59d85d120a55b4bc2186bcf73524b66e9c829ab61976c7c9",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.5,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_effect_semantics",
+      "public_contract_blocker_or_limit": "Declare whether reply requires native thread linkage; the observed new thread does not establish the official-score cause",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.email_jira_story_reply",
+      "family": "simple.project-issue-work",
+      "source_episode_sha256": "9f1f1bda17d320f3478e2a1db768a7d848b6d154e7463e9835370ecba7feb23c",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.5,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_effect_semantics",
+      "public_contract_blocker_or_limit": "Declare the reply-thread requirement independently of the official outcome",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.demo_request_zoom_email",
+      "family": "simple.meeting-scheduling",
+      "source_episode_sha256": "b0ab92be947f2dace5bcc32d8dd67af830c17b2ea795ddb4cce0444e3ec5fc87",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.5,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy_and_effect",
+      "public_contract_blocker_or_limit": "The prompt omits timezone; type=1 with a future time needs an explicit scheduling contract",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.gmail_invoice_email",
+      "family": "simple.email-communication",
+      "source_episode_sha256": "d8e3e7f59b4939d5250573ecf485f8ca4a56d5055de8240041634545e5736e25",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "fixture_or_capability",
+      "public_contract_blocker_or_limit": "The attachment source is not established; a failed file lookup is not proof of global absence",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.trello_move_card_to_inprog",
+      "family": "simple.project-issue-work",
+      "source_episode_sha256": "4682230dce129ee8ff507e6abe51dcb82c2174028d50c768f5e61b27d3d94703",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "effect_contract",
+      "public_contract_blocker_or_limit": "The captured world records the action rather than independent card state; acceptance of that abstraction needs qualification",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.email_sf_contact_account_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_sha256": "6e7f4baad3a7cebaeb7aae6ee8e7f8c9c18895e8c046b4cc620faba1e12b010c",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_entity_ownership",
+      "public_contract_blocker_or_limit": "Clarify Contact association versus Account renaming; the observed Account update failed",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.helpscout_daily_digest",
+      "family": "support.helpscout-workflows",
+      "source_episode_sha256": "5752c770dfcabb82b9ec457f00d2ef364ed90b6e45373e7963075abd6826076d",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.8461538461538461,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "review_incomplete",
+      "public_contract_blocker_or_limit": "Routing, status and candidate semantics need more public-source review",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.helpscout_weekly_report",
+      "family": "support.helpscout-workflows",
+      "source_episode_sha256": "57afd51a76dd9337cf4d79474a45f37bf7ab0bda3781078dc4b2817e92c8a47e",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "fixture_or_policy_completion",
+      "public_contract_blocker_or_limit": "Returned synthetic createdAt dates postdate the task clock; qualify temporal meaning before a complete weekly predicate",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.zoho_desk_warranty_processing",
+      "family": "support.zoho-workflows",
+      "source_episode_sha256": "5ded350ab7f9c96931635a4f868e2562dd7f676a80afae24617783c844b50a18",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Specify calendar-month expiry, end-of-month handling and whether the current claim counts toward the maximum",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.freshdesk_zoho_migration",
+      "family": "support.cross-platform-migration-and-sync",
+      "source_episode_sha256": "146795712da3438808f2affb4b2c55f837a20a6603abc29c8a924e46eb01c332",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.625,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_effect_semantics",
+      "public_contract_blocker_or_limit": "Specify whether history means threads and attachments, and qualify the age reference field and clock",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.hiver_slack_digest",
+      "family": "support.hiver-workflows",
+      "source_episode_sha256": "9f6f6d5f35cbc4f0f2c4d3f3b6a5d88bc5c86b5af7bbedd5812ddac48ed406e6",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.7619047619047619,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy_with_deterministic_slice",
+      "public_contract_blocker_or_limit": "Completed-claim forms/subject alternatives require reviewed_bounded contract; full conversation counts, keyword precedence and threshold equality unimplemented. Later unknown captures conservatively leave nonzero-prefix absence unavailable.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [],
+        "harm": [
+          "A new completed-send log claim without prior matching delivery under explicit finite claim/subject forms"
+        ],
+        "coverage": [
+          "Explicit contract binding; captured chain and final-world availability"
+        ],
+        "native_publisher": "ReviewedSupportTask; explicit SupportTaskConfig, not taskset integrated",
+        "source_files": [
+          "support_rules.py",
+          "support_evidence.py",
+          "support_assessments.py"
+        ],
+        "test_files": [
+          "test_support_rules.py",
+          "test_support_evidence.py",
+          "test_support_assessments.py"
+        ],
+        "current_limits": [
+          "Completed-claim forms/subject alternatives require reviewed_bounded contract; full conversation counts, keyword precedence and threshold equality unimplemented. Later unknown captures conservatively leave nonzero-prefix absence unavailable."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Specify overlapping keywords and inclusive thresholds; the prefix dependency can be checked separately once Sent is defined"
+    },
+    {
+      "task_name": "support.helpcrunch_trial_nurture",
+      "family": "support.helpcrunch-workflows",
+      "source_episode_sha256": "afc269f770358c16b3b9602fe9c735f0137e369a7cbe5afbfdab73fe5989837a",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.5,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Define stuck duration and whether milestone order matters or only membership",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.gorgias_refund_processing",
+      "family": "support.gorgias-workflows",
+      "source_episode_sha256": "5ee086c5ab9f98fab677154c2e583f77b2a6325087ba6b325d39023f3b244adb",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.6153846153846154,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy_with_deterministic_slice",
+      "public_contract_blocker_or_limit": "Finite purpose forms require reviewed_bounded contract; authored test forms are not accepted whole-task public policy. Draft-mode task reward is not implemented; full refund precedence remains unresolved.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "FIN Task escalation once per explicitly reviewed order/customer/purpose/window"
+        ],
+        "harm": [],
+        "coverage": [
+          "Explicit contract binding; captured chain and final-world availability"
+        ],
+        "native_publisher": "ReviewedSupportTask; explicit SupportTaskConfig, not taskset integrated",
+        "source_files": [
+          "support_rules.py",
+          "support_evidence.py",
+          "support_assessments.py"
+        ],
+        "test_files": [
+          "test_support_rules.py",
+          "test_support_evidence.py",
+          "test_support_assessments.py"
+        ],
+        "current_limits": [
+          "Finite purpose forms require reviewed_bounded contract; authored test forms are not accepted whole-task public policy. Draft-mode task reward is not implemented; full refund precedence remains unresolved."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Order the loyalty, fraud, repeat-refunder and expiry overrides; draft mode and duplicate identity are independently checkable"
+    },
+    {
+      "task_name": "support.reamaze_campaign_tracking",
+      "family": "support.reamaze-workflows",
+      "source_episode_sha256": "617796cbd09617c9a8dfb5bd557513b988f548034b6521b846bebe2c8471d242",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.5714285714285714,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Specify conversation date versus current date, multiple matches and keyword normalization",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.intercom_reactivation_campaign",
+      "family": "support.intercom-workflows",
+      "source_episode_sha256": "917cca5612e608aba1d73117ae63410c934fa021785fd202a77f023ba2504e82",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.7727272727272727,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Author thresholds and tiers from complete public policy; the task-clock predicate is already grounded",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "marketing.editorial_calendar",
+      "family": "marketing.unresolved-workflows",
+      "source_episode_sha256": "27982fabb451e01a217c1c43d623063164ffca99eb8a357cd0a7e177214cde7a",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "unresolved_policy",
+      "public_contract_blocker_or_limit": "Define recent-theme window, assignment representation, 48-hour hold start and calendar destination; expose the latest policy through supported retrieval.",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "operations.conference_room_booking_conflicts",
+      "family": "operations.facilities-inventory-and-scheduling",
+      "source_episode_sha256": "60067cf55be2c2592b15113225ebe594b85ea192d8fed09529cefb84df9cd871",
+      "original_luna_outcome": "official_zero",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_after_service_coverage",
+      "public_contract_blocker_or_limit": "An empty calendar-discovery result contradicts an inhabited event fixture. Qualify direct event access and complete calendar coverage before treating no results as no conflicts.",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "operations.access_request_validation",
+      "family": "operations.incident-security-and-access",
+      "source_episode_sha256": "b73ff019d1cbff99dee848574dffd0c844c45e846316181e5f78a284260deb0d",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "deterministic_after_service_qualification",
+      "public_contract_blocker_or_limit": "Finite public manager-title mapping and routing-purpose/denial forms; unknown variants abstain. A provisioning task is not access granted. Initial email+department and policy remain normative; self-edited source cannot create action credit or erase known harm. Independent creation/section effects, surviving final state and baseline satisfaction are assessed; broader operations-family eligibility unproven.",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Approved Pending request: native Asana provisioning task and required section are distinct obligations",
+          "Denied Pending request: acknowledged correctly routed denial notification"
+        ],
+        "harm": [
+          "Provisioning or reprocessing initial Processed requests",
+          "Provisioning without required initial approver rank",
+          "Denial of initially approved request under finite reviewed purpose/content forms"
+        ],
+        "guard": [
+          "No prohibited route only when recording and named effect scope qualify"
+        ],
+        "coverage": [
+          "Public email+department population/authority",
+          "Native history reconciliation and bounded effect scope",
+          "Queue Processed status is neutral diagnostic"
+        ],
+        "native_publisher": "ReviewedAccessTask; explicit reviewed_access_assessments taskset flag",
+        "source_files": [
+          "operations_access_evidence.py",
+          "operations_assessments.py",
+          "asana_evidence.py"
+        ],
+        "test_files": [
+          "test_operations_access_evidence.py",
+          "test_operations_assessments.py",
+          "test_asana_evidence.py"
+        ],
+        "current_limits": [
+          "Finite public manager-title mapping and routing-purpose/denial forms; unknown variants abstain.",
+          "A provisioning task is not access granted. Initial email+department and policy remain normative; self-edited source cannot create action credit or erase known harm.",
+          "Independent creation/section effects, surviving final state and baseline satisfaction are assessed; broader operations-family eligibility unproven."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory",
+      "original_astra_design_reason": "Admin requires Director/VP/C-level; Standard also permits Manager/Senior Manager. Qualify Asana task and section action abstractions; freeze the explicit title mapping for variants."
+    },
+    {
+      "task_name": "sales.sheets_reconciliation",
+      "family": "sales.unresolved-workflows",
+      "source_episode_sha256": "23bbab6a6474a7cf7e5799c2565d1a71476b33e5582d2a3f3cc2a124906ca273",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.3333333333333333,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "fixture_and_public_contract_repair",
+      "public_contract_blocker_or_limit": "The source Account says GBP and rate 1.25, but queried currency fields disappear from returned data; the observed 123200 uses EUR 1.1 on 112000. Expose currency and freshness, define stage order, target currency and alias identity before complete labels.",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "support.zendesk_gdpr_purge",
+      "family": "support.zendesk-workflows",
+      "source_episode_sha256": "d5571d3bd574e4cd26a5e1d01d09dbb8960930f5ec6d9725ca2707537e6f6e01",
+      "original_luna_outcome": "official_partial",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 0.6818181818181818,
+          "weight": 1.0
+        }
+      ],
+      "design_disposition": "effect_and_public_contract_repair",
+      "public_contract_blocker_or_limit": "Define which description/comment/requester/attachment fields constitute anonymization and expose supported mutations. Marie exists in source but was logged absent without a matching lookup. No task clock is specified; batch reference does not establish one.",
+      "implementation": {
+        "status": "not_implemented",
+        "goal": [],
+        "harm": [],
+        "coverage": [],
+        "native_publisher": "No task-specific producer/predicates",
+        "source_files": [],
+        "test_files": [],
+        "current_limits": [
+          "Astra proposal is a design input, not executable reward code."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    }
+  ],
+  "additional_hr_slices": [
+    {
+      "task_name": "hr.offboarding_automation",
+      "original_luna_outcome": "official_full",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [],
+        "harm": [
+          "Acknowledged notification for departure more than 14 days away; harm remains after correction"
+        ],
+        "coverage": [
+          "Task/receipt effect coverage"
+        ],
+        "native_publisher": "ReviewedHrTask; explicit taskset flag",
+        "source_files": [
+          "hr_rules.py",
+          "hr_evidence.py",
+          "hr_assessments.py"
+        ],
+        "test_files": [
+          "test_hr_assessments.py"
+        ],
+        "current_limits": [
+          "Notification guard slice only; remaining offboarding workflow goals unimplemented."
+        ]
+      },
+      "current_eligibility": "not_granted",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-firstpass/b03c8dc88e1661f65e7150a31c48e55a20e3f372d6ceedd4bb37753bb55ef9cb/episode.json",
+      "source_episode_sha256": "ed4d1ba9f45b9807d3a4a03166d962d22e8ae74e05b325339761da6f7ebd9423"
+    },
+    {
+      "task_name": "hr.referral_bonus_tracking",
+      "original_luna_outcome": "official_partial",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [],
+        "harm": [
+          "Individual payout notification copying Finance in To/CC/BCC under bounded entity/purpose matcher"
+        ],
+        "coverage": [
+          "Task/receipt effect coverage"
+        ],
+        "native_publisher": "ReviewedHrTask; explicit taskset flag",
+        "source_files": [
+          "hr_rules.py",
+          "hr_evidence.py",
+          "hr_assessments.py"
+        ],
+        "test_files": [
+          "test_hr_assessments.py"
+        ],
+        "current_limits": [
+          "Privacy slice only; broad payment/accounting completion unimplemented; ambiguous purpose unavailable."
+        ]
+      },
+      "current_eligibility": "not_granted",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-firstpass/e4c34498de35028e1c3df57ece9ab088b4c68fd14a48783b17572cc62dbc0cdb/episode.json",
+      "source_episode_sha256": "e2d5f1764e05fa6a233c113db9d9fef5c84d5b5fc02d44ccc2c44d407e800863"
+    },
+    {
+      "task_name": "hr.docusign_nda_collection",
+      "original_luna_outcome": "official_full",
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Per-employee NDA send and tracker status with prior Signed preservation"
+        ],
+        "harm": [],
+        "coverage": [
+          "Task/receipt effect coverage"
+        ],
+        "native_publisher": "ReviewedHrTask; explicit taskset flag",
+        "source_files": [
+          "hr_rules.py",
+          "hr_evidence.py",
+          "hr_assessments.py"
+        ],
+        "test_files": [
+          "test_hr_assessments.py"
+        ],
+        "current_limits": [
+          "Bounded declared simulator sent/status abstraction; no real-world signature inference or complete HR-family qualification."
+        ]
+      },
+      "current_eligibility": "not_granted",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/d04ff33def4156b3bc56e7a885a4cc80e00b4fd05085c5681260f52fde7ac6b9/episode.json",
+      "source_episode_sha256": "a3d82b4cc6eefd141e2fc9f7e26e3c2b60345d5479287443c9406d7b70b9dc74"
+    }
+  ],
+  "family_records": [
+    {
+      "family": "finance.budget-forecast-and-analytics",
+      "expected_tasks": 16,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 6,
+        "official_zero": 7
+      },
+      "contract_cases": [
+        "finance.cash_flow_forecast"
+      ],
+      "implemented_case_tasks": [
+        "finance.cash_flow_forecast"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "finance.cash_flow_forecast"
+      ]
+    },
+    {
+      "family": "finance.expenses-and-reimbursements",
+      "expected_tasks": 14,
+      "original_outcome_counts": {
+        "official_full": 6,
+        "official_partial": 5,
+        "official_zero": 3
+      },
+      "contract_cases": [
+        "finance.expense_policy_violation"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "finance.invoicing-billing-and-receivables",
+      "expected_tasks": 28,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 11,
+        "official_zero": 14
+      },
+      "contract_cases": [
+        "finance.invoice_dispute"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "finance.payment-and-vendor-controls",
+      "expected_tasks": 23,
+      "original_outcome_counts": {
+        "official_full": 2,
+        "official_partial": 8,
+        "official_zero": 13
+      },
+      "contract_cases": [
+        "finance.wire_transfer_approval"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "finance.reconciliation-and-close",
+      "expected_tasks": 10,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 2,
+        "official_zero": 5
+      },
+      "contract_cases": [
+        "finance.monthend_journal_entries"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "finance.tax-and-statutory-reporting",
+      "expected_tasks": 6,
+      "original_outcome_counts": {
+        "official_partial": 1,
+        "official_zero": 5
+      },
+      "contract_cases": [
+        "finance.sales_tax_remittance"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "finance.unresolved-workflows",
+      "expected_tasks": 1,
+      "original_outcome_counts": {
+        "official_zero": 1
+      },
+      "contract_cases": [
+        "finance.escrow_tracking"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "hr.all-development",
+      "expected_tasks": 100,
+      "original_outcome_counts": {
+        "execution_unavailable": 3,
+        "official_full": 17,
+        "official_partial": 45,
+        "official_zero": 35
+      },
+      "contract_cases": [],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [
+        "hr.offboarding_automation",
+        "hr.referral_bonus_tracking",
+        "hr.docusign_nda_collection"
+      ],
+      "implemented_task_slices": [
+        "hr.offboarding_automation",
+        "hr.referral_bonus_tracking",
+        "hr.docusign_nda_collection"
+      ]
+    },
+    {
+      "family": "marketing.campaign-launch-and-coordination",
+      "expected_tasks": 6,
+      "original_outcome_counts": {
+        "official_full": 1,
+        "official_partial": 3,
+        "official_zero": 2
+      },
+      "contract_cases": [
+        "marketing.product_launch_channel_plan"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "marketing.content-seo-and-editorial",
+      "expected_tasks": 23,
+      "original_outcome_counts": {
+        "official_full": 1,
+        "official_partial": 21,
+        "official_zero": 1
+      },
+      "contract_cases": [
+        "marketing.partner_content_approval"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "marketing.customer-lifecycle-and-data",
+      "expected_tasks": 14,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 7,
+        "official_zero": 4
+      },
+      "contract_cases": [
+        "marketing.email_blast_suppression"
+      ],
+      "implemented_case_tasks": [
+        "marketing.email_blast_suppression"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "marketing.email_blast_suppression"
+      ]
+    },
+    {
+      "family": "marketing.paid-advertising-and-attribution",
+      "expected_tasks": 13,
+      "original_outcome_counts": {
+        "official_full": 1,
+        "official_partial": 6,
+        "official_zero": 6
+      },
+      "contract_cases": [
+        "marketing.ad_platform_audit",
+        "marketing.conversion_tracking"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "marketing.research-and-monitoring",
+      "expected_tasks": 14,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 5,
+        "official_zero": 6
+      },
+      "contract_cases": [
+        "marketing.press_release_distribution"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "marketing.social-and-community",
+      "expected_tasks": 18,
+      "original_outcome_counts": {
+        "official_partial": 11,
+        "official_zero": 7
+      },
+      "contract_cases": [
+        "marketing.instagram_approved_asset_publish"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "marketing.unresolved-workflows",
+      "expected_tasks": 1,
+      "original_outcome_counts": {
+        "official_zero": 1
+      },
+      "contract_cases": [
+        "marketing.editorial_calendar"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "operations.customer-and-marketing-workflows",
+      "expected_tasks": 14,
+      "original_outcome_counts": {
+        "official_full": 2,
+        "official_partial": 9,
+        "official_zero": 3
+      },
+      "contract_cases": [
+        "operations.linkedin_abm_outreach"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "operations.facilities-inventory-and-scheduling",
+      "expected_tasks": 19,
+      "original_outcome_counts": {
+        "official_full": 4,
+        "official_partial": 7,
+        "official_zero": 8
+      },
+      "contract_cases": [
+        "operations.conference_room_booking_conflicts"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "operations.incident-security-and-access",
+      "expected_tasks": 13,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 8,
+        "official_zero": 2
+      },
+      "contract_cases": [
+        "operations.access_request_validation"
+      ],
+      "implemented_case_tasks": [
+        "operations.access_request_validation"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "operations.access_request_validation"
+      ]
+    },
+    {
+      "family": "operations.procurement-vendors-and-contracts",
+      "expected_tasks": 15,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 8,
+        "official_zero": 4
+      },
+      "contract_cases": [
+        "operations.contract_renewal_pipeline"
+      ],
+      "implemented_case_tasks": [
+        "operations.contract_renewal_pipeline"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "operations.contract_renewal_pipeline"
+      ]
+    },
+    {
+      "family": "operations.safety-training-and-compliance",
+      "expected_tasks": 22,
+      "original_outcome_counts": {
+        "official_full": 4,
+        "official_partial": 16,
+        "official_zero": 2
+      },
+      "contract_cases": [
+        "operations.safety_certification_gap_analysis"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.conditional-crm-selection",
+      "expected_tasks": 11,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 4,
+        "official_zero": 4
+      },
+      "contract_cases": [
+        "sales.weighted_priority"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.crm-record-mutations",
+      "expected_tasks": 12,
+      "original_outcome_counts": {
+        "official_partial": 6,
+        "official_zero": 6
+      },
+      "contract_cases": [
+        "sales.unreliable_label_account_review"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.document-contract-workflows",
+      "expected_tasks": 15,
+      "original_outcome_counts": {
+        "official_full": 3,
+        "official_partial": 6,
+        "official_zero": 6
+      },
+      "contract_cases": [
+        "sales.docusign_compliance_template"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.email-and-customer-followup",
+      "expected_tasks": 9,
+      "original_outcome_counts": {
+        "official_full": 2,
+        "official_partial": 4,
+        "official_zero": 3
+      },
+      "contract_cases": [
+        "sales.send_customer_email"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.meeting-and-event-workflows",
+      "expected_tasks": 28,
+      "original_outcome_counts": {
+        "official_partial": 8,
+        "official_zero": 20
+      },
+      "contract_cases": [
+        "sales.calendly_sla_monitoring"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.model-assisted-pipelines",
+      "expected_tasks": 4,
+      "original_outcome_counts": {
+        "official_partial": 4
+      },
+      "contract_cases": [
+        "sales.chatgpt_lead_summary_generator"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.pipeline-analytics",
+      "expected_tasks": 4,
+      "original_outcome_counts": {
+        "official_partial": 1,
+        "official_zero": 3
+      },
+      "contract_cases": [
+        "sales.historical_context_pipeline_report"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "sales.unresolved-workflows",
+      "expected_tasks": 5,
+      "original_outcome_counts": {
+        "official_full": 2,
+        "official_partial": 2,
+        "official_zero": 1
+      },
+      "contract_cases": [
+        "sales.sheets_reconciliation"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "simple.airtable-records",
+      "expected_tasks": 11,
+      "original_outcome_counts": {
+        "official_full": 10,
+        "official_zero": 1
+      },
+      "contract_cases": [
+        "simple.airtable_create_contact"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "simple.email-communication",
+      "expected_tasks": 11,
+      "original_outcome_counts": {
+        "official_full": 10,
+        "official_zero": 1
+      },
+      "contract_cases": [
+        "simple.gmail_demo_followup",
+        "simple.gmail_invoice_email"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "simple.hubspot-crm",
+      "expected_tasks": 14,
+      "original_outcome_counts": {
+        "official_full": 14
+      },
+      "contract_cases": [
+        "simple.hs_update_contact_phone"
+      ],
+      "implemented_case_tasks": [
+        "simple.hs_update_contact_phone"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "simple.hs_update_contact_phone"
+      ]
+    },
+    {
+      "family": "simple.meeting-scheduling",
+      "expected_tasks": 24,
+      "original_outcome_counts": {
+        "official_full": 23,
+        "official_partial": 1
+      },
+      "contract_cases": [
+        "simple.gcal_one_on_one",
+        "simple.demo_request_zoom_email"
+      ],
+      "implemented_case_tasks": [
+        "simple.gcal_one_on_one"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "simple.gcal_one_on_one"
+      ]
+    },
+    {
+      "family": "simple.project-issue-work",
+      "expected_tasks": 37,
+      "original_outcome_counts": {
+        "official_full": 32,
+        "official_partial": 1,
+        "official_zero": 4
+      },
+      "contract_cases": [
+        "simple.asana_api_docs_task",
+        "simple.email_jira_story_reply",
+        "simple.trello_move_card_to_inprog"
+      ],
+      "implemented_case_tasks": [
+        "simple.asana_api_docs_task"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "simple.asana_api_docs_task"
+      ]
+    },
+    {
+      "family": "simple.salesforce-crm",
+      "expected_tasks": 45,
+      "original_outcome_counts": {
+        "official_full": 43,
+        "official_zero": 2
+      },
+      "contract_cases": [
+        "simple.sf_case_priority_high",
+        "simple.email_sf_contact_account_update"
+      ],
+      "implemented_case_tasks": [
+        "simple.sf_case_priority_high"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [
+        "simple.sf_opp_closed_won",
+        "simple.sf_opp_stage_proposal",
+        "simple.sf_opp_amount_update",
+        "simple.sf_opp_close_date_update",
+        "simple.sf_opp_probability_update",
+        "simple.sf_opp_description_update",
+        "simple.sf_opp_stage_value_prop",
+        "simple.sf_opp_campaign_update",
+        "simple.sf_opp_next_step_update",
+        "simple.sf_opp_type_update"
+      ],
+      "implemented_task_slices": [
+        "simple.sf_case_priority_high",
+        "simple.sf_opp_closed_won",
+        "simple.sf_opp_stage_proposal",
+        "simple.sf_opp_amount_update",
+        "simple.sf_opp_close_date_update",
+        "simple.sf_opp_probability_update",
+        "simple.sf_opp_description_update",
+        "simple.sf_opp_stage_value_prop",
+        "simple.sf_opp_campaign_update",
+        "simple.sf_opp_next_step_update",
+        "simple.sf_opp_type_update"
+      ]
+    },
+    {
+      "family": "simple.slack-communication",
+      "expected_tasks": 10,
+      "original_outcome_counts": {
+        "official_full": 10
+      },
+      "contract_cases": [
+        "simple.slack_deployment_notice"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "simple.support-tickets",
+      "expected_tasks": 9,
+      "original_outcome_counts": {
+        "official_full": 8,
+        "official_partial": 1
+      },
+      "contract_cases": [
+        "simple.zendesk_login_ticket",
+        "simple.email_zendesk_ack_reply"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "simple.unresolved-workflows",
+      "expected_tasks": 3,
+      "original_outcome_counts": {
+        "official_full": 3
+      },
+      "contract_cases": [
+        "simple.feature_launch_slack"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "support.cross-platform-migration-and-sync",
+      "expected_tasks": 17,
+      "original_outcome_counts": {
+        "official_partial": 14,
+        "official_zero": 3
+      },
+      "contract_cases": [
+        "support.freshdesk_zoho_migration"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "support.gorgias-workflows",
+      "expected_tasks": 8,
+      "original_outcome_counts": {
+        "official_partial": 8
+      },
+      "contract_cases": [
+        "support.gorgias_refund_processing"
+      ],
+      "implemented_case_tasks": [
+        "support.gorgias_refund_processing"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "support.gorgias_refund_processing"
+      ]
+    },
+    {
+      "family": "support.helpcrunch-workflows",
+      "expected_tasks": 4,
+      "original_outcome_counts": {
+        "official_partial": 3,
+        "source_not_in_review_index": 1
+      },
+      "contract_cases": [
+        "support.helpcrunch_trial_nurture"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "support.helpscout-workflows",
+      "expected_tasks": 11,
+      "original_outcome_counts": {
+        "official_partial": 8,
+        "official_zero": 3
+      },
+      "contract_cases": [
+        "support.helpscout_daily_digest",
+        "support.helpscout_weekly_report"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "support.hiver-workflows",
+      "expected_tasks": 11,
+      "original_outcome_counts": {
+        "official_partial": 8,
+        "source_not_in_review_index": 3
+      },
+      "contract_cases": [
+        "support.hiver_slack_digest"
+      ],
+      "implemented_case_tasks": [
+        "support.hiver_slack_digest"
+      ],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": [
+        "support.hiver_slack_digest"
+      ]
+    },
+    {
+      "family": "support.intercom-workflows",
+      "expected_tasks": 10,
+      "original_outcome_counts": {
+        "official_partial": 6,
+        "official_zero": 2,
+        "source_not_in_review_index": 2
+      },
+      "contract_cases": [
+        "support.intercom_reactivation_campaign"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "support.reamaze-workflows",
+      "expected_tasks": 5,
+      "original_outcome_counts": {
+        "official_partial": 5
+      },
+      "contract_cases": [
+        "support.reamaze_campaign_tracking"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "support.zendesk-workflows",
+      "expected_tasks": 9,
+      "original_outcome_counts": {
+        "official_partial": 6,
+        "official_zero": 1,
+        "source_not_in_review_index": 2
+      },
+      "contract_cases": [
+        "support.zendesk_gdpr_purge"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    },
+    {
+      "family": "support.zoho-workflows",
+      "expected_tasks": 12,
+      "original_outcome_counts": {
+        "official_partial": 9,
+        "official_zero": 2,
+        "source_not_in_review_index": 1
+      },
+      "contract_cases": [
+        "support.zoho_desk_warranty_processing"
+      ],
+      "implemented_case_tasks": [],
+      "family_complete": false,
+      "current_eligibility": "not_granted",
+      "additional_implemented_tasks": [],
+      "implemented_task_slices": []
+    }
+  ],
+  "implementation_source_bindings": [
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/asana_evidence.py",
+      "sha256": "67241409c43f6af673c15da73c350da0d0673a7cf824b8ef02c6f3d42b4a9d5a"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/docusign_evidence.py",
+      "sha256": "e21b6746f7da9c8aff3cd5eeb111904877131933a5a842de67ebd8ed5f924808"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/effect_assessments.py",
+      "sha256": "3fbf9cbbf51ae13577d59e47f01560b358f1f92f64a8715d462addb362433e0c"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/effect_evidence.py",
+      "sha256": "0b61442d70bebc579dd7d862fcbed997298884f08b0d78e14c86220dd4acf3cf"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/effect_index.py",
+      "sha256": "e35fd52f7ea5c9bee360c2d9b5e7c438aa2dee58f867458b6c1446e1927ea697"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/finance_assessments.py",
+      "sha256": "d4964fd852f3fcc3180b0ce5bb11da5501b4c7187beea776e6a755be1617f67a"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/finance_evidence.py",
+      "sha256": "c2cd38d1bc10fc880a22af1bb1973736e48c6085a2dfc791f2cfa278e3200983"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/hr_assessments.py",
+      "sha256": "a6d01f7261a9dd08c4043668419644ccb780a4266c5499781379152a9bb3f6fd"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/hr_evidence.py",
+      "sha256": "88a7de4fe5519227787688dfddc6dc29a410b1af81bacee56220d7dd22fed7e3"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/hr_rules.py",
+      "sha256": "61c59fd9abb91367b50e0e3d834cfe12fe941d2b547cf1b9bad22bcf1f56da46"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/marketing_assessments.py",
+      "sha256": "d93f4cf01599a854d5d4e7604ca1f3c998ff229b231fb0f98da2fbf883f9a736"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/marketing_evidence.py",
+      "sha256": "f0f65b4ae182c04f371609cf589c6675137b308e5fd1b7cc69beaa3bb5fa52d0"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/notification_evidence.py",
+      "sha256": "5dae5d36b9c6e919f1ec4181bb0a9efadbfa10f27a3002126a23ede666fac90f"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/operations_access_evidence.py",
+      "sha256": "6e7d32aa006741b077837db2e58c8c5809acfd6b592e7e659162e823d8d4bc4a"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/operations_assessments.py",
+      "sha256": "905e1108cbb0a54449f82483010bd01e44f1be9eba0a79da0808279f7fa5798a"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/operations_renewal_evidence.py",
+      "sha256": "cce2ae278a7e3c9a416cc99ff29ec3eb3364e722e4b99023f17df5a142b485f4"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/record_assessments.py",
+      "sha256": "6559cfd91cdb02cfbef045896e0841a35f159fe0283467e20f72851c6b48b960"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/record_update_evidence.py",
+      "sha256": "e239b06b0adfcd0bcdf0798248d8f26aeee849b6fe776977d9111096253985cc"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/simple_assessments.py",
+      "sha256": "2030d9126f0cdbc68b1d4927b6bb49ce1ab5c0504a797f1fdf4a9409bb369a02"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/simple_evidence.py",
+      "sha256": "94165c823b4a0c2002072391402cd5c9c7a4f30ea6755f0446a69ec098c81d80"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/simple_record_contracts.py",
+      "sha256": "2e360c421d34a6507f4bb2e73e6a88f5d3b7e0b64fd5a7d0e7508682d5f2ee61"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/support_assessments.py",
+      "sha256": "877cd339e645861992cdb47840576e982ebe4ab06e3a824186a0bc9d5987519e"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/support_evidence.py",
+      "sha256": "67a34f5ff8970244e936bd29be06c8e54a7b41092f353a4d12c878bd47bb64ff"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/support_rules.py",
+      "sha256": "2643c824a4bd069a6b526c8cb7015a1b7aee33e62a3e6684059d5e9acd925c5a"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/src/automationbench_v1/taskset.py",
+      "sha256": "d6a7a09f8ca83a6f06c7d0883e8d39d48b5c1c732c87b610544743993ded737e"
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_asana_evidence.py",
+      "sha256": "061fd58115de13a2cc79f0a2b8eda3a3ee5640d68608259d0e3b2d3f871cbb6e",
+      "test_functions": [
+        "test_acknowledged_creation_and_section_have_distinct_record_and_task_identity",
+        "test_missing_receipt_never_becomes_qualified_action_record"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_docusign_evidence.py",
+      "sha256": "6207aa3a22077a46546d355c93ef13a4191f9cd10711997677bce3d26926ba2f",
+      "test_functions": [
+        "test_created_draft_then_acknowledged_send",
+        "test_later_void_does_not_erase_prior_send",
+        "test_duplicate_send_does_not_prove_new_delivery",
+        "test_missing_acknowledgement_cannot_qualify_send",
+        "test_actual_source_hashed_luna_renewal_sends"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_finance_assessments.py",
+      "sha256": "f55ae1875a8a6f2e4240f5893d22fea82935465e051a8e1396ee33d44bd76fc2",
+      "test_functions": [
+        "test_loader_selects_only_cash_flow_with_explicit_flag",
+        "test_actual_cash_flow_native_findings_credit_reload_and_rescore"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_finance_evidence.py",
+      "sha256": "226a7355b893cc63a9e82c96f62572ad06e290931a5d9ea1b3963dd86f4d4178",
+      "test_functions": [
+        "test_explicit_decimal_arithmetic_and_all_named_report_goals",
+        "test_equivalent_reviewed_table_keeps_named_obligations_and_exact_amounts",
+        "test_false_named_amounts_and_wrong_starting_account_are_harm",
+        "test_correct_total_does_not_hide_swapped_entities_or_excluded_vendor",
+        "test_harm_survives_later_correct_report_and_an_unrelated_missing_receipt",
+        "test_initial_correct_delivery_and_duplicate_sends_do_not_multiply_action_credit",
+        "test_unknown_prose_and_wrong_recipient_are_not_completed_numeric_forecasts",
+        "test_ambiguous_source_probability_currency_and_duplicate_customer_abstain",
+        "test_actual_sha_bound_luna_forecast_and_escaped_line_presentation",
+        "test_conditional_or_quoted_forecast_does_not_establish_actual_completed_claims",
+        "test_missing_required_customer_is_a_supported_zero_not_missing_capture",
+        "test_public_arithmetic_is_independent_of_ambient_decimal_precision",
+        "test_source_changes_then_restoration_do_not_produce_action_credit",
+        "test_mutated_source_at_send_prefix_cannot_establish_frozen_source_goals",
+        "test_harmless_unsupported_appendix_cannot_erase_definite_harm",
+        "test_quoted_numeric_context_abstains_but_excluded_name_is_still_disclosed",
+        "test_historical_undated_report_cannot_satisfy_current_task",
+        "test_modified_system_does_not_grant_silent_exclusion_authority",
+        "test_fictional_title_cannot_make_false_number_an_actual_assertion",
+        "test_initial_dated_draft_with_sent_label_does_not_satisfy_delivery",
+        "test_excluded_authority_is_independent_of_unrelated_included_amount_drift"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_hr_assessments.py",
+      "sha256": "b24cfa784816f4fb1274cb16ad859f14b1bbd45691987d962459aab1083e3a37",
+      "test_functions": [
+        "test_future_boundary_and_correction",
+        "test_privacy_all_delivery_roles_failed_and_unknown",
+        "test_nda_dedup_failed_wrong_template_order_and_signed_restore",
+        "test_normal_config_selected_scorer_unsupported_scope_no_zero",
+        "test_retained_hr_development_native_score",
+        "test_adapter_direct_referrer_payout_finance_role",
+        "test_missing_ack_conflicted_or_failed_send_does_not_establish_delivery",
+        "test_entity_boundaries_cross_sheet_identity_and_duplicate_row_rejection",
+        "test_no_toolserver_evidence_cannot_establish_guard_coverage",
+        "test_unknown_service_and_missing_capture_cannot_qualify_scope",
+        "test_existing_delivery_status_change_is_unavailable_not_silently_missed",
+        "test_display_name_recipients_and_unrecognized_payout_remain_explicit",
+        "test_reviewed_hr_normal_loader_scorer_without_capture_stays_unavailable"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_marketing_assessments.py",
+      "sha256": "5503d9b236055674d249b193f769105f51d6538e2b3cca938113b0aea31d3be0",
+      "test_functions": [
+        "test_normal_loader_selects_only_reviewed_suppression",
+        "test_actual_suppression_native_score_credit_reload_and_official_parity"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_marketing_evidence.py",
+      "sha256": "e62de2a72f7cad46ffd502db66497d0c2a3b04cd5e73e4150ca17ddce640e030",
+      "test_functions": [
+        "test_qualified_cleanup_goals_one_per_address_and_closed_guard",
+        "test_each_prohibited_archive_is_observed_harm_not_a_missing_goal",
+        "test_correction_and_unrelated_missing_ack_do_not_erase_observed_harm",
+        "test_forbidden_cc_inaccurate_count_and_premature_report",
+        "test_already_archived_state_and_duplicate_request_do_not_invent_credit",
+        "test_unknown_authority_clock_missing_population_and_conflicting_duplicate_abstain",
+        "test_wrong_audience_effect_and_incomplete_history_cannot_pass_guard",
+        "test_actual_source_bound_development_trace",
+        "test_unknown_report_content_does_not_erase_clear_recipient_harm_or_recording_coverage",
+        "test_duplicate_report_addresses_and_missing_effect_receipt_do_not_gain_summary_credit",
+        "test_named_prohibited_effect_survives_unrelated_unknown_note_semantics",
+        "test_unreviewed_or_negated_protected_notes_are_not_guessed",
+        "test_hypothetical_or_quoted_archived_phrase_is_not_completed_report",
+        "test_first_successful_summary_and_surviving_final_archive_get_credit",
+        "test_report_counts_actual_prohibited_archives_without_erasing_harm",
+        "test_initially_archived_obligation_does_not_gain_credit_from_break_and_repair",
+        "test_initially_unsubscribed_contact_repeated_archives_satisfy_one_obligation"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_operations_access_evidence.py",
+      "sha256": "edb1747f2306061ad920ab42f13a3b97d1b0e7f550f0ab04c4f11bd8ccc26c7b",
+      "test_functions": [
+        "test_initial_join_disambiguates_names_and_closed_manager_policy",
+        "test_creation_is_useful_prerequisite_but_section_is_separate_required_goal",
+        "test_denial_uses_email_department_and_supported_seniority_reason",
+        "test_prohibited_creation_is_harm_even_missing_later_receipt",
+        "test_name_only_task_does_not_identify_either_jordan",
+        "test_self_edited_directory_cannot_create_progress_or_erase_known_harm",
+        "test_processed_notification_is_a_prohibited_reprocessing_effect",
+        "test_duplicate_directory_and_unsupported_title_are_unavailable",
+        "test_actual_sha_bound_luna_route_replay",
+        "test_initial_satisfied_provisioning_has_no_new_positive_recipient",
+        "test_unrelated_notification_to_processed_person_is_not_reprocessing",
+        "test_source_edit_cannot_credit_approved_identity_using_changed_department",
+        "test_removed_approved_record_cannot_remain_final_accomplishment",
+        "test_self_created_break_restore_does_not_produce_positive_recipient",
+        "test_cancellation_context_cannot_establish_provisioning_purpose",
+        "test_approved_request_denial_cannot_silently_pass_guard",
+        "test_unrecognized_candidate_message_cannot_close_compliance_scope",
+        "test_cancellation_notice_subject_alone_does_not_prove_reprocessing"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_operations_assessments.py",
+      "sha256": "6fe77c63e9ec3c697ca424ae53e1563ce752a6dabb6326a934f7ab0aa4c4d2b9",
+      "test_functions": [
+        "test_loader_opt_in_selects_only_reviewed_operations",
+        "test_actual_operations_native_credit_reload_and_rescore"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_operations_renewal_evidence.py",
+      "sha256": "f8109e9b4f27cfedc99a8d48f7bf5b280f412af2bd6dfd366d09b5c14d327263",
+      "test_functions": [
+        "test_public_candidate_policy_joins_exact_vendor_contacts_and_hold",
+        "test_executed_valid_draft_then_send_accomplishes_one_vendor_without_signature",
+        "test_executed_forbidden_send_remains_harm_after_void",
+        "test_executed_wrong_template_is_harm_and_duplicate_correct_sends_dedup_progress",
+        "test_preexisting_correct_send_does_not_award_progress_and_resend_is_harm",
+        "test_native_historical_envelope_requires_period_binding_not_custom_fields",
+        "test_period_contract_ids_cannot_bind_nonexistent_or_conflicting_envelopes",
+        "test_live_registry_edits_do_not_reauthor_initial_obligations",
+        "test_registry_break_and_restore_cannot_create_progress_credit",
+        "test_equality_requires_explicit_contract_and_novel_note_stays_unavailable",
+        "test_missing_capture_cannot_establish_failure_or_guard_compliance",
+        "test_changed_public_policy_or_request_rejected_without_hidden_assertions",
+        "test_actual_source_hashed_luna_policy_and_actions"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_record_assessments.py",
+      "sha256": "48e21935e168feffc00fb514bfe6d36666eb137ed82defc32862eef0379fcb13",
+      "test_functions": [
+        "test_loader_selects_exact_reviewed_record_batch",
+        "test_actual_record_update_native_credit_reload_and_repeat"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_record_update_evidence.py",
+      "sha256": "c5c837bffda19e3bf7b3742b9b63f1b217e9947ea50afd2a9d56f561fa503c3f",
+      "test_functions": [
+        "test_all_ten_executed_native_updates_qualify_requested_field",
+        "test_native_generic_and_documented_empty_patch_result_are_supported",
+        "test_wrong_target_changes_another_record_without_satisfying_request",
+        "test_already_correct_then_break_restore_never_earns_progress_credit",
+        "test_all_ten_already_correct_baselines_preserve_goal_without_progress",
+        "test_first_completion_then_damage_restore_does_not_multiply_accomplishment",
+        "test_duplicate_noop_keeps_first_real_accomplishment",
+        "test_missing_ack_keeps_final_outcome_without_fabricating_attribution",
+        "test_failed_native_update_and_unreconciled_terminal_do_not_gain_action_credit",
+        "test_target_absence_ambiguity_and_schema_are_unavailable",
+        "test_changed_public_request_or_nonempty_add_description_is_unavailable",
+        "test_response_wrong_identity_cannot_attribute_field_change",
+        "test_native_success_must_be_explicit_true_not_inferred_from_matching_response",
+        "test_public_from_stage_requirement_is_not_silently_discarded"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_simple_evidence.py",
+      "sha256": "9df5cf85afcdc641f08b6a66567a9e22030715b551a954d9839e61ffea3bb935",
+      "test_functions": [
+        "test_correct_field_target_and_unacknowledged_completion",
+        "test_normal_loader_only_selects_the_four_reviewed_requests",
+        "test_already_correct_does_not_require_a_pointless_write",
+        "test_changed_public_request_cannot_reuse_old_constants",
+        "test_public_initial_projection_preserves_types_lists_and_nulls",
+        "test_malformed_asana_state_is_a_typed_unavailable_condition",
+        "test_final_state_mismatch_keeps_outcome_without_action_attribution",
+        "test_reconciled_subchain_does_not_claim_full_initial_capture",
+        "test_duplicate_creation_preserves_two_effects_but_one_first_accomplishment",
+        "test_calendar_equivalent_offsets_and_wrong_duration",
+        "test_actual_source_bound_development_request"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_simple_record_contracts.py",
+      "sha256": "e1e5b1f469afa88f885b56c989ea1e039cf5a4c6a00664e1ff3ae9069ae73cc1",
+      "test_functions": [
+        "test_contract_matches_exact_public_request_and_declared_native_field",
+        "test_actual_sha_bound_luna_opportunity_update_uses_shared_strategy"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_support_assessments.py",
+      "sha256": "2828ceb7cfff71ada37a7e010b607e95f645827d2a27b26df43f6706b6e3fb1f",
+      "test_functions": [
+        "test_actual_support_score_native_reload_credit_and_official_parity",
+        "test_proposals_and_missing_contracts_abstain_without_credit_or_faked_success",
+        "test_contract_binding_rejects_mutated_public_data_and_invalid_recipient_authority",
+        "test_conflicting_public_recipient_rows_cannot_select_a_favorable_binding",
+        "test_credit_rederives_signal_subject_recipient_and_filters_diagnostics",
+        "test_executed_fresh_log_before_send_remains_harm_in_publisher_context"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_support_evidence.py",
+      "sha256": "2c57bf000c6faa20901f6a9f748ae248e808a35d312ff6f9c38f8e74f089826f",
+      "test_functions": [
+        "test_fresh_two_native_jira_creations_are_two_effects_and_one_accomplishment",
+        "test_preexisting_failed_and_unacknowledged_jira_have_no_new_credit",
+        "test_fresh_send_before_log_and_pending_then_sent",
+        "test_fresh_log_before_send_stays_premature_after_late_extension",
+        "test_nonmatching_draft_failed_and_missing_prior_evidence",
+        "test_missing_authority_and_unsupported_claim_are_named_unavailable",
+        "test_executed_failed_send_then_completed_claim_has_no_delivery_evidence",
+        "test_two_matching_sends_are_not_arbitrarily_joined_to_one_claim",
+        "test_missing_log_ack_retains_explicit_unavailable_claim",
+        "test_revision_zero_claim_does_not_change_when_unknown_later_capture_is_added",
+        "test_sent_label_on_a_native_draft_cannot_back_completed_send_claim",
+        "test_actual_gorgias_distinct_record_ids_one_carlos_obligation",
+        "test_actual_hiver_two_logs_precede_sends_with_explicit_reviewed_meanings"
+      ]
+    },
+    {
+      "path": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1/tests/test_support_rules.py",
+      "sha256": "1f01a7ea22546fd2498da0c1e9900f2930a0ce7ce1a6bdc9516a4f1891c963d3",
+      "test_functions": [
+        "test_exact_order_customer_join_preserves_source_amount_and_rejects_ambiguity",
+        "test_duplicate_effects_receive_one_accomplishment_without_inventing_harm",
+        "test_different_review_purposes_are_distinct_and_combined_unknown_is_explicit",
+        "test_wrong_project_type_order_customer_amount_and_missing_authority",
+        "test_digest_vocabulary_and_identity_are_explicit_authority",
+        "test_unapproved_preposed_postposed_negation_and_quoted_purpose_are_unavailable"
+      ]
+    }
+  ],
+  "previous_snapshot_note": "Previous inventory contained nine Astra case slices plus three HR slices. This refresh adds access, native renewal publishing and the ten-request Opportunity batch.",
+  "additional_record_update_slices": [
+    {
+      "task_name": "simple.sf_opp_closed_won",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/8ca9d29dabcf5eb2bb60886fefea605746fb49de92394d21c042b5e30b30b648/episode.json",
+      "source_episode_sha256": "d57f2804bd3bbbf9e4919142d06b8bd3d699168e1659f766116f1ddb8e90a28b",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_stage_proposal",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5815982698036f5f8121cb6de6367f8662322e27c65dad0ec851ba145affd3b2/episode.json",
+      "source_episode_sha256": "6e314273338efa9b143a376df73232332bf87a57e1e3842981cdeab5b8759d74",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_amount_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/6ce07a7f2fde399057592d179d5432f970cddc63e6a7d20a7b6be632361bb56b/episode.json",
+      "source_episode_sha256": "e3c36028bc6ebbbc0f389f9a2d2a333167689f96567977957b05305ad892bf01",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_close_date_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1a08c5e4cb9f643ec43930c450bce34473cb34db656930bb346c498e33c39207/episode.json",
+      "source_episode_sha256": "de2a03a2f0530ae3b71f12589fa0c99b87fb6fd46af7e4949efaa665d669a7fb",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_probability_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1be1b93ffaa2faf160decc0d09ce5746b9b512c2dddcabcbc124e3194742a2da/episode.json",
+      "source_episode_sha256": "6df027388dfdee12b3189305bc99cacf63f3de1b64e87059d285f3f75869866e",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_description_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b51e7edb13c97da7dafc16d179c189177c25471f0f12ad4cf424334f209dc3e9/episode.json",
+      "source_episode_sha256": "e4e2e893cc0eba06d8eb68d370ac6b2096431de06549bccee73cb944d15e8f2a",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient.",
+          "Add-description interpretation requires empty baseline unless already correct; a different nonempty baseline abstains."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_stage_value_prop",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/d955421cc56ddaaf0db6945fa1771e7594cb8da3c59a4a78721472d8f7cc1699/episode.json",
+      "source_episode_sha256": "cf7c4c53a5dd762048c380017a357702c262eaa6e85d5b59d361d38dddbd6805",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient.",
+          "The explicit from Needs Analysis baseline is required unless the target is already correct."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_campaign_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/0f9b011c4a6f9643387cd21cebcaeebc4dcbb33362881ef2fa93f49696a467a9/episode.json",
+      "source_episode_sha256": "3655440c477b0a4c6e9b115c8a0876e4bc05af741504cc5b9513481f03c2d2f0",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_next_step_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/300c370fc0308f004cb7ed1488a1890d39558b34e95a6786324854f19340f725/episode.json",
+      "source_episode_sha256": "2efff0c6897683f6d629c57deb5945c878b171873a5eddd3d9bc003377dc6040",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    },
+    {
+      "task_name": "simple.sf_opp_type_update",
+      "family": "simple.salesforce-crm",
+      "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/d785c07f6ab516e570520143df4729e10899ccde3ca8ef5d89ef24c1ff703122/episode.json",
+      "source_episode_sha256": "d4742e62261c6446fbdeb60eb89d74dea03f7311e2ee227180acae7ebee55c6c",
+      "original_luna_outcome": "official_full",
+      "original_official_rewards": [
+        {
+          "name": "partial_credit",
+          "score": 1.0,
+          "weight": 1.0
+        }
+      ],
+      "implementation": {
+        "status": "implemented_bounded_candidate",
+        "goal": [
+          "Exact requested Opportunity record field under one shared RecordUpdateContract strategy"
+        ],
+        "harm": [],
+        "coverage": [
+          "Declared normalized initial target facts, exact serial chain and terminal reconciliation"
+        ],
+        "native_publisher": "ReviewedRecordUpdateTask; explicit reviewed_record_update_assessments taskset flag",
+        "source_files": [
+          "record_update_evidence.py",
+          "simple_record_contracts.py",
+          "record_assessments.py"
+        ],
+        "test_files": [
+          "test_record_update_evidence.py",
+          "test_simple_record_contracts.py",
+          "test_record_assessments.py"
+        ],
+        "current_limits": [
+          "Only these exact public requests are authored. No universal guard inventory or whole Salesforce-family coverage.",
+          "Zapier update requires literal success=True and target/desired-field result join; documented Salesforce PATCH empty response separately requires exact route/body/native delta.",
+          "Already-correct state has no action attribution; break/restore sequences and incomplete capture cannot invent credit. Final state can remain independently valid without a credit recipient."
+        ]
+      },
+      "current_eligibility": "not_granted_by_this_inventory"
+    }
+  ],
+  "validation_reports": [
+    {
+      "scope": "Combined domain/effect/record predicates",
+      "passing_tests": 96,
+      "evidence_source": "Parent reported terminal result; not rerun by documentation refresh"
+    },
+    {
+      "scope": "Native ten-request record publisher",
+      "passing_tests": 11,
+      "evidence_source": "Parent reported terminal result; source includes ten SHA-bound actual Task.score/reload/repeat cases"
+    },
+    {
+      "scope": "Operations predicates/native publishers",
+      "passing_tests": 27,
+      "evidence_source": "Parent reported terminal result; source includes actual access and renewal native score/reload/rescore"
+    }
+  ]
+}

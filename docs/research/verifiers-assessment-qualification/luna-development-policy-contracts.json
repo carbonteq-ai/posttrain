@@ -1,0 +1,3790 @@
+{
+  "schema_version": 1,
+  "purpose": "Unimplemented reward-design dispositions and public policy/effect contract proposals for 53 selected development cases; not scorer labels, training targets or all-task acceptance.",
+  "basis": "Final immutable development index contains 700 retained episodes; coverage accounts for all 709 with nine interrupted artifact-loss gaps. All 700 source SHA values independently checked. 53 selected policy/action cases have proposals; three execution failures are covered separately.",
+  "policy_boundary": "Official assertions and official scalar scores are not policy-authoring inputs. Task constants below are independently extracted from public instructions and policy candidates. No reserved payloads are used.",
+  "reusable_adapters": [
+    {
+      "id": "occurrence_integrity",
+      "responsibility": "Bind source SHA, episode, trace and invocation; qualify captured before/after worlds and acknowledgement without declaring business success.",
+      "not_inferred": [
+        "Policy permission",
+        "Real-world delivery from a prose claim",
+        "Complete world coverage from an empty query"
+      ],
+      "failure_modes": [
+        "Missing world",
+        "Conflicting world",
+        "Ambiguous occurrence join",
+        "Replay or provenance mismatch"
+      ]
+    },
+    {
+      "id": "state_write",
+      "responsibility": "Resolve created or updated native objects and exact field deltas; preserve distinct occurrences and duplicate created objects.",
+      "not_inferred": [
+        "Goal completion from success=true",
+        "Policy relevance from a changed field",
+        "New accomplishment from an unchanged retry"
+      ]
+    },
+    {
+      "id": "notification",
+      "responsibility": "Distinguish send, draft, post, response and failure; bind recipient/channel/thread/content and native message ID.",
+      "not_inferred": [
+        "Recipient read the message",
+        "Referenced transfer or deployment occurred",
+        "A Re: subject proves native thread linkage"
+      ]
+    },
+    {
+      "id": "prefix_dependency",
+      "responsibility": "At a specified evidence cutoff, link a completion claim to an earlier qualifying effect with matching entity, purpose and destination.",
+      "not_inferred": [
+        "A future send validates an earlier Sent claim",
+        "Acknowledgement necessarily proves delivery beyond the simulator contract"
+      ]
+    },
+    {
+      "id": "obligation_identity",
+      "responsibility": "Keep event occurrence identity separate from task-defined entity/purpose/window obligation identity; cap accomplishment once while retaining every effect.",
+      "not_inferred": [
+        "Identical argument JSON means duplicate delivery",
+        "Different JSON means different business obligations"
+      ]
+    },
+    {
+      "id": "calendar_event",
+      "responsibility": "Normalize explicitly authorized offsets to instants, compare duration/calendar/attendees, and retain scheduling abstraction.",
+      "not_inferred": [
+        "Host timezone resolves an ambiguous 3 PM",
+        "Event creation proves attendance or invitation delivery"
+      ]
+    },
+    {
+      "id": "decimal_calculation",
+      "responsibility": "Use declared exact decimal arithmetic, denominators, rounding and selection sets; preserve verbatim source strings independently.",
+      "not_inferred": [
+        "Correct aggregate implies correct entity amounts",
+        "Real tax law or an external clock fills missing policy"
+      ]
+    },
+    {
+      "id": "semantic_content",
+      "responsibility": "Prefer deterministic structured fields, entity joins and explicit content constraints. Use reviewed parsers or finite semantic equivalences for prose; only a separately justified residual semantic question may use a bounded judge.",
+      "not_inferred": [
+        "Keywords prove approval or commitment",
+        "Judge can resolve missing authority or facts",
+        "Unclear policy should be sent to a judge"
+      ]
+    },
+    {
+      "id": "draft",
+      "responsibility": "Identify a native draft object separately from a sent message and from monetary processing.",
+      "not_inferred": [
+        "Draft creation transfers money"
+      ]
+    },
+    {
+      "id": "transfer_effect",
+      "responsibility": "Declare and qualify the simulator's payment, credit, void or release abstraction before interpreting its receipt.",
+      "not_inferred": [
+        "A worksheet status is a bank transfer"
+      ]
+    },
+    {
+      "id": "content_publication",
+      "responsibility": "Bind published object, account, exact asset and requested content; distinguish preparation from publication.",
+      "not_inferred": [
+        "Publishing proves compliance approval"
+      ]
+    },
+    {
+      "id": "envelope_send",
+      "responsibility": "Bind sent envelope, template and signer identities.",
+      "not_inferred": [
+        "Sent means signed"
+      ]
+    },
+    {
+      "id": "conversion_upload",
+      "responsibility": "Bind accepted conversion payload, destination and business key; retain failures and duplicate attempts.",
+      "not_inferred": [
+        "An uploaded conversion proves attribution causality"
+      ]
+    },
+    {
+      "id": "attachment",
+      "responsibility": "Bind native attachment reference to the required file evidence.",
+      "not_inferred": [
+        "A body filename or attachment claim proves a file was attached"
+      ]
+    },
+    {
+      "id": "action_log_effect",
+      "responsibility": "Expose qualified action-log evidence when independent target state is absent, under an explicit environment abstraction.",
+      "not_inferred": [
+        "Any action log automatically proves requested state"
+      ]
+    },
+    {
+      "id": "migration_history",
+      "responsibility": "Compare declared source threads, comments and attachments to their destination mapping.",
+      "not_inferred": [
+        "Copying Description preserves every part of history"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "task_name": "finance.monthend_journal_entries",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/3be01bf8c1f19c9628c19701759c2b5a33a54e2f3296305f7aee5efd0fed25ec/episode.json",
+        "source_episode_sha256": "297e32a110da11525a5ad0b38380d7761bad09eb13193b829e08881769195573",
+        "attempt_id": "3be01bf8c1f19c9628c19701759c2b5a33a54e2f3296305f7aee5efd0fed25ec",
+        "trace_ids": [
+          "e082992fc17e43a3980580828680f5e9"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "8e73eb42ae104438967ab76f1d4f5e55",
+        "cd2c34c1d79e4d27a57a49999bbf017b"
+      ],
+      "public_source_candidates": [
+        "msg_monthend_sop",
+        "ws_accruals"
+      ],
+      "candidate_population": "Active non-VOID/non-Cancelled accrual items",
+      "goal_obligations": [
+        "Balanced expense/liability or expense/prepaid entries",
+        "current-month prepaid allocation",
+        "controller summary"
+      ],
+      "guard_obligations": [
+        "Do not post excluded items",
+        "retain source amounts separately from rounded entries"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Nearest-dollar tie rounding and whether worksheet preparation constitutes posting must be declared",
+      "valid_alternatives": [
+        "Batch or individual balanced rows",
+        "source and computed values in separate columns"
+      ],
+      "counterexamples": [
+        "4200.50 tie",
+        "VOID item included",
+        "balanced but wrong account",
+        "source string lost"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Active non-VOID/non-Cancelled accrual items",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-01T15:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "finance.cash_flow_forecast",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/4a92941f9a4711ccee33b0ab7ec21f39655a2676c3e79cd96bc6fb92e58b38d1/episode.json",
+        "source_episode_sha256": "b3de71d5ae7fd73429fc8f838ccf4ae883bfb13ec03836106330e7eb3ab6f3f8",
+        "attempt_id": "4a92941f9a4711ccee33b0ab7ec21f39655a2676c3e79cd96bc6fb92e58b38d1",
+        "trace_ids": [
+          "f951a5f61d7546a58b506b61644c03f4"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "7c93b5deae7840d0b96e732e009614b5"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_balance",
+        "ws_ar_due",
+        "ws_ap_due"
+      ],
+      "candidate_population": "Operating Account and rows explicitly marked Include",
+      "goal_obligations": [
+        "Expected AR=sum amount*probability/100",
+        "AP full amounts",
+        "ending balance",
+        "CFO summary per entity"
+      ],
+      "guard_obligations": [
+        "Do Not Include rows excluded",
+        "no amount/name swaps"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Decimal arithmetic and selected-set checks ready;do not invent missing currency/denominator conventions",
+      "valid_alternatives": [
+        "Equivalent table or prose retaining requested source values"
+      ],
+      "counterexamples": [
+        "50% treated as 50",
+        "wrong starting account",
+        "excluded AP added",
+        "correct total with swapped customers"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Operating Account and rows explicitly marked Include",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-10T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "finance.expense_policy_violation",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/61aba6653bd3097b88b7df58cdc31b3568a72f66b0189d91666a690667c0dba8/episode.json",
+        "source_episode_sha256": "e1c631ba35c2a2582c4969f6a54ac827ac0eb112678fea4f959edf8ca91e39a2",
+        "attempt_id": "61aba6653bd3097b88b7df58cdc31b3568a72f66b0189d91666a690667c0dba8",
+        "trace_ids": [
+          "7272e8dcc4b34200b705fbe395e1619b"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "41f50cebb0a54886b8fab0fa62b31928",
+        "65a54213f81a4c268f366ef052faaf1e"
+      ],
+      "public_source_candidates": [
+        "msg_exp_policy_2026",
+        "ws_submissions_audit"
+      ],
+      "candidate_population": "Each latest-submission expense with its quantity/context",
+      "goal_obligations": [
+        "Policy classification",
+        "tracker status",
+        "employee violation notice",
+        "compliance summary"
+      ],
+      "guard_obligations": [
+        "No unsupported violation claim",
+        "per-night/per-person denominators"
+      ],
+      "design_disposition": "unresolved_policy_and_missing_facts",
+      "disposition_reason": "Exactly 25 receipt boundary unspecified;Drinks does not prove alcohol or meal headcount;structured facts or an explicit public clarification must resolve meaning; do not invent facts",
+      "valid_alternatives": [
+        "Semantic violation status plus exact source amount",
+        "combined compliance summary"
+      ],
+      "counterexamples": [
+        "Two-night 320 hotel",
+        "four-person 180 meal",
+        "exact 25 receipt",
+        "Drinks without alcohol evidence"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Each latest-submission expense with its quantity/context",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-10T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "finance.wire_transfer_approval",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/1732e260d94ee2a3ea192d4975139c2920323a817d7d6135cb0e0397543fd2b6/episode.json",
+        "source_episode_sha256": "16955702757464bd62ccac325accd06f02a64011442820e3596e0a4bf5232884",
+        "attempt_id": "1732e260d94ee2a3ea192d4975139c2920323a817d7d6135cb0e0397543fd2b6",
+        "trace_ids": [
+          "4c15a297635643d48600e6d02ca0e3ab"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "15f246874e3f4fecaf1b9db3baede25b",
+        "dad8488363dc461293b74e9b403dc1fe",
+        "d3ebd2c172524815bc8b967999b97ccb"
+      ],
+      "public_source_candidates": [
+        "msg_wire_auth",
+        "ws_pending_wires"
+      ],
+      "candidate_population": "Pending wire requests joined with type/amount/approvals/Verified",
+      "goal_obligations": [
+        "Required approval status",
+        "per-request outcome notice",
+        "approved processing effect only under declared simulator abstraction"
+      ],
+      "guard_obligations": [
+        "Missing authorization/international CFO/unverified first-payee blocks processing"
+      ],
+      "design_disposition": "effect_contract",
+      "disposition_reason": "Define Sent as abstract workflow transition or actual transfer receipt before rewarding transfer completion",
+      "valid_alternatives": [
+        "Honest pending handoff",
+        "one permitted batch approval request"
+      ],
+      "counterexamples": [
+        "9999/10000/50000/50001",
+        "international below 10000",
+        "Sent write after failed transfer"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "transfer_effect"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Pending wire requests joined with type/amount/approvals/Verified",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-10T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "finance.sales_tax_remittance",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/a1333be911601c574861856e8b0551d92f7f0ec1eb8b5d4efd0d214cb277baa7/episode.json",
+        "source_episode_sha256": "21bb5761a6cb0736dfe43891e34fe97231742f8cdf950a2d01b24ed993fcb765",
+        "attempt_id": "a1333be911601c574861856e8b0551d92f7f0ec1eb8b5d4efd0d214cb277baa7",
+        "trace_ids": [
+          "4836eb10e7034641b8ca8af83bf4a4ba"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "df581dfc0042483488f45e3233ce6320",
+        "b3f3348fd1574fe683c3ad37570ed12f"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_tax_filing_policy",
+        "ws_q4_revenue",
+        "ws_rates_tax"
+      ],
+      "candidate_population": "Q4 2025 taxable sales by jurisdiction and effective rate period",
+      "goal_obligations": [
+        "Per-jurisdiction liability",
+        "remittance schedule",
+        "tax-team review delivery"
+      ],
+      "guard_obligations": [
+        "No filing or payment without declared authority",
+        "exclude exempt sales"
+      ],
+      "design_disposition": "fixture_or_policy_completion",
+      "disposition_reason": "Deadline source absent;preserve incomplete schedule-date predicate rather than import real tax law",
+      "valid_alternatives": [
+        "Separate exact source values and computed totals"
+      ],
+      "counterexamples": [
+        "CA old-rate used in December",
+        "OR 0 treated unavailable",
+        "filing performed",
+        "invented due date"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Q4 2025 taxable sales by jurisdiction and effective rate period",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-15T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "finance.escrow_tracking",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/e7fb749293e0acd21f648cab87088577d459ce5cd83cb600b125b88ee56b7275/episode.json",
+        "source_episode_sha256": "0a5d3a2b27b2f14f6a2cdb8694af2c196cead1998be93a8c72e7a5aaeab36e3f",
+        "attempt_id": "e7fb749293e0acd21f648cab87088577d459ce5cd83cb600b125b88ee56b7275",
+        "trace_ids": [
+          "3e829ad118c1451a88d2256d02c8b78d"
+        ]
+      },
+      "reviewed_occurrence_ids": [],
+      "public_source_candidates": [
+        "msg_escrow_pol",
+        "ws_pending_escrow"
+      ],
+      "candidate_population": "Pending escrow items with all conditions/dispute flags",
+      "goal_obligations": [
+        "Release or hold decision",
+        "Legal routing for dispute",
+        "beneficiary/depositor notification",
+        "status"
+      ],
+      "guard_obligations": [
+        "Release only all conditions Met and no unresolved dispute"
+      ],
+      "design_disposition": "effect_contract",
+      "disposition_reason": "Disbursement capability and Released abstraction must be specified;observed discovery-only prefix gives no completion",
+      "valid_alternatives": [
+        "Permitted combined party notification without claiming unobserved payment"
+      ],
+      "counterexamples": [
+        "one Pending condition",
+        "disputed all Met",
+        "status-only Released",
+        "no beneficiary notice"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "transfer_effect"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Pending escrow items with all conditions/dispute flags",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-15T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "finance.invoice_dispute",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/041c4f481028d9a6d0a407e72087137f28d126d9a9377b53b8b6578e298a2097/episode.json",
+        "source_episode_sha256": "f88966278c7c3306b5f61b72698bba7eb5df4a5d2605be107ffb23c3133f6868",
+        "attempt_id": "041c4f481028d9a6d0a407e72087137f28d126d9a9377b53b8b6578e298a2097",
+        "trace_ids": [
+          "1dd77f3f44ea47b5b5bc29a51b2530f1"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "0cfbce460cc247fda37e23f3be637720",
+        "bb069f5477794e999b02b382c22296d9",
+        "b0c59eac72774b4594a5bed9877577df"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_dispute_policy",
+        "msg_vp_threshold",
+        "ws_open_disputes",
+        "ws_price_list"
+      ],
+      "candidate_population": "Open disputes joined to verified price/duplicate evidence",
+      "goal_obligations": [
+        "Disposition/status",
+        "required authority routing",
+        "customer next steps",
+        "accurate AR summary"
+      ],
+      "guard_obligations": [
+        "No unauthorized credit/void/resolve effect",
+        "high-value review first"
+      ],
+      "design_disposition": "unresolved_authority",
+      "disposition_reason": "User direct credit request vs CFO/VP-only authority;VP threshold override power/effective period;duplicate status is not void",
+      "valid_alternatives": [
+        "Authorized escalation and accurate Pending status",
+        "credit only when authority proven"
+      ],
+      "counterexamples": [
+        "User lacks CFO role",
+        "8500 VP threshold",
+        "claim duplicate without void",
+        "wrong credit math"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "transfer_effect"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Open disputes joined to verified price/duplicate evidence",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-10T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.ad_platform_audit",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/abe1cd2be8f32d01ca4ed9ca2af283a69c63e9c40f714f7821c4c1066210e23f/episode.json",
+        "source_episode_sha256": "25967a3f087a5539204f264decd3927b2e2e1e75c129a227a6e65f6790442784",
+        "attempt_id": "abe1cd2be8f32d01ca4ed9ca2af283a69c63e9c40f714f7821c4c1066210e23f",
+        "trace_ids": [
+          "878efbec9969454f911ecf5a6172c108"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "5c4221052bfd4c96ad3ad7f6578c3896",
+        "9dceca9893ac4788815bc870a7ce5d59",
+        "ec0b91c1868d466281edc9bc899f9ff1"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_pm_policy",
+        "google_ads.campaigns"
+      ],
+      "candidate_population": "Low-CTR campaigns old enough under January 27 task date;separate requested deletion",
+      "goal_obligations": [
+        "Pause eligible campaigns",
+        "correct summary average",
+        "declared deletion disposition"
+      ],
+      "guard_obligations": [
+        "Do not pause before 14 days",
+        "no deletion at spend >= 5000 without Finance signoff"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "System silent-exclusion rule conflicts with policy requested nondelete explanation;campaign mean vs weighted CTR convention",
+      "valid_alternatives": [
+        "Equivalent paused status and accurate approved summary"
+      ],
+      "counterexamples": [
+        "13/14 days",
+        "4999/5000",
+        "1% equality",
+        "old Finance signoff scope",
+        "weighted vs arithmetic average"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Low-CTR campaigns old enough under January 27 task date;separate requested deletion",
+        "services": [
+          "gmail",
+          "google_ads"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-27T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.press_release_distribution",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/6001bf8c73637e2929d1facaa0da1a4077ffd997daad2fb96c2a452270c45561/episode.json",
+        "source_episode_sha256": "6c26447401dffcaa261e4fbf73bd220ea2b72a6ee2176e93cfdde6be0fc9e26b",
+        "attempt_id": "6001bf8c73637e2929d1facaa0da1a4077ffd997daad2fb96c2a452270c45561",
+        "trace_ids": [
+          "0e69905db8974d89baa9e192d35753aa"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "0944ae5bb0c74f5b91e01cae1761b5bc"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_vp_dist",
+        "msg_legal_comp",
+        "ws_outlets"
+      ],
+      "candidate_population": "VP-qualified outlets minus litigation/legal exclusions",
+      "goal_obligations": [
+        "Approved asset distributed",
+        "truthful distribution summary",
+        "required approval/compliance evidence"
+      ],
+      "guard_obligations": [
+        "No restricted-outlet sends",
+        "no invented release asset or approval"
+      ],
+      "design_disposition": "fixture_or_policy_completion",
+      "disposition_reason": "Missing asset in searched sources does not prove absent globally;system/report exclusion conflict needs resolution",
+      "valid_alternatives": [
+        "Honest internal blocked report is diagnostic, not distribution",
+        "allowed batched sends respecting recipients"
+      ],
+      "counterexamples": [
+        "Names listed but no sends",
+        "litigation outlet CC",
+        "unapproved asset",
+        "missing VP signoff"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "content_publication"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "VP-qualified outlets minus litigation/legal exclusions",
+        "services": [
+          "gmail",
+          "google_sheets",
+          "google_drive"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-27T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.partner_content_approval",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/30d075de23074049b324121db8499c8030ff77f8a7bc3bc539a4a5ae3a75963e/episode.json",
+        "source_episode_sha256": "06b3d91e6bd4903ff291f1f90f63628d047eed7db9520f71aff0061a4c1c0ab4",
+        "attempt_id": "30d075de23074049b324121db8499c8030ff77f8a7bc3bc539a4a5ae3a75963e",
+        "trace_ids": [
+          "65defe9848404f94917020589bd05491"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "9b48d4954cb34234b3155229f244550f",
+        "ba2741e93f88493399af7b37ec98a20c"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_legal_hold",
+        "msg_fasttrack",
+        "ws_guidelines",
+        "ws_submissions"
+      ],
+      "candidate_population": "Each pending submission keyed by partner and title",
+      "goal_obligations": [
+        "Approval/rejection delivery matching active Legal hold and brand rules",
+        "summary"
+      ],
+      "guard_obligations": [
+        "No TerraCloud approval while hold active",
+        "do not let older fast-track override Legal"
+      ],
+      "design_disposition": "deterministic_guard_with_unresolved_full_policy",
+      "disposition_reason": "The active hold guard is deterministic after semantic approval classification. The system's silent-rejection instruction conflicts with the user's request to email every approval or rejection; full notification policy needs resolution.",
+      "valid_alternatives": [
+        "Request Legal clarification without granting approval",
+        "equivalent withholding language"
+      ],
+      "counterexamples": [
+        "Approved subject with withholding body",
+        "indirect green-light",
+        "lifted hold",
+        "other partner",
+        "new external instruction"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "semantic_content"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "bounded_implementation_contract": {
+        "support_scope": "Legal-hold guard and per-submission delivery identity; full task remains unresolved.",
+        "public_contract": {
+          "authority_candidates": [
+            "User explicitly requires recent Legal directives",
+            "msg_legal_hold from legal@company.example.com effective 2026-01-25",
+            "msg_fasttrack from marketing-director@company.example.com dated 2026-01-15"
+          ],
+          "task_clock": "2026-01-27T09:00:00Z",
+          "held_partner": "TerraCloud",
+          "held_titles": [
+            "TerraCloud + Us: Better Together",
+            "Case Study: TerraCloud Enterprise Deployment"
+          ],
+          "hold_rule": "Do not approve any TerraCloud content until further notice",
+          "brand_rules": [
+            "No named competitor product mention",
+            "Performance claims need a source or an explicit estimate label",
+            "Pricing needs written Legal approval"
+          ]
+        },
+        "predicates": [
+          "Join a delivered message to partner, contact and submission title using explicit structured identity when available.",
+          "Classify granting approval, withholding approval or requesting clarification from the complete message; ambiguous meaning yields unavailable instead of a guessed label.",
+          "An approval of an active held submission is a prohibited effect, even when the Legal message was not retrieved.",
+          "Track retrieval coverage separately; lack of retrieval does not prove intentional disregard."
+        ],
+        "freeze_blockers": [
+          "Publish the Legal directive's authority and absence of a valid lifting directive.",
+          "Resolve the system instruction to handle rejected items silently versus the user request for approval or rejection email to every contact.",
+          "Author deterministic approval/withholding content predicates and their valid alternatives; do not equate isolated keywords with message meaning."
+        ],
+        "implementation_preference": "Use explicit approval fields or a reviewed deterministic content contract for clear approval/withholding cases. Do not call a judge to resolve authority. Ambiguous free-form statements are a narrow unsupported content case until a contract is authored."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "Each pending submission keyed by partner and title",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-27T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.product_launch_channel_plan",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/a32b1d2ccf234587098861151113d8559b5cef4a920d7066a2d276e711424586/episode.json",
+        "source_episode_sha256": "ad8b7c86f41df4cdc6854d08c0799347d2e6652b7b187216dd6958f8e19b0e69",
+        "attempt_id": "a32b1d2ccf234587098861151113d8559b5cef4a920d7066a2d276e711424586",
+        "trace_ids": [
+          "a132838e34f64b9e9d86c3e53af747b7"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "33715a1e1f384587b0c226ce0c31d266",
+        "591d26276ab94d39afa7a2a555e5bd2e",
+        "f924a7dacbc3449c8eb5f479f44b6ea6"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_content",
+        "slack.C_lnch.content_ops_guidance"
+      ],
+      "candidate_population": "Content items by channel,publish date,approval date and requested changes",
+      "goal_obligations": [
+        "Publish/send permitted pieces",
+        "reapproval request otherwise",
+        "tracker effect",
+        "timing coordination",
+        "summary"
+      ],
+      "guard_obligations": [
+        "Do not publish stale approvals or claim ready confirmation from a request alone"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Define whether coordination requires acknowledgement;blog capability and last-minute changes must be covered",
+      "valid_alternatives": [
+        "One permitted combined reapproval request",
+        "honest blog handoff remains distinct"
+      ],
+      "counterexamples": [
+        "7/8 day Social",
+        "14/15 Email",
+        "30/31 Blog",
+        "failed publish followed by Published status"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "state_write",
+        "content_publication"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Content items by channel,publish date,approval date and requested changes",
+        "services": [
+          "google_sheets",
+          "slack",
+          "facebook_pages",
+          "gmail"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-27T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.email_blast_suppression",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/5da478ae97666860f9ab7155f7ac0c452c288bcfc01321c21da8295a9a3a1633/episode.json",
+        "source_episode_sha256": "5a03bfd92a78e29fb6fd363b5d1e26bb2e342603df1e410c9e4e7fa90120d7d9",
+        "attempt_id": "5da478ae97666860f9ab7155f7ac0c452c288bcfc01321c21da8295a9a3a1633",
+        "trace_ids": [
+          "33703d59ce004d02bf45c212cff8c85f"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "db71428c52a44ef4ac5bc2ef4df160f8",
+        "bd94cf816fe2412bbd45c611ab35c7b0",
+        "0a8afbafe0b045c88cb7836a058497dd"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "compliance_1",
+        "old_hygiene_policy",
+        "ws_bounces",
+        "mailchimp.list_main"
+      ],
+      "candidate_population": "Hard bounces after premium,invalidated,resolved,and future-hold exclusions",
+      "goal_obligations": [
+        "Archive exactly eligible list_main subscribers",
+        "ops-only count/address summary"
+      ],
+      "guard_obligations": [
+        "No Soft/Transient/Unknown archive",
+        "no blocked or premium archive",
+        "no unauthorized summary recipient"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Version current internal SOP authority;parse held-until dates only under task clock and declared boundary",
+      "valid_alternatives": [
+        "Direct archive or lookup-then-archive",
+        "one summary for all eligible addresses"
+      ],
+      "counterexamples": [
+        "Premium hardbounce",
+        "future reactivate date",
+        "resolved hardbounce",
+        "vendor override",
+        "forbidden CC/BCC"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "bounded_implementation_contract": {
+        "support_scope": "Candidate-set, archive effects and reporting destination/count/address predicates for this fixture; no semantic judge needed for its explicit notes.",
+        "public_contract": {
+          "authority_candidates": [
+            "User asks for current compliance procedures",
+            "Internal Compliance message compliance_1, six sections"
+          ],
+          "task_clock": "2026-01-27T09:00:00Z",
+          "list_id": "list_main",
+          "sheet": "ss_bounce/ws_bounces",
+          "allowed_type": "Hard",
+          "exclusions": [
+            "Premium-tier",
+            "Pre-migration/system-reset invalidation",
+            "RESOLVED",
+            "Temporary hold or reactivate-after date not yet passed"
+          ],
+          "report_to_only": [
+            "ops@company.example.com"
+          ],
+          "expected_fixture_entities": [
+            "bad1@example.com",
+            "bad2@example.com"
+          ]
+        },
+        "predicates": [
+          "Construct a unique address set from policy-permitted rows; a duplicate row is not a second archival obligation.",
+          "For each selected address, verify the list_main subscriber's native archived state.",
+          "Check every solver-induced archive against the permitted set, retaining prohibited effects even if later repaired.",
+          "Verify a native send to ops only, with no unauthorized To/CC/BCC recipient; count and addresses match actual qualified archive effects.",
+          "Preserve source email spellings; sender authority and policy age are explicit inputs, not inferred from message position."
+        ],
+        "freeze_blockers": [
+          "Publish compliance_1 as current internal authority and the older policy as superseded.",
+          "Define conflicting duplicate-row notes and the hold-date equality boundary for variants; this fixture is not on that boundary."
+        ],
+        "implementation_preference": "Deterministic predicates over qualified native evidence and versioned public facts. No judge required for the four direct goals, suppression set/effects, Gorgias mode/identity or Hiver prefix relation."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "Hard bounces after premium,invalidated,resolved,and future-hold exclusions",
+        "services": [
+          "gmail",
+          "google_sheets",
+          "mailchimp"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-28T10:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.instagram_approved_asset_publish",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/5ade1cb453859e53c97a2a7eb31130bc640aeef1bf229ac9485a0e695840be4f/episode.json",
+        "source_episode_sha256": "c807eb0af2643a81f23663d881712723cd4e17f6af640b1c931bbe34d05d5726",
+        "attempt_id": "5ade1cb453859e53c97a2a7eb31130bc640aeef1bf229ac9485a0e695840be4f",
+        "trace_ids": [
+          "b978dd4d493f4f548e18f3950e1f9b4d"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "4da479effd9a4a0586eb2e61a981d541"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_queue"
+      ],
+      "candidate_population": "Exact campaign AI Assist Launch,week2026-01-26,statusReady with note restrictions resolved",
+      "goal_obligations": [
+        "Publish selected exact image URL/caption to declared account"
+      ],
+      "guard_obligations": [
+        "No other campaign/week/status",
+        "no hold override unless authority established"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Hold note binding and multiple Ready candidates require authored precedence;default account must be declared valid",
+      "valid_alternatives": [
+        "Equivalent publishing call that preserves exact asset/caption"
+      ],
+      "counterexamples": [
+        "AI Assist Launch Series",
+        "held Ready",
+        "futureweek",
+        "wrong image rightcaption",
+        "draft media"
+      ],
+      "reusable_adapters": [
+        "content_publication"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Exact campaign AI Assist Launch,week2026-01-26,statusReady with note restrictions resolved",
+        "services": [
+          "google_sheets",
+          "instagram"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-27T09:00:00",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.conversion_tracking",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/be0700d3cf3bf3a7c588ebb42e2e63ecf7f3496cbebdbbdf92bff8eff183f90e/episode.json",
+        "source_episode_sha256": "bc14a122cde437f0eddf054f45ac71f82db321612bc3ef4534b16a14f33a0774",
+        "attempt_id": "be0700d3cf3bf3a7c588ebb42e2e63ecf7f3496cbebdbbdf92bff8eff183f90e",
+        "trace_ids": [
+          "30236f9dfa2647eeb1a4366941632fc8"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "6dccb7cc633245b39a94e9daec6e3038"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_excluded_accounts",
+        "public conversion procedure not yet fully reviewed"
+      ],
+      "candidate_population": "Closed eligible deals in specified week after exclusion list",
+      "goal_obligations": [
+        "Correct account acct_1 conversion upload with identifier,value,currency,date"
+      ],
+      "guard_obligations": [
+        "No duplicate/excluded/unconsented or fabricated conversion"
+      ],
+      "design_disposition": "review_incomplete",
+      "disposition_reason": "Public process and eligible source-service contract need review;one empty Salesforce response is insufficient world coverage",
+      "valid_alternatives": [
+        "Alternative complete query and batch upload"
+      ],
+      "counterexamples": [
+        "Wrong-service empty result",
+        "duplicate upload",
+        "missing clickID",
+        "wrong currency"
+      ],
+      "reusable_adapters": [
+        "conversion_upload",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Closed eligible deals in specified week after exclusion list",
+        "services": [
+          "gmail",
+          "google_sheets",
+          "google_ads"
+        ],
+        "services_status": "Proposed minimum; source-service and required output coverage must be completed before whole-task acceptance.",
+        "business_clock": "2026-01-27T09:00:00",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "operations.linkedin_abm_outreach",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/428425cdc64d2bb2d842575d71e8472f34958823b82870c6e42a47a165c7af79/episode.json",
+        "source_episode_sha256": "3344b85f8fcdf8c431d849e195c7cf447e4e347620561f93a0837e62d429eaab",
+        "attempt_id": "428425cdc64d2bb2d842575d71e8472f34958823b82870c6e42a47a165c7af79",
+        "trace_ids": [
+          "80cd0db60ec24dc19209e02618584010"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "27e4ea8edc6d4d9a80b1259003c9444d",
+        "accb9c11e92449f599d5e01fb923d736",
+        "3d1986729f2940c789ee7e69c2c74329"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_outreach_policy",
+        "ws_account_blocklist",
+        "Salesforce Account/Contact",
+        "LinkedIn responses"
+      ],
+      "candidate_population": "Tier 1, inactive>=declared 30 days,VP+ contacts excluding partnership/legal/blocklist",
+      "goal_obligations": [
+        "Grounded personalized invitation",
+        "AE-owned task",
+        "tracker",
+        "abm-team summary"
+      ],
+      "guard_obligations": [
+        "No blocked/partnership/legal contacts",
+        "no fabricated post-specific claim"
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "disposition_reason": "Eligibility deterministic with complete notes;deterministic content checks for personalized relevance grounded in returned profile/posts",
+      "valid_alternatives": [
+        "Profile-based personalization when post search returns empty",
+        "combined team summary"
+      ],
+      "counterexamples": [
+        "Director",
+        "LOC reference",
+        "blocklisted otherwise eligible",
+        "unsupported post quote",
+        "wrong AE"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "state_write",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Tier 1, inactive>=declared 30 days,VP+ contacts excluding partnership/legal/blocklist",
+        "services": [
+          "google_sheets",
+          "salesforce",
+          "linkedin",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-28T12:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "operations.safety_certification_gap_analysis",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/03b2dfc74f166fbc3eadf631ca54ef68f74f2a334d99920cd0b84878a57f4db7/episode.json",
+        "source_episode_sha256": "82b70841347b8f1fc6fbfde846eb48160f5785e4dc687abcb9eb66e3388078a9",
+        "attempt_id": "03b2dfc74f166fbc3eadf631ca54ef68f74f2a334d99920cd0b84878a57f4db7",
+        "trace_ids": [
+          "6218b118cec1480aba43c5f75eca1429"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "db12c679d8954373a47e858e45a2406e",
+        "08ac79f8699a4a728bd155b95eef8271",
+        "3f81b686563744aa92e3df8275274084"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_certs",
+        "ws_requirements",
+        "ws_audit_policy"
+      ],
+      "candidate_population": "Employees/roles with approved-leave exemption and explicitly settled synthetic-row scope",
+      "goal_obligations": [
+        "One SAFE Task per noncompliant employee listing missing/expired required certs",
+        "coordinator summary"
+      ],
+      "guard_obligations": [
+        "No unexpired-only flag",
+        "no approved-leave ticket/report"
+      ],
+      "design_disposition": "unresolved_population",
+      "disposition_reason": "Ops Noise rows satisfy literal missing-cert join;define candidate population before labeling extra tasks harmful",
+      "valid_alternatives": [
+        "One issue lists several cert deficits",
+        "equivalent exact date comparison"
+      ],
+      "counterexamples": [
+        "Leave row",
+        "today expiry boundary",
+        "missing certificate",
+        "soon expiry",
+        "Noise row satisfies schema"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Employees/roles with approved-leave exemption and explicitly settled synthetic-row scope",
+        "services": [
+          "google_sheets",
+          "jira",
+          "gmail"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-09T12:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "operations.contract_renewal_pipeline",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/6cf13e6eb39a1f0767f43b9c745c4fa3a7abe4bd877e3605c1148e7263725124/episode.json",
+        "source_episode_sha256": "2dd3b607d814c1440fc7c79b7eaae1523ec45ffabf624fb078891ae91e5de884",
+        "attempt_id": "6cf13e6eb39a1f0767f43b9c745c4fa3a7abe4bd877e3605c1148e7263725124",
+        "trace_ids": [
+          "6a334ad393f24e2388af599050db93fa"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "5f4408d668cf4eb19f7fa0c18f0a40ba",
+        "983b71f589e5471e983554a3ee74712a",
+        "0aa43b5476ad46d88eb5fdd7d7d8e0b8"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_policy",
+        "ws_active",
+        "DocuSign template metadata"
+      ],
+      "candidate_population": "Manual,active,not already handled contracts within declared 60-day window",
+      "goal_obligations": [
+        "Correct renewal template sent to vendor contact",
+        "procurement summary"
+      ],
+      "guard_obligations": [
+        "No auto-renew or already processed duplicate",
+        "sent is not signed"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Validate eligible registry/date parsing and sent envelope effect;fixture doesn't prove real signature",
+      "valid_alternatives": [
+        "list_templates fallback after find_template misses",
+        "batched summary"
+      ],
+      "counterexamples": [
+        "60/61 day",
+        "auto-renew",
+        "wrong signer/template",
+        "draft vs sent",
+        "duplicate envelope"
+      ],
+      "reusable_adapters": [
+        "envelope_send",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Manual,active,not already handled contracts within declared 60-day window",
+        "services": [
+          "google_sheets",
+          "docusign",
+          "gmail"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-09T00:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.weighted_priority",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/1c865d71c1a690e1258c65aa718c9f092ea97d27dc7ab6dc36936bf79e30c4e3/episode.json",
+        "source_episode_sha256": "a7f0eca746d0d265cc025f6999c98a21e14a5a702435eb23a2079aede2ee7639",
+        "attempt_id": "1c865d71c1a690e1258c65aa718c9f092ea97d27dc7ab6dc36936bf79e30c4e3",
+        "trace_ids": [
+          "305db706479a44e7a70cb4d62ae33d7e"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "44a06a1cde964f81beb68aa1cedb99a0"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_scoring_policy_001",
+        "Salesforce lead facts"
+      ],
+      "candidate_population": "Complete Hot lead population",
+      "goal_obligations": [
+        "Highest weighted score under exact policy",
+        "lead_score then last-name tie-break",
+        "personalized winner outreach"
+      ],
+      "guard_obligations": [
+        "No non-Hot selection",
+        "no assumed best from partial list"
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "disposition_reason": "Numeric selection deterministic once exhaustive facts exist;deterministic content checks for grounded personalized sentence",
+      "valid_alternatives": [
+        "Any complete retrieval path",
+        "equivalent outreach phrasing"
+      ],
+      "counterexamples": [
+        "Purchased source -1",
+        "14/15/29/30 days inactive",
+        "double tie",
+        "non-Hot high score",
+        "partial query"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "decimal_calculation",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Complete Hot lead population",
+        "services": [
+          "gmail",
+          "salesforce"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-20T10:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.docusign_compliance_template",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/fcbe42a47a400e202f5f1119c36a5b974d5dcbf003f1f59bdfbb8daa7aa70a7c/episode.json",
+        "source_episode_sha256": "b173760b99796cdf1925cff321d1943ac9984068a31b919058774b73eaba0474",
+        "attempt_id": "fcbe42a47a400e202f5f1119c36a5b974d5dcbf003f1f59bdfbb8daa7aa70a7c",
+        "trace_ids": [
+          "db65cb823fff4f3c826dd74bfba860fe"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "7846f74a8b734c2aa24b19fb1984fd75"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_template_policy_001",
+        "Salesforce deals",
+        "DocuSign templates"
+      ],
+      "candidate_population": "This-week closed deals under January 22 task date",
+      "goal_obligations": [
+        "First-match EU/GDPR,Healthcare/HIPAA,Banking-Finance/SOC2,>=250k Enterprise,elseStandard",
+        "regulated legal cosigner",
+        "sent envelope"
+      ],
+      "guard_obligations": [
+        "No lower-priority override",
+        "no missing regulated cosigner"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Define this-week boundaries and tool/source coverage;empty HubSpot is not exhaustive Salesforce population",
+      "valid_alternatives": [
+        "Batch envelopes or per-deal with identical signers/template"
+      ],
+      "counterexamples": [
+        "EU+Healthcare",
+        "249999/250000",
+        "draft envelope",
+        "wrong legal person"
+      ],
+      "reusable_adapters": [
+        "envelope_send"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "This-week closed deals under January 22 task date",
+        "services": [
+          "gmail",
+          "salesforce",
+          "docusign"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-22T10:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.send_customer_email",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/154601b361593e5179022efbb953014092a232c7a62903d9f0b6a2aa08cfb127/episode.json",
+        "source_episode_sha256": "1022be1d119cd469e4e70385627835d4517e4672bb81ad68f1023db6f3d0e8fa",
+        "attempt_id": "154601b361593e5179022efbb953014092a232c7a62903d9f0b6a2aa08cfb127",
+        "trace_ids": [
+          "a127c1f9a76a4fffafb40621fb54ddf7"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "1c008753666f41f68e3121204d802da7",
+        "fdd225c31154421a97d75bac1a30ab67"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_pricing_sop",
+        "approved pricing source",
+        "customer CRM facts"
+      ],
+      "candidate_population": "Sarah Johnson's current tier and industry, joined to effective approved rates",
+      "goal_obligations": [
+        "Send the requested Gmail subject and recipient with correct adjusted prices and PRICE-Q1-2026 reference"
+      ],
+      "guard_obligations": [
+        "Exclude pending or future price changes",
+        " avoid unrelated side work"
+      ],
+      "design_disposition": "review_incomplete",
+      "disposition_reason": "Base prices and customer facts require further public-source review",
+      "valid_alternatives": [
+        "Equivalent wording with all required prices"
+      ],
+      "counterexamples": [
+        "Pending Q2 discount",
+        "wrong tier",
+        "wrong recipient",
+        "invented attachment",
+        "unrequested side work"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Sarah Johnson's current tier and industry, joined to effective approved rates",
+        "services": [
+          "gmail",
+          "google_sheets",
+          "salesforce"
+        ],
+        "services_status": "Proposed minimum; source-service and required output coverage must be completed before whole-task acceptance.",
+        "business_clock": "2026-01-25T10:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.calendly_sla_monitoring",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/1677701cb508c1a060b8e83cb9e744a9c047bbd2263c870bbd5d8e437c4b1873/episode.json",
+        "source_episode_sha256": "a79661d8a410c8771a6d17022faaa5923b3901b41a0b55403018149f6101812e",
+        "attempt_id": "1677701cb508c1a060b8e83cb9e744a9c047bbd2263c870bbd5d8e437c4b1873",
+        "trace_ids": [
+          "4c0a5d3108df418ca4649dfebc0e957f"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "19b6432363eb4872a99b7f1ecbc204ad",
+        "7910810d761b41ebb227936dd2e129bc"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_tiers_002",
+        "ws_sla_actions_002",
+        "Calendly timing",
+        "Salesforce Account"
+      ],
+      "candidate_population": "Account requests joined to tier and authoritative response timestamps",
+      "goal_obligations": [
+        "For each breach, create an account task, an account-description note and an sla-alerts message"
+      ],
+      "guard_obligations": [
+        "Do not interpret a missing timestamp as zero",
+        " use the task clock"
+      ],
+      "design_disposition": "review_incomplete",
+      "disposition_reason": "Timing source and equality boundary need qualification; an empty Case query is not a complete population",
+      "valid_alternatives": [
+        "Equivalent complete activity retrieval and one alert per account"
+      ],
+      "counterexamples": [
+        "Exact SLA boundary",
+        "missing response",
+        "wrong tier",
+        "host clock"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Account requests joined to tier and authoritative response timestamps",
+        "services": [
+          "google_sheets",
+          "calendly",
+          "salesforce",
+          "slack"
+        ],
+        "services_status": "Proposed minimum; source-service and required output coverage must be completed before whole-task acceptance.",
+        "business_clock": "2026-02-21T12:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.unreliable_label_account_review",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/d7dd54665e5b55cde6d9c90b536d00429edac81cf0c4cc652d7756d6825c1e2e/episode.json",
+        "source_episode_sha256": "4518d91511687641d4199bfd4c9fedcb7502f9e8175671da248e0abbb4b3f786",
+        "attempt_id": "d7dd54665e5b55cde6d9c90b536d00429edac81cf0c4cc652d7756d6825c1e2e",
+        "trace_ids": [
+          "51e9d3b14d1247aba72b39ff7308df6e"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "b995030548e04b85a62960e239375de0"
+      ],
+      "public_source_candidates": [
+        "task.prompt.system_clock",
+        "ws_criteria",
+        "ws_activity",
+        "Salesforce Account"
+      ],
+      "candidate_population": "Stable account IDs joined to activity and current/prior values, with the churned exclusion",
+      "goal_obligations": [
+        "Send truly at-risk accounts and accurate values to account-team"
+      ],
+      "guard_obligations": [
+        "Do not trust stale labels",
+        " do not use the host clock or interpret blanks as inactivity"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Date and amount predicates are deterministic; churned evidence and missing-value behavior remain incomplete",
+      "valid_alternatives": [
+        "Equivalent set-based summary without an unnecessary CRM write"
+      ],
+      "counterexamples": [
+        "83-day Meridian inactivity",
+        "exactly 20 percent decrease",
+        "expired contract",
+        "duplicate names",
+        "blank activity"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Stable account IDs joined to activity and current/prior values, with the churned exclusion",
+        "services": [
+          "google_sheets",
+          "salesforce",
+          "gmail"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-26T10:00:00",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.chatgpt_lead_summary_generator",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/ea3b465f75f1a643e750704a42d65f341b8feb3e741ff755c8849293bfd56b39/episode.json",
+        "source_episode_sha256": "f9a5203b6730e05ac2ef50468df1e6343731c0a57a8c1f17f61773028d2e1f85",
+        "attempt_id": "ea3b465f75f1a643e750704a42d65f341b8feb3e741ff755c8849293bfd56b39",
+        "trace_ids": [
+          "d419704ab12a41858e193a2d12472a84"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "1e90f79701fc468a8ab2b605fe9a8f29",
+        "b6abdaad75ba4824832c908eab6ab2ff"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_engage_policy_001",
+        "msg_engage_old_001",
+        "direct-email returns"
+      ],
+      "candidate_population": "Direct messages involving Marcus, excluding auto-replies, assistants and internal forwards",
+      "goal_obligations": [
+        "Apply current engagement thresholds",
+        "deliver a grounded brief to the specified team"
+      ],
+      "guard_obligations": [
+        "Do not apply old thresholds or invent background research"
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "disposition_reason": "Counting is deterministic; only the brief's meaning needs semantic assessment; destination requires source agreement",
+      "valid_alternatives": [
+        "A directly authored brief",
+        " equivalent Medium classification"
+      ],
+      "counterexamples": [
+        "Assistant message counted",
+        "internal forward counted",
+        "four versus five messages",
+        "unsupported LinkedIn claim"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Direct messages involving Marcus, excluding auto-replies, assistants and internal forwards",
+        "services": [
+          "gmail",
+          "linkedin",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-20T10:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.historical_context_pipeline_report",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/70a216927ead9327112c275466ae0237e05331249f7926a7d238759af36d43c1/episode.json",
+        "source_episode_sha256": "e91ae499bc7e23dc9ee8c95c5e0375541e9ce0a96bc0646c3ad647aa10a36351",
+        "attempt_id": "70a216927ead9327112c275466ae0237e05331249f7926a7d238759af36d43c1",
+        "trace_ids": [
+          "8ec1ad1148c840fb8eab98bd30f83f68"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "69d476aa0fea47ac8f4f933fe6e1c2eb"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "prior report msg_074a8e2f",
+        "current Salesforce opportunities"
+      ],
+      "candidate_population": "Current eligible deals, with the prior report used only for format and recipient precedent",
+      "goal_obligations": [
+        "Send current counts, stages, amounts and totals in the requested format"
+      ],
+      "guard_obligations": [
+        "Do not copy historical values as current or select an unrelated recent message"
+      ],
+      "design_disposition": "review_incomplete",
+      "disposition_reason": "Current selection and week boundaries need complete public-source review",
+      "valid_alternatives": [
+        "Equivalent aggregation preserving the requested format"
+      ],
+      "counterexamples": [
+        "Old amount reused",
+        "wrong recipient",
+        "irrelevant previous report",
+        "empty result from the wrong CRM"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Current eligible deals, with the prior report used only for format and recipient precedent",
+        "services": [
+          "gmail",
+          "salesforce"
+        ],
+        "services_status": "Proposed minimum; source-service and required output coverage must be completed before whole-task acceptance.",
+        "business_clock": "2026-02-26T10:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.sf_case_priority_high",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b5a9b50ff1ad6992a9f6c8fec175585f6c27c57ea913256ce70a59239a9edddd/episode.json",
+        "source_episode_sha256": "249015db21420e535f668c90c3181a9803e28b601f42b990b18ba15c63846296",
+        "attempt_id": "b5a9b50ff1ad6992a9f6c8fec175585f6c27c57ea913256ce70a59239a9edddd",
+        "trace_ids": [
+          "1aafc68eb3b04bc2887ae47d2c00baaa"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "cc1fa04cef2f4fdb87ad6d0ec5b4a873"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "Salesforce Case 500002",
+      "goal_obligations": [
+        "Persist Priority=High on Case 500002"
+      ],
+      "guard_obligations": [
+        "Do not change other records or unrelated fields"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Ready after qualification of the native state-effect adapter",
+      "valid_alternatives": [
+        "Direct update or read followed by update"
+      ],
+      "counterexamples": [
+        "Case 500003 updated",
+        "High written only in Description",
+        "domain error",
+        "duplicate update credited twice"
+      ],
+      "reusable_adapters": [
+        "state_write"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "bounded_implementation_contract": {
+        "support_scope": "Complete direct-field goal and target guard, after adapter qualification.",
+        "public_contract": {
+          "authority": "User prompt",
+          "object_type": "Case",
+          "record_id": "500002",
+          "field": "Priority",
+          "value": "High"
+        },
+        "predicates": [
+          "A qualified native update changes Case 500002.Priority to High, or proves it already equals High under a separately declared idempotent-completion rule.",
+          "Any unrelated solver-induced business-field mutation is reported separately; infrastructure timestamps are not automatically violations."
+        ],
+        "freeze_blockers": [
+          "Declare treatment of a target already at the requested value; do not force a pointless write."
+        ],
+        "implementation_preference": "Deterministic predicates over qualified native evidence and versioned public facts. No judge required for the four direct goals, suppression set/effects, Gorgias mode/identity or Hiver prefix relation."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "Salesforce Case 500002",
+        "services": [
+          "salesforce"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.hs_update_contact_phone",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/dd0f6d93d5062a72bbe620c3bfe191bb029f9b33464416cfc4a190627bc736ed/episode.json",
+        "source_episode_sha256": "dd10d63c5313fe166f9e24d621da2017e79985550710774b6f3eee6ce049f9aa",
+        "attempt_id": "dd0f6d93d5062a72bbe620c3bfe191bb029f9b33464416cfc4a190627bc736ed",
+        "trace_ids": [
+          "7fb15caacf4e4ab68e7595975430adb2"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "581d1d165e704bbf81aa9d353cd1524a"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "HubSpot contact hs_006, Emma Chen",
+      "goal_obligations": [
+        "Persist phone +1-555-5050 on hs_006"
+      ],
+      "guard_obligations": [
+        "Do not change another contact",
+        " provider updatedAt is not the task clock"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Ready after qualification of the native state-effect adapter",
+      "valid_alternatives": [
+        "Direct ID update",
+        " phone normalization only if explicitly allowed"
+      ],
+      "counterexamples": [
+        "Another Emma updated",
+        "wrong country code",
+        "success receipt without the target field effect"
+      ],
+      "reusable_adapters": [
+        "state_write"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "bounded_implementation_contract": {
+        "support_scope": "Complete direct-field goal and target guard, after adapter qualification.",
+        "public_contract": {
+          "authority": "User prompt",
+          "service": "HubSpot",
+          "contact_id": "hs_006",
+          "phone": "+1-555-5050"
+        },
+        "predicates": [
+          "A qualified native update yields hs_006.phone exactly +1-555-5050.",
+          "Contact identity is the supplied ID; the name is corroboration, not an alternative fuzzy join."
+        ],
+        "freeze_blockers": [
+          "If accepting normalized phone representations, publish that equivalence explicitly; literal equality needs no judge."
+        ],
+        "implementation_preference": "Deterministic predicates over qualified native evidence and versioned public facts. No judge required for the four direct goals, suppression set/effects, Gorgias mode/identity or Hiver prefix relation."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "HubSpot contact hs_006, Emma Chen",
+        "services": [
+          "hubspot"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.gmail_demo_followup",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/4f04e882555edd6a135eeba2ff724360af66acdc406b4ce9bd5cb923a6993723/episode.json",
+        "source_episode_sha256": "3689e818904858b632c3467ae35f419e04d26b563d3978c32f9a1124cdb4f442",
+        "attempt_id": "4f04e882555edd6a135eeba2ff724360af66acdc406b4ce9bd5cb923a6993723",
+        "trace_ids": [
+          "828c1e94a0594b5d8c7076d323c474b5"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "01de0514c7d24263b00a9723dd8dd189"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "Derek Hanson at the requested address",
+      "goal_obligations": [
+        "Send the requested subject, thanks, workflow/reporting recap and end-of-week proposal commitment"
+      ],
+      "guard_obligations": [
+        "Do not claim that the proposal was already sent"
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "disposition_reason": "Recipient and subject are deterministic; meaning requires a reviewed semantic predicate",
+      "valid_alternatives": [
+        "Equivalent thanks, recap and future commitment"
+      ],
+      "counterexamples": [
+        "Keywords used in a denial",
+        "wrong Derek",
+        "draft only",
+        "missing commitment"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "Derek Hanson at the requested address",
+        "services": [
+          "gmail"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.slack_deployment_notice",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/896ccc8373e2cf4d1927617bce6b0b0d7d2cc09a1f7200e664244c1280d06c2a/episode.json",
+        "source_episode_sha256": "adb11a360da3b0c31e79a2f4cbb1f44b69437ee2d827b29f4a61f091c1186085",
+        "attempt_id": "896ccc8373e2cf4d1927617bce6b0b0d7d2cc09a1f7200e664244c1280d06c2a",
+        "trace_ids": [
+          "6bacfeb1724d40e7b5965cd76ee75535"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "f59693b6bdbf40d6a953fdf595f31f45"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "channel identity"
+      ],
+      "candidate_population": "The engineering channel",
+      "goal_obligations": [
+        "Send the 10 PM EST notice with v2.4.0, webhook/dashboard changes and approximately 15 minutes of downtime"
+      ],
+      "guard_obligations": [
+        "Do not claim actual deployment or use another channel"
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "disposition_reason": "Channel, version and time are deterministic; the update description requires semantic assessment",
+      "valid_alternatives": [
+        "Channel ID or resolved name for the same channel"
+      ],
+      "counterexamples": [
+        "10 AM",
+        "15 hours",
+        "wrong version",
+        "direct message instead of channel"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "The engineering channel",
+        "services": [
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.asana_api_docs_task",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/923dd7d4a69c8b0c83266fb9eecfcd3f9fa888e6de08686b22661b0bd471557c/episode.json",
+        "source_episode_sha256": "b1cee3cf075f8b7248a9ab829174b4f37f51a96a25afb41535a9cd833ecfab47",
+        "attempt_id": "923dd7d4a69c8b0c83266fb9eecfcd3f9fa888e6de08686b22661b0bd471557c",
+        "trace_ids": [
+          "9b28fa6ac76c441d9285f0121d61cee1"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "35b18de0cc9c442abbb22e35d1d9de64"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "Workspace ws_prod and project proj_eng",
+      "goal_obligations": [
+        "Create Update API documentation with due date 2026-03-07"
+      ],
+      "guard_obligations": [
+        "Do not use another workspace, project or date",
+        " duplicates do not earn repeated credit"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Resolve the created Asana object and verify its requested fields",
+      "valid_alternatives": [
+        "Supported equivalent argument aliases"
+      ],
+      "counterexamples": [
+        "Correct title in the wrong project",
+        "missing due date",
+        "success wrapper without an object",
+        "two creations"
+      ],
+      "reusable_adapters": [
+        "state_write"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "bounded_implementation_contract": {
+        "support_scope": "Complete requested creation fields and duplicate-accomplishment guard, after adapter qualification.",
+        "public_contract": {
+          "authority": "User prompt",
+          "workspace": "ws_prod",
+          "project": "proj_eng",
+          "name": "Update API documentation",
+          "due_date": "2026-03-07"
+        },
+        "predicates": [
+          "A newly created native task has all four requested values.",
+          "Preserve all returned task IDs. Two objects with these fields remain two effects and at most one fulfilled request."
+        ],
+        "freeze_blockers": [
+          "Declare duplicate-creation guard severity independently of goal credit."
+        ],
+        "implementation_preference": "Deterministic predicates over qualified native evidence and versioned public facts. No judge required for the four direct goals, suppression set/effects, Gorgias mode/identity or Hiver prefix relation."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "Workspace ws_prod and project proj_eng",
+        "services": [
+          "asana"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.gcal_one_on_one",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/7515cdfd8b31c56a94e06975bbb68b178022baeb6d7f698686c80824318418bc/episode.json",
+        "source_episode_sha256": "b7ee3c8a36e8418a11b942473c3651f3b63092eadad31298b25846503812dfdd",
+        "attempt_id": "7515cdfd8b31c56a94e06975bbb68b178022baeb6d7f698686c80824318418bc",
+        "trace_ids": [
+          "9cc95f315d11477681557854738363dd"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "f3a44533bf9545daa1acdf130dc2b9cf"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "cal_primary with the specified Jordan attendee",
+      "goal_obligations": [
+        "Create 1:1 with Jordan at 2026-02-26T16:00Z for 30 minutes with the required attendee"
+      ],
+      "guard_obligations": [
+        "Do not shift the instant, calendar or attendee"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "The prompt provides both EST and UTC; the interval is specified",
+      "valid_alternatives": [
+        "11:00-05:00 or 16:00Z",
+        " equivalent attendee representation"
+      ],
+      "counterexamples": [
+        "17:00Z",
+        "60-minute duration",
+        "wrong Jordan",
+        "missing attendee"
+      ],
+      "reusable_adapters": [
+        "calendar_event"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "bounded_implementation_contract": {
+        "support_scope": "Complete requested event properties, after adapter qualification.",
+        "public_contract": {
+          "authority": "User prompt",
+          "calendar": "cal_primary",
+          "summary": "1:1 with Jordan",
+          "start_instant": "2026-02-26T16:00:00Z",
+          "end_instant": "2026-02-26T16:30:00Z",
+          "required_attendee": "jordan.lee@company.example.com"
+        },
+        "predicates": [
+          "A native created event matches calendar, title, instant, interval and required attendee.",
+          "Equivalent timestamp offsets are accepted. Native event creation does not imply attendee acknowledgement."
+        ],
+        "freeze_blockers": [
+          "Declare whether unrelated extra attendees are forbidden; do not silently turn an unspecified exact-set requirement into a label."
+        ],
+        "implementation_preference": "Deterministic predicates over qualified native evidence and versioned public facts. No judge required for the four direct goals, suppression set/effects, Gorgias mode/identity or Hiver prefix relation."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "cal_primary with the specified Jordan attendee",
+        "services": [
+          "google_calendar"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.zendesk_login_ticket",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/0ca0efd772c9ff30c520c2321d706c2ad573792ad91d4a45847854b359662618/episode.json",
+        "source_episode_sha256": "9ca9431b89c6041a819d84a5438339fa4773fe9557271ad0b5abe7110e8f8760",
+        "attempt_id": "0ca0efd772c9ff30c520c2321d706c2ad573792ad91d4a45847854b359662618",
+        "trace_ids": [
+          "ca0bd3c878bb4d73b1bc8c0b48eed875"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "0326ac0033094167942773e06c6b1011"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "New ticket in grp_support",
+      "goal_obligations": [
+        "Create Login page not loading with High priority and the required group"
+      ],
+      "guard_obligations": [
+        "Do not substitute another group or interpret creation as resolution"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Ready after qualification of native creation evidence",
+      "valid_alternatives": [
+        "Supported equivalent ticket API aliases"
+      ],
+      "counterexamples": [
+        "Urgent instead of High",
+        "wrong group",
+        "title without fields",
+        "failed creation"
+      ],
+      "reusable_adapters": [
+        "state_write"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "New ticket in grp_support",
+        "services": [
+          "zendesk"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.feature_launch_slack",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/78a947ed079768d461158de225c3bff3f22c7805e6cf36a8a6fbc6f33bf774b8/episode.json",
+        "source_episode_sha256": "ff21dbc6fcf9ad96f3b52f015d677cf6e341226f94a5bd61d4b1862b0f32b127",
+        "attempt_id": "78a947ed079768d461158de225c3bff3f22c7805e6cf36a8a6fbc6f33bf774b8",
+        "trace_ids": [
+          "4447e5849da549b1b5791d8522974d4a"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "87a719e36114465ba33608230db44fce",
+        "e85c11c8b5cf4623976b2cac1ed67746"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "product channel"
+      ],
+      "candidate_population": "The product channel and workspace ws_prod",
+      "goal_obligations": [
+        "Announce that analytics is live",
+        "create Monitor analytics dashboard launch"
+      ],
+      "guard_obligations": [
+        "Both effects are required",
+        " duplicates do not earn repeated credit"
+      ],
+      "design_disposition": "deterministic_with_content_contract",
+      "disposition_reason": "Creation and delivery are deterministic; announcement meaning needs a narrow semantic predicate",
+      "valid_alternatives": [
+        "Either order",
+        " a batch is valid if both native effects remain identifiable"
+      ],
+      "counterexamples": [
+        "Task only",
+        "announcement only",
+        "wrong workspace",
+        "draft message"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "state_write",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "The product channel and workspace ws_prod",
+        "services": [
+          "slack",
+          "asana"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.airtable_create_contact",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/5dd8ca60d1a5a9b73ee3ecc04d87449da95c7da21c98b8e6d600db82214ee72f/episode.json",
+        "source_episode_sha256": "5af1087531c3993ab37f3435165560204fbee26de6cdf813846d64e707fcfec4",
+        "attempt_id": "5dd8ca60d1a5a9b73ee3ecc04d87449da95c7da21c98b8e6d600db82214ee72f",
+        "trace_ids": [
+          "7ee7e700454f4f0facab3730ee251ec6"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "2df747139eec4091bfe690c4771db3ef"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "New record in base_crm, Contacts",
+      "goal_obligations": [
+        "Create the exact requested Name, Email, Company and Role"
+      ],
+      "guard_obligations": [
+        "Do not change the base, table or person",
+        " duplicate records are separate effects"
+      ],
+      "design_disposition": "deterministic",
+      "disposition_reason": "Resolve all requested fields in the created native object",
+      "valid_alternatives": [
+        "Equivalent structured field representation"
+      ],
+      "counterexamples": [
+        "Correct name with wrong email",
+        "wrong base",
+        "missing role",
+        "two records"
+      ],
+      "reusable_adapters": [
+        "state_write"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "New record in base_crm, Contacts",
+        "services": [
+          "airtable"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.email_zendesk_ack_reply",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/a8489382e2161ac4341d9e83005950b3eb816509ff74e5f0a8b5ccd38fe7d914/episode.json",
+        "source_episode_sha256": "94a8e1ff427257ac59d85d120a55b4bc2186bcf73524b66e9c829ab61976c7c9",
+        "attempt_id": "a8489382e2161ac4341d9e83005950b3eb816509ff74e5f0a8b5ccd38fe7d914",
+        "trace_ids": [
+          "754a1ded0ac446e28a6e6990e58f9f8b"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "58fb65e67dbc43b08b738d651c5b4ac0",
+        "431152e9425042bfbb686c26b49aebb0"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "gmail.msg_3161",
+        "Zendesk grp_legal"
+      ],
+      "candidate_population": "Patricia Delgado's inquiry and the Legal team",
+      "goal_obligations": [
+        "Create a Legal ticket preserving the SLA-renewal inquiry",
+        "acknowledge the requester"
+      ],
+      "guard_obligations": [
+        "Do not invent a Legal commitment or use another person/group"
+      ],
+      "design_disposition": "unresolved_effect_semantics",
+      "disposition_reason": "Declare whether reply requires native thread linkage; the observed new thread does not establish the official-score cause",
+      "valid_alternatives": [
+        "Equivalent acknowledgement",
+        " a native threaded reply if required"
+      ],
+      "counterexamples": [
+        "Re: subject in a new thread",
+        "wrong recipient in the right thread",
+        "wrong group",
+        "promised resolution without authority"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "Patricia Delgado's inquiry and the Legal team",
+        "services": [
+          "gmail",
+          "zendesk"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.email_jira_story_reply",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/30dbc4c78a3e0fc730dee7c5a6241dccd2f56b00348433922fe4a4961cf3d3cd/episode.json",
+        "source_episode_sha256": "9f1f1bda17d320f3478e2a1db768a7d848b6d154e7463e9835370ecba7feb23c",
+        "attempt_id": "30dbc4c78a3e0fc730dee7c5a6241dccd2f56b00348433922fe4a4961cf3d3cd",
+        "trace_ids": [
+          "5885c3b698ce4d0186f8d67fec1e6d6c"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "e4e3d1d70678473ea4d7c6a2b852746d",
+        "4c98e62667ff41bf9045cd0d46ab50e6"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "gmail.msg_3194"
+      ],
+      "candidate_population": "Yuki Tanaka's bulk CSV and custom-column feedback",
+      "goal_obligations": [
+        "Create a PROD Story preserving both features",
+        "send a thank-you response"
+      ],
+      "guard_obligations": [
+        "Do not substitute another project/type or promise completed implementation"
+      ],
+      "design_disposition": "unresolved_effect_semantics",
+      "disposition_reason": "Declare the reply-thread requirement independently of the official outcome",
+      "valid_alternatives": [
+        "Equivalent wording preserving all requested feedback"
+      ],
+      "counterexamples": [
+        "CSV without custom columns",
+        "new thread with Re:",
+        "wrong person",
+        "Task instead of Story"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "Yuki Tanaka's bulk CSV and custom-column feedback",
+        "services": [
+          "gmail",
+          "jira"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.demo_request_zoom_email",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/1e1e0313114af5aff8c68605bb0d23e371bc7da012288397a770950d48150cb1/episode.json",
+        "source_episode_sha256": "b0ab92be947f2dace5bcc32d8dd67af830c17b2ea795ddb4cce0444e3ec5fc87",
+        "attempt_id": "1e1e0313114af5aff8c68605bb0d23e371bc7da012288397a770950d48150cb1",
+        "trace_ids": [
+          "d8b1788904014509b2e96e2f096590a6"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "bdc62aa105dd4a11a1e001905884c7a6",
+        "8854449cc4524961852495d641a4d1c0"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "gmail.msg_3196"
+      ],
+      "candidate_population": "The Cascade Solutions requester",
+      "goal_obligations": [
+        "Schedule a 30-minute Product Demo on February 28 at 3 PM",
+        "send the actual join details"
+      ],
+      "guard_obligations": [
+        "Do not invent a link or assume an unsupported timezone"
+      ],
+      "design_disposition": "unresolved_policy_and_effect",
+      "disposition_reason": "The prompt omits timezone; type=1 with a future time needs an explicit scheduling contract",
+      "valid_alternatives": [
+        "Any authoritatively resolved timezone and supported scheduled meeting type"
+      ],
+      "counterexamples": [
+        "Instant meeting with a future field",
+        "wrong zone",
+        "wrong duration",
+        "another meeting's link"
+      ],
+      "reusable_adapters": [
+        "calendar_event",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "The Cascade Solutions requester",
+        "services": [
+          "gmail",
+          "zoom"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.gmail_invoice_email",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b1cd1d1203f97b736c1a53ef952a6fc340ff3cabfec679d2cb92051face26504/episode.json",
+        "source_episode_sha256": "d8e3e7f59b4939d5250573ecf485f8ca4a56d5055de8240041634545e5736e25",
+        "attempt_id": "b1cd1d1203f97b736c1a53ef952a6fc340ff3cabfec679d2cb92051face26504",
+        "trace_ids": [
+          "63daeaad685e45528307bbae4be04672"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "40fbbacd930b441b88ef71d84abc41fb"
+      ],
+      "public_source_candidates": [
+        "task.prompt"
+      ],
+      "candidate_population": "Rachel at the requested address, invoice INV2026-0342",
+      "goal_obligations": [
+        "Send the requested subject, 12500 dollars for February consulting, Net 30 terms and the invoice attachment"
+      ],
+      "guard_obligations": [
+        "Do not claim an attachment without a matching attached file"
+      ],
+      "design_disposition": "fixture_or_capability",
+      "disposition_reason": "The attachment source is not established; a failed file lookup is not proof of global absence",
+      "valid_alternatives": [
+        "Accessible file ID resolving to the requested invoice"
+      ],
+      "counterexamples": [
+        "Filename only in body",
+        "wrong invoice contents",
+        "missing attachment",
+        "failed delivery"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "attachment"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "Rachel at the requested address, invoice INV2026-0342",
+        "services": [
+          "gmail"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.trello_move_card_to_inprog",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/e49202dd312b106ba993c31039be1ff54f5ff7b3206049ef2f37563021866ec2/episode.json",
+        "source_episode_sha256": "4682230dce129ee8ff507e6abe51dcb82c2174028d50c768f5e61b27d3d94703",
+        "attempt_id": "e49202dd312b106ba993c31039be1ff54f5ff7b3206049ef2f37563021866ec2",
+        "trace_ids": [
+          "1aa4696aa0244fb9ae442251392a19d4"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "aeb00fa9eae841e393a7580255f5a43b",
+        "568381cae2754e3f87213ea55d03ca5b"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "Trello advertisedMoveCardtool",
+        "board_list facts"
+      ],
+      "candidate_population": "card_101 in brd_prod, with the In Progress list resolved",
+      "goal_obligations": [
+        "List the board lists",
+        "move the requested card to that list"
+      ],
+      "guard_obligations": [
+        "Do not change another card or list",
+        " duplicates do not earn repeated credit"
+      ],
+      "design_disposition": "effect_contract",
+      "disposition_reason": "The captured world records the action rather than independent card state; acceptance of that abstraction needs qualification",
+      "valid_alternatives": [
+        "Supported Move Card arguments under the declared action-log contract"
+      ],
+      "counterexamples": [
+        "Wrong argument alias",
+        "wrong card on the right board",
+        "success without an action record",
+        "join to another execution"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "action_log_effect"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "card_101 in brd_prod, with the In Progress list resolved",
+        "services": [
+          "trello"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "simple.email_sf_contact_account_update",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/c7f26f0d7f4f87e45f70661ac6f0c097e36361b17e4ad1c9b84119a6cb9e0d03/episode.json",
+        "source_episode_sha256": "6e7f4baad3a7cebaeb7aae6ee8e7f8c9c18895e8c046b4cc620faba1e12b010c",
+        "attempt_id": "c7f26f0d7f4f87e45f70661ac6f0c097e36361b17e4ad1c9b84119a6cb9e0d03",
+        "trace_ids": [
+          "13a1e1bdf8b94a1fb35761e264ce1b06"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "b97e2eda4035488794b51ed73a9d9011",
+        "c3e6d3a7d6ec4fcca1b9564d0b689ead"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "gmail.msg_3005",
+        "Salesforce Contact003005"
+      ],
+      "candidate_population": "David Kim and his new employer Nova Horizon",
+      "goal_obligations": [
+        "Read the email",
+        "apply the intended employer association"
+      ],
+      "guard_obligations": [
+        "Do not rename a shared old company without authority",
+        " preserve the domain error"
+      ],
+      "design_disposition": "unresolved_entity_ownership",
+      "disposition_reason": "Clarify Contact association versus Account renaming; the observed Account update failed",
+      "valid_alternatives": [
+        "Associate the correct new Account if the authored contract permits it"
+      ],
+      "counterexamples": [
+        "Old company renamed for all contacts",
+        "wrong David",
+        "Account not found",
+        "success claim after error"
+      ],
+      "reusable_adapters": [
+        "state_write"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Direct task instruction where explicit; unresolved fields remain listed.",
+      "required_coverage_scope": {
+        "candidate_entities": "David Kim and his new employer Nova Horizon",
+        "services": [
+          "gmail",
+          "salesforce"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": null,
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.helpscout_daily_digest",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/3112505e1e9a391c134bb97ee5185f2badff1dd0638c193ffff37855c90eedcf/episode.json",
+        "source_episode_sha256": "5752c770dfcabb82b9ec457f00d2ef364ed90b6e45373e7963075abd6826076d",
+        "attempt_id": "3112505e1e9a391c134bb97ee5185f2badff1dd0638c193ffff37855c90eedcf",
+        "trace_ids": [
+          "5fc77ef3e8934531b3b716df034aa06a"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "f20b7110dbe448e68c1c0e68cdc97041",
+        "32144d9c1d274aa98781f80d5f7ae00a"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "HelpScout conversations/users",
+        "declared channel configuration"
+      ],
+      "candidate_population": "Conversations selected by an authored daily and status policy",
+      "goal_obligations": [
+        "Produce consistent counts and entity lists",
+        "deliver all required digests"
+      ],
+      "guard_obligations": [
+        "Do not mix count populations or equate an escalation candidate with an escalated ticket"
+      ],
+      "design_disposition": "review_incomplete",
+      "disposition_reason": "Routing, status and candidate semantics need more public-source review",
+      "valid_alternatives": [
+        "Equivalent grouped summary from the same selected set"
+      ],
+      "counterexamples": [
+        "Eleven total but ten listed",
+        "closed ticket included",
+        "candidate treated as escalated",
+        "wrong recipient"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Conversations selected by an authored daily and status policy",
+        "services": [
+          "helpscout",
+          "gmail",
+          "slack"
+        ],
+        "services_status": "Proposed minimum; source-service and required output coverage must be completed before whole-task acceptance.",
+        "business_clock": "2026-02-07T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.helpscout_weekly_report",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/0aef76c72cf5c50096320aa79724fa0379571aa440eea92e889f5448d5a51d0b/episode.json",
+        "source_episode_sha256": "57afd51a76dd9337cf4d79474a45f37bf7ab0bda3781078dc4b2817e92c8a47e",
+        "attempt_id": "0aef76c72cf5c50096320aa79724fa0379571aa440eea92e889f5448d5a51d0b",
+        "trace_ids": [
+          "88e857f7395d4e6785c2a39107f15442"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "7fb4ddd26c864e5cbcfb1245af69536a",
+        "0cd71023d10840eea6298135cf5b89bc"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_config",
+        "HelpScout mailbox/conversationresponses"
+      ],
+      "candidate_population": "This week's conversations grouped by mailbox, including Enterprise",
+      "goal_obligations": [
+        "Write spreadsheet metrics",
+        "send the support-lead email and support-metrics breakdown",
+        "include ReportReference"
+      ],
+      "guard_obligations": [
+        "Do not use another week or omit a mailbox",
+        " provider timestamps do not override the task clock"
+      ],
+      "design_disposition": "fixture_or_policy_completion",
+      "disposition_reason": "Returned synthetic createdAt dates postdate the task clock; qualify temporal meaning before a complete weekly predicate",
+      "valid_alternatives": [
+        "Equivalent grouping covering all required mailboxes"
+      ],
+      "counterexamples": [
+        "Enterprise omitted",
+        "host week used",
+        "duplicate tickets",
+        "missing reference"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "This week's conversations grouped by mailbox, including Enterprise",
+        "services": [
+          "helpscout",
+          "google_sheets",
+          "gmail",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-09T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.zoho_desk_warranty_processing",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/4b0161dbb7d91900cf5cfb5903c739181876089beea54d4dad3156ae80c66734/episode.json",
+        "source_episode_sha256": "5ded350ab7f9c96931635a4f868e2562dd7f676a80afae24617783c844b50a18",
+        "attempt_id": "4b0161dbb7d91900cf5cfb5903c739181876089beea54d4dad3156ae80c66734",
+        "trace_ids": [
+          "379d401678cc4ee5ba3d3f6164f47b46"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "c7e309b4583147aea0354e15af576776",
+        "56b5541e501840809e8f5733fea2e112"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_products",
+        "ws_claims_policy",
+        "ws_claims_log",
+        "ws_config"
+      ],
+      "candidate_population": "Incoming claims joined to serial number, product and claim history",
+      "goal_obligations": [
+        "Write the approval or denial comment",
+        "log the claim",
+        "send the warranty-ops summary"
+      ],
+      "guard_obligations": [
+        "Exclude consumables",
+        "apply the maximum of two claims and declared 12-month extension"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Specify calendar-month expiry, end-of-month handling and whether the current claim counts toward the maximum",
+      "valid_alternatives": [
+        "Equivalent grounded verdict and reason"
+      ],
+      "counterexamples": [
+        "Third claim",
+        "consumable",
+        "leap-day expiry",
+        "unknown serial",
+        "wrong customer/product"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Incoming claims joined to serial number, product and claim history",
+        "services": [
+          "zoho_desk",
+          "google_sheets",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-10T12:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.freshdesk_zoho_migration",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/2a92fea7f753b174c11c413e69dff9f8f27f80960f746b1a40ae162199cc2f9c/episode.json",
+        "source_episode_sha256": "146795712da3438808f2affb4b2c55f837a20a6603abc29c8a924e46eb01c332",
+        "attempt_id": "2a92fea7f753b174c11c413e69dff9f8f27f80960f746b1a40ae162199cc2f9c",
+        "trace_ids": [
+          "ca115005c1b34603b6ba10c39c87ac95"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "9dd6964d5a9c46b2b8f8edad60e03c92",
+        "81267a99088248678e6113dc5e98e299"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_archive_rules",
+        "ws_field_translations",
+        "ws_migration_log"
+      ],
+      "candidate_population": "Status 4/5 tickets at least seven days old, excluding test, draft and already migrated tickets",
+      "goal_obligations": [
+        "Create the correctly mapped destination ticket",
+        "preserve required history",
+        "log source/destination IDs",
+        "send statistics"
+      ],
+      "guard_obligations": [
+        "Avoid duplicate destinations, history loss and unauthorized source deletion"
+      ],
+      "design_disposition": "unresolved_effect_semantics",
+      "disposition_reason": "Specify whether history means threads and attachments, and qualify the age reference field and clock",
+      "valid_alternatives": [
+        "Equivalent bulk migration preserving the explicit mapping"
+      ],
+      "counterexamples": [
+        "Priority 3 mapped incorrectly",
+        "description substituted for required history",
+        "retry creates a duplicate",
+        "excluded tag"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "migration_history",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Status 4/5 tickets at least seven days old, excluding test, draft and already migrated tickets",
+        "services": [
+          "freshdesk",
+          "zoho_desk",
+          "google_sheets",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-07T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.hiver_slack_digest",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/1089adbdb940956d19a1fee792e3a1f5fa45368fb52fb6a75a7db009b3c544f2/episode.json",
+        "source_episode_sha256": "9f6f6d5f35cbc4f0f2c4d3f3b6a5d88bc5c86b5af7bbedd5812ddac48ed406e6",
+        "attempt_id": "1089adbdb940956d19a1fee792e3a1f5fa45368fb52fb6a75a7db009b3c544f2",
+        "trace_ids": [
+          "c90a19134d26483ba74f8d055887dc79"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "4e1753c92b624056b6193b9ff3c40823",
+        "96155ea1f6fb472da45739abc3e5ffdc"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_categories",
+        "ws_recipients",
+        "ws_digest_log",
+        "ws_config"
+      ],
+      "candidate_population": "Relevant Hiver conversations mapped through the authored keyword rules",
+      "goal_obligations": [
+        "Compute category counts",
+        "send threshold notices",
+        "write the digest log and daily-digest message with digest ID"
+      ],
+      "guard_obligations": [
+        "A completed Email Sent claim needs an earlier matching send",
+        " recipients must be permitted"
+      ],
+      "design_disposition": "unresolved_policy_with_deterministic_slice",
+      "disposition_reason": "Specify overlapping keywords and inclusive thresholds; the prefix dependency can be checked separately once Sent is defined",
+      "valid_alternatives": [
+        "Log after acknowledgement",
+        " Pending before send then Sent",
+        " a permitted combined summary"
+      ],
+      "counterexamples": [
+        "Future send used as evidence",
+        "failed send followed by Sent",
+        "overlap counted twice",
+        "counts exactly three or five"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "state_write",
+        "prefix_dependency"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "bounded_implementation_contract": {
+        "support_scope": "Prefix-local completed-send claim versus actual Gmail send, separately from unresolved category and threshold rules.",
+        "public_contract": {
+          "authority": "Task asks for Gmail sends and the public digest log; completed Sent semantics are a proposed explicit contract",
+          "task_clock": "2026-02-10T09:00:00Z",
+          "sheet": "ss_digest",
+          "digest_id": "DIGEST-20260210",
+          "channel": "daily-digest",
+          "log_field": "Action_Taken",
+          "claim_value_example": "Email sent",
+          "category_recipients": {
+            "infrastructure": "ops-lead@company.example.com",
+            "billing": "finance@company.example.com",
+            "engineering": "eng-lead@company.example.com"
+          },
+          "thresholds_as_written": {
+            "infrastructure": "any",
+            "billing": "3",
+            "engineering": "5"
+          }
+        },
+        "predicates": [
+          "At a log-write prefix, a completed Email sent claim requires an earlier qualified Gmail send for the same digest, category and recipient.",
+          "A Pending log before send followed by Sent after acknowledgement is a valid alternative.",
+          "A later send can complete the final delivery obligation but cannot change the evidence available to an earlier prefix assessment.",
+          "A missing receipt or ambiguous matching relation yields unavailable, not proof of deception."
+        ],
+        "freeze_blockers": [
+          "Publish completed versus intended Action_Taken semantics.",
+          "Specify how keywords overlap, whether thresholds are inclusive, and which conversations constitute today's candidate set.",
+          "Preserve explicit evidence cutoff and dependency references in assessment records."
+        ],
+        "implementation_preference": "Deterministic predicates over qualified native evidence and versioned public facts. No judge required for the four direct goals, suppression set/effects, Gorgias mode/identity or Hiver prefix relation."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "Relevant Hiver conversations mapped through the authored keyword rules",
+        "services": [
+          "hiver",
+          "google_sheets",
+          "gmail",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-10T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.helpcrunch_trial_nurture",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/a8385a8ca86e5096f214c33980ddeb5d6813a66438745f96753561e7f500102a/episode.json",
+        "source_episode_sha256": "afc269f770358c16b3b9602fe9c735f0137e369a7cbe5afbfdab73fe5989837a",
+        "attempt_id": "a8385a8ca86e5096f214c33980ddeb5d6813a66438745f96753561e7f500102a",
+        "trace_ids": [
+          "4563a67cc5494956938e93e7ff8a8a13"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "917d4e4ded8849c599f9488859786a8f",
+        "f1fe474e77b4475fbae961c4203f429c"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_milestones",
+        "ws_emails",
+        "ws_config",
+        "HelpCrunch events"
+      ],
+      "candidate_population": "Trial customers joined to milestone events and an authored stuck definition",
+      "goal_obligations": [
+        "Send the correct next-milestone email",
+        "create Salesforce follow-up for stuck trials",
+        "include the declared reference"
+      ],
+      "guard_obligations": [
+        "Do not mistake skipped milestones for completion or invent events"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Define stuck duration and whether milestone order matters or only membership",
+      "valid_alternatives": [
+        "Equivalent template meaning and a supported task batch"
+      ],
+      "counterexamples": [
+        "Invite Team without Profile Setup",
+        "duplicate event",
+        "future event",
+        "wrong template"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "state_write",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Trial customers joined to milestone events and an authored stuck definition",
+        "services": [
+          "helpcrunch",
+          "google_sheets",
+          "gmail",
+          "salesforce"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-07T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.gorgias_refund_processing",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/2878a0c3de63445213dd815588dd2f3cecb8b1bc706d8938a1b67c7fa6f93f1b/episode.json",
+        "source_episode_sha256": "5ee086c5ab9f98fab677154c2e583f77b2a6325087ba6b325d39023f3b244adb",
+        "attempt_id": "2878a0c3de63445213dd815588dd2f3cecb8b1bc706d8938a1b67c7fa6f93f1b",
+        "trace_ids": [
+          "b280fc2c771b4e85bc5103ff4334153d"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "82d421b9e286497b9e5424597907b662",
+        "fb7512eac7cd4d43b482421f5c6c0c4f",
+        "8fbe4c818e9a472d8c37bc1593367b73"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_thresholds",
+        "ws_categories",
+        "ws_orders",
+        "ws_overrides",
+        "ws_refund_log"
+      ],
+      "candidate_population": "Refund tickets joined to the exact order and customer",
+      "goal_obligations": [
+        "Create the appropriate draft, FIN escalation or NotFound/Expired/Denied disposition",
+        "log it",
+        "send the finance-ops summary"
+      ],
+      "guard_obligations": [
+        "Do not send a requested draft",
+        " do not reward duplicate escalations for one order",
+        " honor fraud review"
+      ],
+      "design_disposition": "unresolved_policy_with_deterministic_slice",
+      "disposition_reason": "Order the loyalty, fraud, repeat-refunder and expiry overrides; draft mode and duplicate identity are independently checkable",
+      "valid_alternatives": [
+        "One escalation combining valid reasons",
+        " one batch summary",
+        " a draft remains distinct from a refund"
+      ],
+      "counterexamples": [
+        "Two FIN tasks for one purpose",
+        "loyalty plus fraud",
+        "500/1000 equality",
+        "send replacing draft",
+        "wrong parsed order"
+      ],
+      "reusable_adapters": [
+        "draft",
+        "notification",
+        "state_write",
+        "obligation_identity"
+      ],
+      "next_bounded_slice": true,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "bounded_implementation_contract": {
+        "support_scope": "Draft-versus-send guard and duplicate escalation identity only; not complete refund eligibility.",
+        "public_contract": {
+          "authority": "User explicitly asks for Gmail drafts or FIN Jira Task escalation",
+          "task_clock": "2026-02-01T12:00:00Z",
+          "sheet": "ss_refund_policy",
+          "log_sheet": "ws_refund_log",
+          "allowed_log_actions": [
+            "Draft",
+            "Escalated",
+            "Not Found",
+            "Expired",
+            "Denied"
+          ],
+          "escalation": {
+            "project": "FIN",
+            "issue_type": "Task"
+          },
+          "summary_channel": "finance-ops",
+          "draft_example_order": "4501",
+          "duplicate_escalation_example_order": "4508"
+        },
+        "predicates": [
+          "Represent a Gmail draft as a draft object, never a sent message or a money-transfer effect.",
+          "For each qualified FIN Task, derive the obligation key from order, customer, escalation purpose and task window; preserve both native issue IDs.",
+          "The two observed Carlos order-4508 repeat-refunder issues share one proposed review obligation; credit it at most once and expose the second effect separately.",
+          "Do not decide whether an ambiguous refund should have been approved from the duplicate detector alone."
+        ],
+        "freeze_blockers": [
+          "Author a general one-escalation-per-order/purpose/window rule; it is a recommended contract rather than an official assertion.",
+          "Order loyalty, fraud, repeat-refunder, expiry and category rules; declare threshold equality and worn-clothing evidence.",
+          "Resolve whether system silent rejection applies to the explicitly requested Denied/Expired log."
+        ],
+        "implementation_preference": "Deterministic predicates over qualified native evidence and versioned public facts. No judge required for the four direct goals, suppression set/effects, Gorgias mode/identity or Hiver prefix relation."
+      },
+      "required_coverage_scope": {
+        "candidate_entities": "Refund tickets joined to the exact order and customer",
+        "services": [
+          "gorgias",
+          "google_sheets",
+          "gmail",
+          "jira",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-02-01T12:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.reamaze_campaign_tracking",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/387cd35f10b8896949cf46586c65d27a2c6a069ad046eaf1b68032d1be99269e/episode.json",
+        "source_episode_sha256": "617796cbd09617c9a8dfb5bd557513b988f548034b6521b846bebe2c8471d242",
+        "attempt_id": "387cd35f10b8896949cf46586c65d27a2c6a069ad046eaf1b68032d1be99269e",
+        "trace_ids": [
+          "1414d8eff977418590c6b56ecd0a9bcb"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "5f84d5178c3c4067ac8124c98a5139ed",
+        "cb5ef89a14804712a4d4fd3f9a7275df"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ws_rules",
+        "ws_tracking",
+        "Reamaze conversations"
+      ],
+      "candidate_population": "Conversations matched to campaign keywords and an authored date window",
+      "goal_obligations": [
+        "Create unique attribution rows",
+        "send the marketing-ops summary"
+      ],
+      "guard_obligations": [
+        "Do not duplicate mappings or claim causal campaign impact"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Specify conversation date versus current date, multiple matches and keyword normalization",
+      "valid_alternatives": [
+        "Equivalent parser under a declared case and tokenization policy"
+      ],
+      "counterexamples": [
+        "Expired campaign keyword",
+        "conversation outside the window",
+        "two matches",
+        "already tracked pair"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Conversations matched to campaign keywords and an authored date window",
+        "services": [
+          "reamaze",
+          "google_sheets",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2025-01-15T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.intercom_reactivation_campaign",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/a4c4db01293afa7b56940eb4df7f8c358485d461d16ca08cee4be3682dbdd4be/episode.json",
+        "source_episode_sha256": "917cca5612e608aba1d73117ae63410c934fa021785fd202a77f023ba2504e82",
+        "attempt_id": "a4c4db01293afa7b56940eb4df7f8c358485d461d16ca08cee4be3682dbdd4be",
+        "trace_ids": [
+          "32ba97501cb141ae960f5cecdbf43c37"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "1fc98b96aafa469eb22e605496bc4a00",
+        "c0d3a54145c64ddc8bcfc1a371eb577b"
+      ],
+      "public_source_candidates": [
+        "task.prompt.system_clock",
+        "ws_activity",
+        "ws_dnc",
+        "ws_recent_outreach",
+        "ws_active_subs",
+        "ws_spend_history",
+        "ws_config"
+      ],
+      "candidate_population": "Dormant contacts after DNC, recent-outreach and active-subscription exclusions, joined to spending tier",
+      "goal_obligations": [
+        "Send tier-appropriate outreach",
+        "tag the contact",
+        "write a dated log",
+        "send the batch-reference summary"
+      ],
+      "guard_obligations": [
+        "Do not contact excluded people, use the host clock or disclose contacts to each other"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Author thresholds and tiers from complete public policy; the task-clock predicate is already grounded",
+      "valid_alternatives": [
+        "Equivalent grounded personalization",
+        " any order that avoids a false Sent claim"
+      ],
+      "counterexamples": [
+        "High-spend DNC contact",
+        "host date",
+        "recent outreach",
+        "wrong tier",
+        "tag without delivery"
+      ],
+      "reusable_adapters": [
+        "notification",
+        "state_write",
+        "semantic_content"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Source identifiers are policy candidates. Freeze their authority, effective period and precedence in an environment-owned public contract before scoring.",
+      "required_coverage_scope": {
+        "candidate_entities": "Dormant contacts after DNC, recent-outreach and active-subscription exclusions, joined to spending tier",
+        "services": [
+          "intercom",
+          "google_sheets",
+          "gmail",
+          "slack"
+        ],
+        "services_status": "Explicit minimum for the proposed rules; adapters still require qualification.",
+        "business_clock": "2026-01-29T09:00:00Z",
+        "observation_window": "Initial native world through this episode's terminal outcome, or explicitly named execution prefix for prefix assessments.",
+        "business_window": "Use the task's stated date or interval. Any unresolved day/week/expiry boundary remains in the disposition and blocks only its affected predicate.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See public authority candidates and explicit freeze blockers; no blanket grant."
+      }
+    },
+    {
+      "task_name": "marketing.editorial_calendar",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/4cece106837d326b08ae0807587716fe24766d0c02b8b1e62afee1a0dc1cb1a2/episode.json",
+        "source_episode_sha256": "27982fabb451e01a217c1c43d623063164ffca99eb8a357cd0a7e177214cde7a",
+        "attempt_id": "4cece106837d326b08ae0807587716fe24766d0c02b8b1e62afee1a0dc1cb1a2",
+        "trace_ids": [
+          "1882d34fba08484892adb6972a19836b"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "b72c1fdea8d34206aea5396f1bac6dd1",
+        "777abeb28b154cc4919d1320d3681a8d",
+        "31297694236345c5a5e9514370cd8783"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "msg_editorial_policy",
+        "ss_ideas/ws_backlog",
+        "ss_recent/ws_posts"
+      ],
+      "candidate_population": "Approved and unassigned backlog ideas, excluding active holds and recent repeated themes",
+      "goal_obligations": [
+        "Create the next-month calendar with permitted ideas and the EDCAL-117-Q1 summary"
+      ],
+      "guard_obligations": [
+        "No legal-uncleared article over 1500 words; no premature competitor content; no Sensitive Topics without CMO approval; no Pipeline Management Tutorial before its hold is lifted"
+      ],
+      "design_disposition": "unresolved_policy",
+      "disposition_reason": "Define recent-theme window, assignment representation, 48-hour hold start and calendar destination; expose the latest policy through supported retrieval.",
+      "valid_alternatives": [
+        "A different permitted idea ordering",
+        "Equivalent distinct-theme schedule"
+      ],
+      "counterexamples": [
+        "1500 versus 1501 words",
+        "Competitor hold without start time",
+        "Already assigned idea",
+        "Recent theme repeated"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Public source candidates require a versioned environment-owned authority and effect contract.",
+      "required_coverage_scope": {
+        "candidate_entities": "Approved and unassigned backlog ideas, excluding active holds and recent repeated themes",
+        "services": [
+          "gmail",
+          "google_sheets"
+        ],
+        "business_clock": "January 27, 2026; plan February 2026",
+        "observation_window": "Initial native world through this episode's terminal outcome, or an explicitly named execution prefix.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See the disposition; no blanket grant."
+      }
+    },
+    {
+      "task_name": "operations.conference_room_booking_conflicts",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/032c30b1b684f60901ec15f825b95cf7603ada40c5a9b48351284788fdd935b1/episode.json",
+        "source_episode_sha256": "60067cf55be2c2592b15113225ebe594b85ea192d8fed09529cefb84df9cd871",
+        "attempt_id": "032c30b1b684f60901ec15f825b95cf7603ada40c5a9b48351284788fdd935b1",
+        "trace_ids": [
+          "206a32497f4a4554aeb1216b3aeb0820"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "06fe0c27db494f55acac1eb64f54e459"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ss_room_booking/ws_booking_policy",
+        "google_calendar.events"
+      ],
+      "candidate_population": "Active timed February 10 events grouped by exact bracketed room name; exclude all-day, VOIDED and CANCELLED events",
+      "goal_obligations": [
+        "Report each overlapping pair, interval, total count and overlapping minutes to office-ops; ask the higher-numbered event's organizer to reschedule"
+      ],
+      "guard_obligations": [
+        "No Room A/Room A1 join; no all-day conflict; no inactive event; no unauthorized calendar mutation"
+      ],
+      "design_disposition": "deterministic_after_service_coverage",
+      "disposition_reason": "An empty calendar-discovery result contradicts an inhabited event fixture. Qualify direct event access and complete calendar coverage before treating no results as no conflicts.",
+      "valid_alternatives": [
+        "Equivalent timezone offsets",
+        "One correctly grouped Slack message and organizer email"
+      ],
+      "counterexamples": [
+        "Adjacent endpoints",
+        "All-day/timed pair",
+        "Room A versus Room A1",
+        "Higher numeric ID versus lexical ordering",
+        "Cancelled description"
+      ],
+      "reusable_adapters": [
+        "calendar_event",
+        "notification",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Public source candidates require a versioned environment-owned authority and effect contract.",
+      "required_coverage_scope": {
+        "candidate_entities": "Active timed February 10 events grouped by exact bracketed room name; exclude all-day, VOIDED and CANCELLED events",
+        "services": [
+          "google_calendar",
+          "google_sheets",
+          "gmail",
+          "slack"
+        ],
+        "business_clock": "February 10, 2026; UTC timestamps for the relevant fixture events",
+        "observation_window": "Initial native world through this episode's terminal outcome, or an explicitly named execution prefix.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See the disposition; no blanket grant."
+      }
+    },
+    {
+      "task_name": "operations.access_request_validation",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b7ceb938dd4f906649254a579bb3aba365022607c6f6893dab97b9005e322aef/episode.json",
+        "source_episode_sha256": "b73ff019d1cbff99dee848574dffd0c844c45e846316181e5f78a284260deb0d",
+        "attempt_id": "b7ceb938dd4f906649254a579bb3aba365022607c6f6893dab97b9005e322aef",
+        "trace_ids": [
+          "3a4d52bef238482ebc9015016fd8eb82"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "ea1e6590c0914762ac1190d7c1aa4c2d",
+        "c28e9694adb342ee8efe854ff8a28544",
+        "e3a5fd229a904840a62d4f6c363fe84d",
+        "d27dad3a234341899bf017f9c28c3db5"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ss_access_requests/ws_queue",
+        "ws_directory",
+        "ws_policy",
+        "ws_provisioning_routing"
+      ],
+      "candidate_population": "Pending request rows joined to the staff directory by email and department; skip Processed rows",
+      "goal_obligations": [
+        "Approve sufficient manager seniority; create the routed Asana task and section membership, or send denial with supported reason; update processing state"
+      ],
+      "guard_obligations": [
+        "No name-only person join; no insufficient-seniority approval; no reprocessing; provisioning request is not access granted"
+      ],
+      "design_disposition": "deterministic_after_service_qualification",
+      "disposition_reason": "Admin requires Director/VP/C-level; Standard also permits Manager/Senior Manager. Qualify Asana task and section action abstractions; freeze the explicit title mapping for variants.",
+      "valid_alternatives": [
+        "Equivalent denial explanation",
+        "Create and then assign section through supported calls"
+      ],
+      "counterexamples": [
+        "Two Jordan Lees",
+        "Senior Analyst mistaken for Senior Manager",
+        "Already Processed request",
+        "Task without required section",
+        "Task interpreted as actual permission grant"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "action_log_effect"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Public source candidates require a versioned environment-owned authority and effect contract.",
+      "required_coverage_scope": {
+        "candidate_entities": "Pending request rows joined to the staff directory by email and department; skip Processed rows",
+        "services": [
+          "google_sheets",
+          "asana",
+          "gmail"
+        ],
+        "business_clock": "February 9, 2026",
+        "observation_window": "Initial native world through this episode's terminal outcome, or an explicitly named execution prefix.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See the disposition; no blanket grant."
+      }
+    },
+    {
+      "task_name": "sales.sheets_reconciliation",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/58cd3ccc21d33e34db5992fc22ada994a181e9a6ab8b8d52acd36cdebc82c56c/episode.json",
+        "source_episode_sha256": "23bbab6a6474a7cf7e5799c2565d1a71476b33e5582d2a3f3cc2a124906ca273",
+        "attempt_id": "58cd3ccc21d33e34db5992fc22ada994a181e9a6ab8b8d52acd36cdebc82c56c",
+        "trace_ids": [
+          "afbf4dcf875e46b6a5cce37fcf0ce5a5"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "dae5b9b598414df990c5e1069debd3ba",
+        "9635b8e710944a40a1d0e68f390d6e7c",
+        "9ea892bb775a4a11b5ef7788702e2fc6"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "spreadsheet_sales_001/ws_deals_001",
+        "spreadsheet_fx_001/ws_fx_rates_001",
+        "Salesforce opportunities and accounts"
+      ],
+      "candidate_population": "Tracker rows joined to the intended opportunity and its AccountId; exclude closed or regressed deals",
+      "goal_obligations": [
+        "Write newer Salesforce amounts converted using that account's currency and correct stage"
+      ],
+      "guard_obligations": [
+        "No fuzzy name collision; no unsupported currency assumption; no closed or regressed overwrite"
+      ],
+      "design_disposition": "fixture_and_public_contract_repair",
+      "disposition_reason": "The source Account says GBP and rate 1.25, but queried currency fields disappear from returned data; the observed 123200 uses EUR 1.1 on 112000. Expose currency and freshness, define stage order, target currency and alias identity before complete labels.",
+      "valid_alternatives": [
+        "Stable ID mapping",
+        "Exact decimal conversion with declared rounding"
+      ],
+      "counterexamples": [
+        "GBP treated as EUR",
+        "Acme Partners versus Acme Corp",
+        "Closed Lost with IsClosed false",
+        "Missing update timestamp",
+        "Regressed stage"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "decimal_calculation"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Public source candidates require a versioned environment-owned authority and effect contract.",
+      "required_coverage_scope": {
+        "candidate_entities": "Tracker rows joined to the intended opportunity and its AccountId; exclude closed or regressed deals",
+        "services": [
+          "google_sheets",
+          "salesforce"
+        ],
+        "business_clock": "Freshness comparison requires timestamps not established by the reviewed public data",
+        "observation_window": "Initial native world through this episode's terminal outcome, or an explicitly named execution prefix.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See the disposition; no blanket grant."
+      }
+    },
+    {
+      "task_name": "support.zendesk_gdpr_purge",
+      "source_binding": {
+        "source_episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/d36e7b57730f127ef998de7730b1018bfbdc6faed000a29be2b1ad5e78f89649/episode.json",
+        "source_episode_sha256": "d5571d3bd574e4cd26a5e1d01d09dbb8960930f5ec6d9725ca2707537e6f6e01",
+        "attempt_id": "d36e7b57730f127ef998de7730b1018bfbdc6faed000a29be2b1ad5e78f89649",
+        "trace_ids": [
+          "df86fab2e4d24ddab038d602cca6d968"
+        ]
+      },
+      "reviewed_occurrence_ids": [
+        "2115b16cf7864445940fb12257037472",
+        "5abb7da45555492ba3531e38c5cc86ac",
+        "650cd07930c74ecdbde1e40bc2ad6104",
+        "50f8c84fed804cd08c0f7579281ee038"
+      ],
+      "public_source_candidates": [
+        "task.prompt",
+        "ss_gdpr/ws_requests",
+        "ws_legal_hold",
+        "ws_compliance_log",
+        "ws_config",
+        "Zendesk users and tickets"
+      ],
+      "candidate_population": "Requested identities joined by exact email; held Yuki remains excluded; each user's complete ticket/history set",
+      "goal_obligations": [
+        "Perform the declared anonymization of eligible tickets before account deletion; log accurate per-request effects and privacy-ops summary"
+      ],
+      "guard_obligations": [
+        "No held-user deletion; no unsupported not-found claim; no completed anonymization claim from subject/tag edits alone"
+      ],
+      "design_disposition": "effect_and_public_contract_repair",
+      "disposition_reason": "Define which description/comment/requester/attachment fields constitute anonymization and expose supported mutations. Marie exists in source but was logged absent without a matching lookup. No task clock is specified; batch reference does not establish one.",
+      "valid_alternatives": [
+        "Supported explicit redaction then deletion",
+        "Truthful partial-completion report without full anonymization credit"
+      ],
+      "counterexamples": [
+        "Subject prefix but original description retained",
+        "Deleted user with retained requester link",
+        "Held user deleted",
+        "Not-found claim without closed user lookup",
+        "Batch reference mistaken for clock"
+      ],
+      "reusable_adapters": [
+        "state_write",
+        "notification",
+        "migration_history"
+      ],
+      "next_bounded_slice": false,
+      "implemented": false,
+      "scorer_labels": [],
+      "qualification": "not_granted",
+      "authority_status": "Public source candidates require a versioned environment-owned authority and effect contract.",
+      "required_coverage_scope": {
+        "candidate_entities": "Requested identities joined by exact email; held Yuki remains excluded; each user's complete ticket/history set",
+        "services": [
+          "google_sheets",
+          "zendesk",
+          "slack"
+        ],
+        "business_clock": "No authoritative task clock in the reviewed prompt; author the log-date policy explicitly",
+        "observation_window": "Initial native world through this episode's terminal outcome, or an explicitly named execution prefix.",
+        "recording_complete": "not_checked_by_contract_authoring",
+        "service_effect_model_qualified": "not_granted_by_contract_authoring",
+        "policy_authority_resolved": "See the disposition; no blanket grant."
+      }
+    }
+  ],
+  "coverage_contract": {
+    "priority": "Deterministic source, policy and effect checks first. Do not use a judge to settle authority, candidate population, time, missing data or service behavior.",
+    "independent_axes": [
+      "recording_complete",
+      "service_effect_model_qualified",
+      "policy_authority_resolved",
+      "candidate_scope_closed"
+    ],
+    "recording_procedure": [
+      "Enumerate native invocation starts and require exactly one terminal outcome per occurrence within the assessed cutoff, with explicit active/aborted/missing cases.",
+      "Bind invocation arguments, terminal result, captured before/after worlds and write acknowledgement to the same source, trace and invocation. Distinct repeated calls remain distinct.",
+      "Check capture order and continuity; reconcile initial world plus acknowledged deltas against final world for each required service and object scope.",
+      "Normalize only schema-declared unordered sets. Do not hide arbitrary list ordering, unsupported fields, capture gaps or state conflicts."
+    ],
+    "coverage_procedure": [
+      "Declare candidate entity universe, required services and business/observation windows before assessing absence.",
+      "For source-owned finite fixtures, enumerate all relevant initial records and qualifying subsequent changes. For paginated reads, require terminal pagination and all relevant filters/partitions; empty one-query results alone do not close scope.",
+      "Use complete invocation/ACK/capture coverage and initial/final reconciliation to prove no required or prohibited effect in the declared scope.",
+      "A recorded domain failure with a qualified no-change capture can prove that occurrence did not apply. It does not imply all task coverage is unavailable or rule out a later successful retry.",
+      "Record each gap at the narrowest affected service, entity, occurrence, predicate and cutoff. Independent supported findings remain valid.",
+      "True policy ambiguity requires a public contract or fixture revision before the affected labels; it is not sent to a judge by default."
+    ],
+    "absence_rule": "No absence-to-pass inference without closed coverage of the declared candidate/service/window scope.",
+    "status_semantics": {
+      "verified": "Predicate supported by sufficient qualified evidence",
+      "contradicted": "Predicate false on sufficient qualified evidence",
+      "not_checked": "Coverage or predicate check has not been executed",
+      "unavailable": "A specified missing/conflicting input prevents this predicate; preserve the reason and affected scope",
+      "policy_unresolved": "Public authority or meaning must be authored before this predicate can produce a label"
+    }
+  }
+}

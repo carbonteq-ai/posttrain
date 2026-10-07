@@ -62,18 +62,22 @@ def test_round_plan_sizes_rounds_and_rejects_exhaustion():
 
 
 def _settings(**changes: Any) -> SAMPOSettings:
-    return SAMPOSettings(
-        "settings/active@1",
-        TrainingLoop(max_steps=2, per_device_batch_size=1),
-        num_prompts_per_step=1,
-        num_generations=2,
-        active_sampling=ActiveGroupSampling(3),
-        policy_updates=PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(1, 100, 1000)),
-        **changes,
-    )
+    values: dict[str, Any] = {
+        "num_prompts_per_step": 1,
+        "num_generations": 2,
+        "active_sampling": ActiveGroupSampling(3),
+        "policy_updates": PolicyUpdateSettings(PolicyUpdateSchedule("episode", 1), PolicyExecutionBudget(1, 100, 1000)),
+    }
+    return SAMPOSettings("settings/active@1", TrainingLoop(max_steps=2, per_device_batch_size=1), **(values | changes))
 
 
-def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
+def _collect(
+    tmp_path,
+    monkeypatch,
+    rewards: dict[str, list[float]],
+    settings: SAMPOSettings | None = None,
+    candidates: Any = None,
+):
     published: list[Any] = []
     admitted: dict[str, Any] = {}
     collected: list[tuple[str, ...]] = []
@@ -94,6 +98,7 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
                             example_id=task,
                             reward=rewards[task][index],
                             completion_ids=(1, 2),
+                            env_mask=(True, True),
                             is_truncated=False,
                             trace=SimpleNamespace(external_id=f"{task}/{index}"),
                         )
@@ -104,7 +109,11 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
 
     def admit(artifact, population, settings, capabilities, **kwargs):
         admitted.update(population=population, kwargs=kwargs)
-        return SimpleNamespace(population=population)
+        # A non-SAMPO estimator id: only population reward/shape evidence is reported.
+        return SimpleNamespace(
+            population=population,
+            resolved=SimpleNamespace(credit=SimpleNamespace(estimator_id="fixture@1"), updates=("u0", "u1")),
+        )
 
     monkeypatch.setattr("posttrain.train.backends.trl.policy_rollouts.rollout_function", collector_factory)
     monkeypatch.setattr(
@@ -114,7 +123,7 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
         policy_update_context_contract="causal-text@1",
         retain_population=lambda values: SimpleNamespace(name="retained", values=values),
     )
-    request = SimpleNamespace(bridge=bridge, settings=_settings())
+    request = SimpleNamespace(bridge=bridge, settings=settings or _settings())
     context = SimpleNamespace(
         run_id="run",
         phase=lambda *args: nullcontext(),
@@ -128,7 +137,7 @@ def _collect(tmp_path, monkeypatch, rewards: dict[str, list[float]]):
         cast(SAMPORequest, request),
         object(),
         trainer,
-        reserved,
+        candidates if candidates is not None else reserved,
         capabilities(),
         evidence_directory=tmp_path / "evidence",
         population_id="population@1",
@@ -165,11 +174,89 @@ def test_active_collection_discards_uniform_groups_and_accounts_for_every_candid
     assert [item["uids"] for item in final["rounds"]] == [["candidate-0"], ["candidate-1"]]
     statuses = [snapshot["status"] for snapshot in _snapshots(published)]
     assert statuses == ["reserved", "dispatching", "round-observed", "dispatching", "round-observed", "selected"]
-    metrics = next(values for kind, values in (item for item in published if isinstance(item, tuple)))
+    metrics, collection = (values for kind, values in (item for item in published if isinstance(item, tuple)))
     assert metrics["train/rl/active_sampling_candidate_groups_unused"] == 2.0
+    # Only the selected group b ([0, 1]) is the admitted population; the uniform
+    # group a was generated but never trained on.
+    assert collection["train/rl/reward_mean"] == 0.5
+    assert collection["train/rl/group_zero_variance_fraction"] == 0.0
+    # The collection records how many updates it feeds.
+    assert collection["train/rl/collection_updates"] == 2
+    assert "train/rl/turn_credit_share" not in collection
     assert published.index(next(item for item in published if getattr(item, "name", None) == "retained")) > max(
         index for index, item in enumerate(published) if getattr(item, "kind", None) == "training-collection"
     )
+
+
+@pytest.mark.parametrize(("retain", "kept"), [("first", "a"), ("learning_signal", "b")])
+def test_surplus_groups_are_kept_in_candidate_order_or_by_learning_signal(tmp_path, monkeypatch, retain, kept):
+    # One group is needed; the oversampled first round finishes three with reward spread.
+    # Their learning signals (mean absolute deviation from the group mean) are 0.1, 0.5, 0.1.
+    settings = _settings(active_sampling=ActiveGroupSampling(3, oversample=2, retain=retain))
+    run, published, admitted, collected = _collect(
+        tmp_path, monkeypatch, {"a": [0.0, 0.2], "b": [0.0, 1.0], "c": [0.4, 0.6]}, settings
+    )
+    run()
+    assert collected == [("a", "a", "b", "b", "c", "c")]
+    assert {rollout.example_id for rollout in admitted["population"]} == {kept}
+    final = _snapshots(published)[-1]
+    assert final["retain"] == retain
+    assert [group["learning_signal"] for group in final["groups"]] == pytest.approx([0.1, 0.5, 0.1])
+    metrics = next(values for kind, values in (item for item in published if isinstance(item, tuple)))
+    assert metrics["train/rl/active_sampling_eligible_signal_mean"] == pytest.approx(0.7 / 3)
+    assert metrics["train/rl/active_sampling_retained_signal_mean"] == pytest.approx(0.5 if kept == "b" else 0.1)
+
+
+def test_curriculum_chooses_each_round_after_observing_the_earlier_ones(tmp_path, monkeypatch):
+    from posttrain.train.backends.trl.policy_rollouts import CurriculumCandidates
+
+    calls: list[tuple[Any, ...]] = []
+
+    class Runtime:
+        offered = iter(("a", "b", "c"))
+
+        def select_task_groups(self, count, *, step, selection_kind, round_index):
+            calls.append(("select", count, step, selection_kind, round_index))
+            return [
+                {"example_id": task, "prompt": []}
+                for task in [next(self.offered) for _ in range(count)]
+                for _ in range(2)
+            ]
+
+        def observe_groups(self, groups, *, step):
+            calls.append(("observe", step, [(task, list(rewards)) for task, rewards in groups]))
+
+    settings = _settings(adaptive_curriculum=AdaptiveCurriculum("domain", policy="yield_first"))
+    # a is uniform (no spread) so a refill is needed; b's penalty below zero is clamped for the curriculum.
+    run, published, admitted, collected = _collect(
+        tmp_path,
+        monkeypatch,
+        {"a": [0.0, 0.0], "b": [-0.04, 1.0], "c": [1.0, 1.0]},
+        settings,
+        CurriculumCandidates(Runtime(), 2, 2),
+    )
+    run()
+    assert calls == [
+        ("select", 1, 2, "initial_batch", 1),
+        ("observe", 2, [("a", [0.0, 0.0])]),
+        ("select", 1, 2, "active_sampling_refill", 2),
+        ("observe", 2, [("b", [0.0, 1.0])]),
+    ]
+    assert [rollout.example_id for rollout in admitted["population"]] == ["b", "b"]
+    final = _snapshots(published)[-1]
+    assert final["candidate_source"] == "adaptive_curriculum"
+    assert final["reserved"] == [{"uid": "candidate-0", "task": "a"}, {"uid": "candidate-1", "task": "b"}]
+
+
+def test_learning_signal_retention_requires_the_resolved_engine():
+    with pytest.raises(ValueError, match="requires explicit policy_updates"):
+        SAMPOSettings(
+            "settings/active@1",
+            TrainingLoop(max_steps=2, per_device_batch_size=2),
+            num_prompts_per_step=1,
+            num_generations=2,
+            active_sampling=ActiveGroupSampling(3, retain="learning_signal"),
+        )
 
 
 def test_active_collection_records_failed_groups_and_exhaustion(tmp_path, monkeypatch):
@@ -184,7 +271,7 @@ def test_active_collection_records_failed_groups_and_exhaustion(tmp_path, monkey
     assert not admitted, "no population is admitted without a full informative selection"
 
 
-def test_resolved_job_admits_sampo_active_rounds_but_not_curriculum():
+def test_resolved_job_admits_sampo_active_rounds_with_or_without_a_curriculum():
     def request(**changes: Any) -> SAMPORequest:
         # Bypass request construction, which keeps the public resolved guard.
         value = object.__new__(SAMPORequest)
@@ -200,8 +287,8 @@ def test_resolved_job_admits_sampo_active_rounds_but_not_curriculum():
         return value
 
     validate_resolved_job(request())
-    with pytest.raises(InvalidPolicyUpdate, match="curriculum"):
-        validate_resolved_job(request(adaptive_curriculum=AdaptiveCurriculum("domain")))
+    # The curriculum chooses SAMPO's active-round candidates (VORTEX yield-first or quota).
+    validate_resolved_job(request(adaptive_curriculum=AdaptiveCurriculum("domain", policy="yield_first")))
 
 
 def test_resolved_arguments_drop_native_refill_and_precomputed_advantage_transport():

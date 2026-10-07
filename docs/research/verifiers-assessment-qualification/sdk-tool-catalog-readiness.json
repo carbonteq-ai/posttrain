@@ -1,0 +1,32 @@
+{
+  "status": "signed_in_simple_debug_qualified",
+  "sdk_version": "0.160.0",
+  "signed_in_credentials_used": true,
+  "model_inference_used": true,
+  "source_sha256": "7e884f766727db509d8c46dd5ebe4a621beb2222745a8d48c2c204c9c1cdbf28",
+  "source_artifact": "docs/research/verifiers-assessment-qualification/sdk-probes/luna-simple-debug-01/summary.json",
+  "correction": "Previous inspector checked only top-level tools. Responses Lite supplies AdditionalTools in input; previous absent-catalog conclusion was unproven.",
+  "observed": [
+    "Restricted effective catalog passed with bounded empty-resource administration",
+    "Real MCP action/state receipt/final response synthetic fixture passed",
+    "Actual signed-in gpt-6-luna Simple task passed reward 1.0",
+    "Seven MCP calls and 14 native receipts retained",
+    "Reported cumulative output318, input77416, cached input53760",
+    "No ordinary API fallback attempted",
+    "Root independently recomputed retained assertion/final-state outcome"
+  ],
+  "remaining": [
+    "Manifest-bound native environment/collector smoke",
+    "Hard workflow smoke tasks",
+    "Final usage/reasoning inclusion and complete budget contract",
+    "Frozen reference collection and reward redesign"
+  ],
+  "resource_admin_qualification": {
+    "resources_empty": true,
+    "templates_empty": true,
+    "local_uri_read_rejected": true,
+    "configured_servers": [
+      "automationbench"
+    ]
+  }
+}

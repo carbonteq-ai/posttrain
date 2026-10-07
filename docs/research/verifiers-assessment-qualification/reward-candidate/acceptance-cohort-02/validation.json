@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "index_revision": "data_authoring_v2",
+  "index_sha256": "cf9e730661cad2deae11d1a3d3dd06422b441c7d32762ae0e16ece669cc224ad",
+  "superseded_validation_sha256": "4334c9eb7d08e187b4958941b4fce8e719f4d0d68edf045df1483eeb3ad5b1be",
+  "revision_note": "All ten manifest byte hashes and compiled checks remain unchanged. Revalidated public bindings and immutable source links after adding the uncovered safety-guideline observation and read-before-create requirement to the index.",
+  "qualification": "offline_manifest_compilation_and_public_binding_admission_only",
+  "task_count": 10,
+  "compiled_manifest_count": 10,
+  "native_replay_count": 0,
+  "source_boundary": "Only public prompt/initial inputs and installed schemas/operators authored the declarations; episodes were hash checked as future replay references, never read for policy or expected behavior.",
+  "validation": [
+    {
+      "task_name": "marketing.google_ads_high_intent_list_from_hubspot",
+      "manifest_file": "01-marketing-google_ads_high_intent_list_from_hubspot.json",
+      "manifest_sha256": "6c58d11b686574dcf8dcedc6cce75f423d56d3ef84bcfebbb611b3f7121f39f4",
+      "canonical_contract_sha256": "b0e6e8aebc2c7daaa73230d0de0d4e9453ff56adc658de583e0df7da93d4fbcd",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "marketing.lead_enrichment",
+      "manifest_file": "02-marketing-lead_enrichment.json",
+      "manifest_sha256": "5f4d151b643d9ee850693d6d2554d0886b50478a9a179859cd64e2063d4484b7",
+      "canonical_contract_sha256": "c67ee9ce9444b1d9f050d03c446ff193ba4b9e3120ad46df5d1eb1e2a0532c42",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "operations.hubspot_churn_prediction",
+      "manifest_file": "03-operations-hubspot_churn_prediction.json",
+      "manifest_sha256": "7e95336f8f934d6dab20d4e6914d3a8a86d810bb76503f409ddee17e717cf08b",
+      "canonical_contract_sha256": "812e7af6da26cc0bd675b3e969faf6aa768f433a5fa71b8bd5312ec2f94ab8ab",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "operations.hubspot_lead_qualification",
+      "manifest_file": "04-operations-hubspot_lead_qualification.json",
+      "manifest_sha256": "d8a3a99cf1cf47596aec48e393c834abe7d0b74310a2355d39dde9ce3daa74a2",
+      "canonical_contract_sha256": "934a2c41b0b9da8b3177d38348570fa4d9e6f81b175ce90de7abbf143e993923",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "support.zendesk_hubspot_org_sync",
+      "manifest_file": "05-support-zendesk_hubspot_org_sync.json",
+      "manifest_sha256": "4fb897d8995e6f3730dc692442d89b3eafa632447f9ef106b0d3ada3f6a5bd28",
+      "canonical_contract_sha256": "547e30ac425c694e1cd3f48c86f56b106ceaada3a12742af0507ab541276d567",
+      "compiled_check_ids": [
+        "held-organization-notes-retained",
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "support.helpscout_hubspot_deal_alerts",
+      "manifest_file": "06-support-helpscout_hubspot_deal_alerts.json",
+      "manifest_sha256": "c45ab465f0d6c060c42ac1061fe84f3b884676c9c883a0c40168a5dda281d364",
+      "canonical_contract_sha256": "74c704ff0a351b8a3ae955bbea9d85e1cf484d0d13556b66bd1cf4b3d802880e",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "operations.asana_safety_walk_log",
+      "manifest_file": "07-operations-asana_safety_walk_log.json",
+      "manifest_sha256": "011c2804543d0e3b891b13a347cda306f6456f4163737e750219c57d18439727",
+      "canonical_contract_sha256": "33d2f9359f55b9d01abd40feb350b9b87a051bd5d7feb0838d0f39a3c4d49595",
+      "compiled_check_ids": [
+        "selected-walk-task-creation",
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "hr.intern_program_coordination",
+      "manifest_file": "08-hr-intern_program_coordination.json",
+      "manifest_sha256": "ce20bdf712f6f431b7bcdfb8b723d64d57d30f568505730e0dd0a0757363f34c",
+      "canonical_contract_sha256": "e1c3c92e30d416c528db3bd2139dba190e25a0a849335a05dd0476ef220662fd",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "hr.intern_cohort_onboarding",
+      "manifest_file": "09-hr-intern_cohort_onboarding.json",
+      "manifest_sha256": "5fea94731a43c2dc9df9d2ba174829a03c1e8c65cf3cb018c05f7a0656478c50",
+      "canonical_contract_sha256": "d644add44bace5a05d394694585009ce0379be3fad43c0fcfbd879b6959b39ca",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    },
+    {
+      "task_name": "simple.trello_urgent_support_card",
+      "manifest_file": "10-simple-trello_urgent_support_card.json",
+      "manifest_sha256": "7ba5729b64b3f191765538c8bcfb51cd311c3cdf41ff1d450d86b65726bf4f58",
+      "canonical_contract_sha256": "78115e7261f5115dc5139c8be66a2cc88a400f03f8e1cf7c6205122dea629a47",
+      "compiled_check_ids": [
+        "summary",
+        "no-clarification"
+      ],
+      "public_binding_reason": null,
+      "episode_sha256_verified": true,
+      "native_score_replays": 0
+    }
+  ]
+}

@@ -2,6 +2,7 @@ schema_version: 1
 layer_id: posttrain-lab-serving-capacity-v1
 files:
   - algorithm-qualification.yaml
+  - automationbench-manifest-steps.yaml
   - current-capsule-qualification.yaml
   - execution-targets.yaml
   - gemma4-qualification.yaml

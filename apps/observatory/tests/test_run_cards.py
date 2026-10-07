@@ -41,19 +41,33 @@ def test_framework_templates_read_only_what_their_job_kinds_provide(family: str)
 def test_cards_render_from_recorded_runs_without_unresolved_references(trackio_project: TrackioDataSource) -> None:
     service = ObservatoryService({"local": trackio_project})
     grpo = asyncio.run(service.run_card("grpo-a"))
-    assert grpo.template == "group-policy@3" and grpo.unresolved == ()
+    assert grpo.template == "group-policy@4" and grpo.unresolved == ()
     assert "| Updates | 3 of ? (last update 3) |" in grpo.text
-    assert "| Reward, first → last 10 updates |" in grpo.text
-    assert "| Update time spent in rollouts | 85.5% |" in grpo.text  # 530 / 620
+    # A run that trained on each population once has one collection per update.
+    assert "| Collections | 3 (last at update 3) |" in grpo.text
+    assert "| Reward, first → last 10 collections |" in grpo.text
+    assert "| Collection time spent in rollouts | 85.5% |" in grpo.text  # 530 / 620
     sampo = asyncio.run(service.run_card("sampo-b"))
-    assert sampo.template == "sampo@3" and sampo.unresolved == ()
+    assert sampo.template == "sampo@4" and sampo.unresolved == ()
     assert "| Error | OutOfMemoryError |" in sampo.text
     assert "| Failed in | actor_update (update 2) |" in sampo.text
+
+
+def test_cards_count_collections_and_updates_of_the_resolved_engine(resolved_project: TrackioDataSource) -> None:
+    service = ObservatoryService({"local": resolved_project})
+    for run_id in ("resolved-tagged", "resolved-untagged"):
+        card = asyncio.run(service.run_card(run_id))
+        assert card.template == "sampo@4" and card.unresolved == (), run_id
+        assert "| Collections | 2 (last at update 3) |" in card.text, run_id
+        assert "| Updates | 4 of ? (last update 4) |" in card.text, run_id
+        assert "| Reward, first → last 10 collections | 0.500 → 0.500 |" in card.text, run_id
+        # Each collection's rollout time over its two updates' step time: 600 / (2 * 150).
+        assert "| Collection time spent in rollouts | 200.0% |" in card.text, run_id
 
 
 def test_project_templates_override_framework_ones(tmp_path: Path) -> None:
     (tmp_path / "train.grpo.md").write_text("template: lab-grpo@3\n---\nLearning rate {{run.learning_rate}}.\n")
     templates = TemplateSet(tmp_path)
     assert templates.for_job_kind("train.grpo").template_id == "lab-grpo@3"
-    assert templates.for_job_kind("train.gdpo").template_id == "group-policy@3"
+    assert templates.for_job_kind("train.gdpo").template_id == "group-policy@4"
     assert templates.for_job_kind("unknown.kind").template_id == "generic@2"

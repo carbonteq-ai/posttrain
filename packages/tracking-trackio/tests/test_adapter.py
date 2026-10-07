@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 from collections.abc import Iterator
+from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -44,6 +48,7 @@ from posttrain_tracking_trackio import (
     require_remote_trackio_ready,
 )
 from posttrain_tracking_trackio.adapter import _trackio_trace_facts
+from posttrain_tracking_trackio.assessment_results import training_verifiers_results
 from trackio.sqlite_storage import SQLiteStorage
 
 from packages.tracking.tests.conformance import (
@@ -240,8 +245,75 @@ def test_trace_fact_writer_uses_exact_run_and_does_not_open_or_finish_it(
         "provenance": {},
         "state": "complete",
         "replace_reward_components": True,
+        "environment_metrics": {},
         "calculated_at": update["calculated_at"],
     }
+
+
+def test_trace_fact_writer_sends_environment_metrics_with_a_matching_projection_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[dict[str, Any]] = []
+
+    class Client:
+        def predict(self, *, api_name: str, **kwargs: Any) -> dict[str, Any]:
+            sent.append(kwargs["update"])
+            return {"trace_id": "trace-1", "projection_id": kwargs["update"]["projection_id"], "applied": True}
+
+    monkeypatch.setenv("TRACKIO_WRITE_TOKEN", "test-token")
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.RemoteClient", lambda *args, **kwargs: Client())
+    facts = TraceFactSet(
+        namespace="verifiers.trace",
+        calculator_version="test.v1",
+        measures={"model_output_tokens": 12},
+        environment_metrics={"tool_unknown_id": 1, "tool_mistakes": 3.0},
+    )
+
+    TrackioTraceFactWriter("https://trackio.invalid").upsert(
+        project="project-a",
+        run_name="run-a",
+        provider_run_id="provider-run-a",
+        trace_type="verifiers",
+        external_id="trace-1",
+        facts=facts,
+    )
+
+    (update,) = sent
+    assert update["environment_metrics"] == {"tool_mistakes": 3.0, "tool_unknown_id": 1.0}
+    # Trackio recomputes the projection identity from the payload it receives and must agree with ours.
+    from trackio.trace_facts import TraceFactUpdate
+
+    assert TraceFactUpdate.from_payload(update).projection_id == facts.projection_id == update["projection_id"]
+
+
+def test_environment_metrics_need_a_trackio_that_can_store_them(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dataclasses import dataclass
+
+    from posttrain_tracking_trackio.adapter import _trackio_trace_facts
+
+    @dataclass
+    class OldUpdate:
+        trace_type: str
+        external_id: str
+        namespace: str
+        calculator_version: str
+        projection_id: str
+        dimensions: dict[str, Any]
+        measures: dict[str, Any]
+        reward_components: tuple[Any, ...]
+        provenance: dict[str, str]
+        state: str
+        replace_reward_components: bool
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.TraceFactUpdate", OldUpdate)
+    plain = TraceFactSet(namespace="verifiers.trace", calculator_version="test.v1")
+    assert _trackio_trace_facts("verifiers", "t", plain).external_id == "t"
+    with pytest.raises(ContractError, match="cannot store environment metrics"):
+        _trackio_trace_facts(
+            "verifiers",
+            "t",
+            TraceFactSet(namespace="verifiers.trace", calculator_version="test.v1", environment_metrics={"m": 1}),
+        )
 
 
 def test_trace_fact_writer_chunks_a_logical_page_at_the_safe_storage_boundary(
@@ -883,6 +955,437 @@ def _verifiers_trace() -> dict:
         "stop_condition": "agent_completed",
         "is_completed": True,
     }
+
+
+def _assessment_export_fixture() -> dict[str, Any]:
+    subject = {
+        "kind": "turn",
+        "snapshot_id": "snapshot-1",
+        "episode_id": "episode-1",
+        "trace_id": "rollout-1",
+        "node_index": 1,
+    }
+    signal = {
+        "signal_id": "guard",
+        "revision": "v1",
+        "semantics": "outcome",
+        "units": "fraction",
+        "description": "PRIVATE-ASSESSMENT",
+    }
+    batch = {
+        "schema_version": 1,
+        "source": {
+            "snapshot_id": "snapshot-1",
+            "episode_id": "episode-1",
+            "source_digest": "abc",
+            "source_json": "PRIVATE-ASSESSMENT",
+        },
+        "run": {
+            "run_id": "assessor-1",
+            "producer_id": "guard",
+            "producer_revision": "v1",
+            "rubric_revision": "v1",
+            "snapshot_id": "snapshot-1",
+            "invocation_id": "invocation-1",
+            "attempt_id": "attempt-1",
+            "status": "complete",
+            "expected": [{"subject": subject, "signal": signal, "required": True}],
+            "configuration_json": "PRIVATE-ASSESSMENT",
+            "execution_evidence": [{"kind": "chat_response", "payload_json": "PRIVATE-ASSESSMENT"}],
+        },
+        "views": [{"view_id": "view-1", "input_digest": "input-abc", "input_json": "PRIVATE-ASSESSMENT"}],
+        "assessments": [
+            {
+                "assessment_id": "assessment-1",
+                "run_id": "assessor-1",
+                "subject": subject,
+                "signal": signal,
+                "status": "valid",
+                "value": 0.0,
+                "view_id": "view-1",
+                "derivation": {"rule_id": "cap", "rule_revision": "v1", "required_parent_ids": ["parent-1"]},
+                "rationale": "PRIVATE-ASSESSMENT",
+                "evidence": [{"uri": "PRIVATE-ASSESSMENT"}],
+            }
+        ],
+    }
+    queued = deepcopy(batch)
+    queued["run"]["status"] = "queued"
+    queued["assessments"] = []
+    failed = deepcopy(queued)
+    failed["run"].update(attempt_id="attempt-2", status="failed")
+    failed["run"]["configuration_json"] = "different-PRIVATE-ASSESSMENT"
+    record = _verifiers_trace()
+    record["assessment_batches"] = [queued, batch, failed]
+    record["info"] = {
+        "judge_calls": [{"name": "judge", "request": "PRIVATE-ASSESSMENT", "response": "PRIVATE-ASSESSMENT"}],
+        "posttrain_episode_reward_attempts": [
+            {"attempt": 1, "status": "valid", "messages": "PRIVATE-ASSESSMENT", "raw_response": "PRIVATE-ASSESSMENT"}
+        ],
+        "posttrain_episode_rewards": {
+            "trace_id": "rollout-1",
+            "scope": "episode",
+            "assessments": {"action_quality": {"status": "valid", "score": 0.5, "reason": "PRIVATE-ASSESSMENT"}},
+            "requirement_checks": [{"outcome": "satisfied", "explanation": "PRIVATE-ASSESSMENT"}],
+        },
+    }
+    return record
+
+
+def test_training_assignment_results_preserve_credit_and_remove_source_bodies() -> None:
+    native = _assessment_export_fixture()
+    native["tool_execution_events"] = [{"request_json": "PRIVATE-ASSESSMENT-TOOL-RESULT"}]
+    native["state_write_receipts"] = [{"write_id": "PRIVATE-ASSESSMENT-WRITE"}]
+    native["tool_state_revision"] = 7
+    native["info"]["automationbench_capture"] = {"snapshots": "PRIVATE-ASSESSMENT-WORLD"}
+    batch = native["assessment_batches"][1]
+    contribution = {
+        "contribution_id": "credit",
+        "parent_assessment_ids": ["assessment-1"],
+        "recipient": batch["assessments"][0]["subject"],
+        "signal": batch["assessments"][0]["signal"],
+        "channel": "guard",
+        "status": "valid",
+        "value": -1,
+        "weight": 2,
+        "allocation": "fixed_mass",
+        "attribution": "coarse",
+        "reason": "PRIVATE-ASSESSMENT",
+    }
+    assignment = {
+        "schema_version": 1,
+        "status": "complete",
+        "contributions": [contribution],
+        "request": {
+            "source": batch["source"],
+            "accepted": batch["assessments"],
+            "invocation_id": "assignment-invocation",
+            "attempt_id": "assignment-attempt",
+            "allocation": "fixed_mass",
+            "overlap_policy": "reject",
+            "rule": {"rule_id": "guard", "revision": "1", "configuration_json": "PRIVATE-ASSESSMENT"},
+        },
+    }
+    running = deepcopy(assignment)
+    running.update(status="running", contributions=[])
+    native["credit_assignments"] = [running, assignment]
+    before = deepcopy(native)
+    projected = training_verifiers_results(native)
+    assert "credit_assignments" not in projected
+    results = projected["credit_assignment_results"]
+    assert len(results) == 1
+    assert results[0]["attempt_id"] == "assignment-attempt"
+    assert results[0]["contributions"][0]["value"] == -1
+    assert results[0]["contributions"][0]["weight"] == 2
+    assert results[0]["allocation"] == "fixed_mass"
+    assert "PRIVATE-ASSESSMENT" not in json.dumps(projected)
+    assert native == before
+
+
+def test_training_preference_results_retain_relation_without_assessor_text() -> None:
+    native = _assessment_export_fixture()
+    finding = native["assessment_batches"][1]["assessments"][0]
+    alternative = deepcopy(finding["subject"])
+    alternative["node_index"] = 2
+    finding["value"] = None
+    finding["signal"]["semantics"] = "preference"
+    finding["preference"] = {
+        "relation": "equivalent",
+        "preferred_subject_id": None,
+        "alternatives": [finding["subject"], alternative],
+    }
+    before = deepcopy(native)
+    projected = training_verifiers_results(native)
+    result = projected["assessment_results"][0]["assessments"][0]
+    assert result["value"] is None
+    assert result["preference"]["relation"] == "equivalent"
+    assert len(set(result["preference"]["alternative_subject_ids"])) == 2
+    assert "PRIVATE-ASSESSMENT" not in json.dumps(projected)
+    assert native == before
+
+
+def test_training_execution_results_preserve_coordinates_without_payloads() -> None:
+    native = _assessment_export_fixture()
+    batch = native["assessment_batches"][1]
+    subject = {
+        "kind": "execution",
+        "snapshot_id": "snapshot-1",
+        "episode_id": "episode-1",
+        "trace_id": "rollout-1",
+        "execution": {
+            "episode_id": "episode-1",
+            "trace_id": "rollout-1",
+            "origin": "tool_server",
+            "invocation_id": "send-1",
+            "prefix_digest": "dispatch-prefix",
+            "event_count": 1,
+            "phase": "dispatch",
+            "future_payload": {"body": "PRIVATE-ASSESSMENT"},
+        },
+    }
+    batch["run"]["expected"][0]["subject"] = subject
+    batch["assessments"][0]["subject"] = subject
+    later = deepcopy(batch)
+    later["run"].update(run_id="later", invocation_id="later", snapshot_id="snapshot-2")
+    later["source"]["snapshot_id"] = "snapshot-2"
+    later_subject = deepcopy(subject)
+    later_subject["snapshot_id"] = "snapshot-2"
+    later_subject["execution"].update(prefix_digest="returned-prefix", event_count=2, phase="returned")
+    later["run"]["expected"][0]["subject"] = later_subject
+    later["assessments"][0]["subject"] = later_subject
+    other = deepcopy(batch)
+    other["run"].update(run_id="other", invocation_id="other")
+    other_subject = deepcopy(subject)
+    other_subject["trace_id"] = "rollout-2"
+    other_subject["execution"]["trace_id"] = "rollout-2"
+    other["run"]["expected"][0]["subject"] = other_subject
+    other["assessments"][0]["subject"] = other_subject
+    distinct = deepcopy(batch)
+    distinct["run"].update(run_id="distinct", invocation_id="distinct")
+    distinct_subject = deepcopy(subject)
+    distinct_subject["execution"]["invocation_id"] = "send-2"
+    distinct["run"]["expected"][0]["subject"] = distinct_subject
+    distinct["assessments"][0]["subject"] = distinct_subject
+    native["assessment_batches"] = [batch, later, other, distinct]
+    native["credit_assignments"] = [
+        {
+            "schema_version": 1,
+            "status": "complete",
+            "request": {
+                "invocation_id": "assignment",
+                "attempt_id": "attempt",
+                "source": batch["source"],
+                "rule": {"rule_id": "identity", "revision": "1"},
+            },
+            "contributions": [
+                {
+                    "contribution_id": "credit",
+                    "parent_assessment_ids": ["assessment-1"],
+                    "recipient": subject,
+                    "signal": batch["assessments"][0]["signal"],
+                    "channel": "guard",
+                    "status": "valid",
+                    "value": 0,
+                }
+            ],
+        }
+    ]
+    original = deepcopy(native)
+    result = training_verifiers_results(native)
+    subjects = [item["assessments"][0]["subject"] for item in result["assessment_results"]]
+    assert len({item["subject_digest"] for item in subjects}) == 4
+    assert subjects[0]["execution"]["phase"] == "dispatch"
+    assert subjects[1]["execution"]["prefix_digest"] == "returned-prefix"
+    assert subjects[0]["execution"]["invocation_id"] == subjects[1]["execution"]["invocation_id"]
+    assert subjects[0]["execution"]["prefix_digest"] == "dispatch-prefix"
+    assert subjects[2]["execution"]["trace_id"] == "rollout-2"
+    assert subjects[3]["execution"]["invocation_id"] == "send-2"
+    assert result["credit_assignment_results"][0]["contributions"][0]["recipient"] == subjects[0]
+    assert "PRIVATE-ASSESSMENT" not in json.dumps(result)
+    assert native == original
+
+
+def test_training_assessment_results_preserve_native_and_distinct_attempts() -> None:
+    native = _assessment_export_fixture()
+    before = deepcopy(native)
+    projected = training_verifiers_results(native)
+    assert native == before
+
+    assert "PRIVATE-ASSESSMENT" not in json.dumps(projected)
+    assert projected["nodes"] == native["nodes"]
+    assert projected["rewards"] == native["rewards"]
+    results = projected["assessment_results"]
+    assert len(results) == 2
+    assert results[0]["run"]["status"] == "complete"
+    assert results[0]["assessments"][0]["value"] == 0.0
+    assert results[1]["run"]["status"] == "failed"
+    assert results[1]["coverage"] == {"requested": 1, "returned": 0}
+    assert results[0]["configuration_digest"] != results[1]["configuration_digest"]
+    assert results[0]["views"] == [{"view_id": "view-1", "input_digest": "input-abc"}]
+    assert results[0]["assessments"][0]["derivation"]["required_parent_ids"] == ["parent-1"]
+    projected["nodes"][0]["message"]["content"] = "changed"
+    assert native == before
+
+
+@pytest.mark.parametrize("trainable", [False, True])
+def test_assessment_trace_export_requires_explicit_purpose(trainable: bool) -> None:
+    record = _assessment_export_fixture()
+    record["agent"].update(trainable=trainable, execution_purpose="assessment")
+    record["task"]["data"] = {"private_input": "PRIVATE-ASSESSMENT"}
+    record["nodes"][1]["message"]["content"] = "PRIVATE-ASSESSMENT"
+    projected = training_verifiers_results(record)
+    assert projected["assessment_trace_retention"] == "artifact_only"
+    assert "nodes" not in projected
+    assert "task" not in projected
+    assert "PRIVATE-ASSESSMENT" not in json.dumps(projected)
+    record["agent"]["execution_purpose"] = "solver"
+    solver = training_verifiers_results(record)
+    assert solver["nodes"] == record["nodes"]
+
+
+@pytest.mark.parametrize("stage", ["train", "qualify"])
+def test_assessment_export_uses_authoritative_stage(monkeypatch: pytest.MonkeyPatch, stage: Any) -> None:
+    captured: dict[str, Any] = {}
+
+    def make_trace(payload: Any, **kwargs: Any) -> object:
+        captured.update(payload=payload, metadata=kwargs["metadata"])
+        return object()
+
+    monkeypatch.setattr("posttrain_tracking_trackio.adapter.trackio.VerifiersTrace", make_trace)
+    sdk_run = SimpleNamespace(log=lambda values: None)
+    tracked = TrackioTrackedRun(cast(Any, sdk_run), "project-a", replace(_spec("run-a"), stage=stage))
+    native = _assessment_export_fixture()
+    native["tool_execution_events"] = [{"request_json": "PRIVATE-ASSESSMENT-TOOL-RESULT"}]
+    native["assessment_sources"] = [
+        {
+            "schema_version": 2,
+            "snapshot_id": "source-snapshot",
+            "episode_id": "episode",
+            "source_digest": "source-digest",
+            "source_json": "PRIVATE-ASSESSMENT-SOURCE",
+        }
+    ]
+    native["assessment_views"] = [
+        {
+            "view_id": "view",
+            "snapshot_id": "source-snapshot",
+            "input_digest": "input-digest",
+            "input_json": "PRIVATE-ASSESSMENT-VIEW",
+        }
+    ]
+    for batch in native["assessment_batches"]:
+        batch["views"] = [
+            {"archive_view_ref": {key: value for key, value in view.items() if key != "input_json"}}
+            for view in batch["views"]
+        ]
+    attributes = {
+        "assessment_batches": deepcopy(native["assessment_batches"]),
+        "assessment_sources": deepcopy(native["assessment_sources"]),
+        "assessment_views": deepcopy(native["assessment_views"]),
+        "tool_execution_events": deepcopy(native["tool_execution_events"]),
+        "state_write_receipts": [{"write_id": "PRIVATE-ASSESSMENT-WRITE"}],
+        "tool_state_revision": 7,
+        "info": {"automationbench_capture": {"snapshots": "PRIVATE-ASSESSMENT-WORLD"}},
+    }
+    tracked.trace(TraceObservation("verifiers", "rollout-1", native, attributes=attributes))
+    if stage == "train":
+        assert "PRIVATE-ASSESSMENT" not in json.dumps(captured)
+        assert "assessment_results" in captured["payload"]
+        assert "tool_execution_events" not in captured["payload"]
+        assert "state_write_receipts" not in captured["metadata"]["posttrain_attributes"]
+        assert "tool_state_revision" not in captured["metadata"]["posttrain_attributes"]
+        assert "automationbench_capture" not in captured["metadata"]["posttrain_attributes"]["info"]
+        assert captured["payload"]["tool_execution_retention"] == "artifact_only"
+        assert captured["payload"]["assessment_source_results"][0]["source_digest"] == "source-digest"
+        assert "assessment_sources" not in captured["metadata"]["posttrain_attributes"]
+        assert captured["payload"]["assessment_view_results"][0]["input_digest"] == "input-digest"
+        assert "assessment_views" not in captured["metadata"]["posttrain_attributes"]
+        assert captured["payload"]["assessment_results"][0]["views"][0]["view_id"]
+    else:
+        assert captured["payload"] == native
+        assert "PRIVATE-ASSESSMENT" in json.dumps(captured)
+    assert "assessment_batches" in native
+    assert "assessment_batches" in attributes
+    assert "tool_execution_events" in native and "tool_execution_events" in attributes
+
+
+def test_assessment_export_rejects_unknown_schema() -> None:
+    native = _assessment_export_fixture()
+    native["assessment_batches"][0]["schema_version"] = 2
+    with pytest.raises(ContractError, match="unsupported native assessment schema"):
+        training_verifiers_results(native)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("subject_kind", ["turn", "execution"])
+async def test_training_assessment_results_survive_trackio_storage(trackio_dir: Path, subject_kind: str) -> None:
+    backend = TrackioBackend(TrackioSettings(project="trackio-assessment-results"))
+    tracked = backend.start_run(_spec("00000000-0000-4000-8000-000000000121"))
+    native = _assessment_export_fixture()
+    sdk_raw = base64.b64encode(b"PRIVATE-SDK-ASSESSMENT-NDJSON\n").decode()
+    for batch in native["assessment_batches"]:
+        batch["run"]["execution_evidence"].extend(
+            [
+                {
+                    "kind": "automationbench.summary_semantic_request@1",
+                    "payload_json": json.dumps(
+                        {
+                            "request_text": "PRIVATE-SDK-ASSESSMENT-REQUEST",
+                            "full_output_ids": ["output-1"],
+                        }
+                    ),
+                },
+                {
+                    "kind": "automationbench.summary_sdk_worker_events@1",
+                    "payload_json": json.dumps(
+                        {
+                            "raw_base64": sdk_raw,
+                            "retention": "observed-worker-stdout",
+                            "truncated": False,
+                        }
+                    ),
+                },
+            ]
+        )
+    if subject_kind == "execution":
+        for batch in native["assessment_batches"]:
+            for target in [*batch["run"]["expected"], *batch["assessments"]]:
+                target["subject"] = {
+                    "kind": "execution",
+                    "snapshot_id": "snapshot-1",
+                    "episode_id": "episode-1",
+                    "trace_id": "rollout-1",
+                    "execution": {
+                        "episode_id": "episode-1",
+                        "trace_id": "rollout-1",
+                        "origin": "tool_server",
+                        "invocation_id": "send-1",
+                        "prefix_digest": "dispatch-prefix",
+                        "event_count": 1,
+                        "phase": "dispatch",
+                        "future_payload": "PRIVATE-ASSESSMENT",
+                    },
+                }
+    tracked.trace(TraceObservation("verifiers", "rollout-1", native))
+    tracked.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=1)))
+    source = TrackioDataSource("trackio-assessment-results")
+    page = await source.traces(tracked.run_id, TraceQuery(trace_type="verifiers", include_payload=True))
+    assert len(page.items) == 1
+    stored = page.items[0]
+    assert "PRIVATE-ASSESSMENT" not in json.dumps(dict(stored.payload))
+    assert "PRIVATE-SDK-ASSESSMENT" not in json.dumps(dict(stored.payload))
+    assert sdk_raw not in json.dumps(dict(stored.payload))
+    assert stored.payload["assessment_results"] == training_verifiers_results(native)["assessment_results"]
+    if subject_kind == "execution":
+        results = stored.payload["assessment_results"]
+        assert isinstance(results, list)
+        subject = cast(dict[str, Any], results[0])["assessments"][0]["subject"]
+        assert subject["execution"]["invocation_id"] == "send-1"
+        assert subject["execution"]["phase"] == "dispatch"
+    assert "assessment_batches" in native
+    assert sdk_raw in json.dumps(native)
+
+
+@pytest.mark.asyncio
+async def test_episode_assessment_result_envelope_uses_results_only_storage(trackio_dir: Path) -> None:
+    backend = TrackioBackend(TrackioSettings(project="trackio-episode-assessment-results"))
+    tracked = backend.start_run(_spec("00000000-0000-4000-8000-000000000122"))
+    payload = {
+        "episode_id": "episode-1",
+        "child_trace_ids": [],
+        "assessment_batches": _assessment_export_fixture()["assessment_batches"],
+    }
+    tracked.trace(TraceObservation("verifiers.assessment-results", "episode:episode-1:assessment-results", payload))
+    tracked.finish(RunOutcome("succeeded", STARTED, STARTED + timedelta(seconds=1)))
+    source = TrackioDataSource("trackio-episode-assessment-results")
+    page = await source.traces(
+        tracked.run_id, TraceQuery(trace_type="verifiers.assessment-results", include_payload=True)
+    )
+    assert len(page.items) == 1
+    assert page.items[0].external_id == "episode:episode-1:assessment-results"
+    assert page.items[0].payload["child_trace_ids"] == []
+    assert "PRIVATE-ASSESSMENT" not in json.dumps(dict(page.items[0].payload))
+    assert "assessment_results" in page.items[0].payload
 
 
 def test_trackio_writer_accepts_verifiers_v1_weighted_rewards(trackio_dir: Path) -> None:

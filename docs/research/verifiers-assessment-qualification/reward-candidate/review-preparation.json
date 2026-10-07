@@ -1,0 +1,14 @@
+{
+  "review_script_sha256": "70661fa15670353a134b556e003ddcf012699fdb79c7cafc4754d7bc17ef24ef",
+  "input_index_sha256": "d8cef79da7c8860b3d19433e603c4c559d921bef33fb2da4914c4bf120c29d77",
+  "prepared_tasks": 445,
+  "families": 41,
+  "idempotent_manifest_sha256": "38f812f0a82c97616480c5dde395849311bae0b8cfaa79abbc4603ea95fbe214",
+  "rejected_before_write": [
+    "reserved",
+    "changed_source_digest"
+  ],
+  "all_task_material_assertion_lists_omitted": true,
+  "substantive_review_completed": false,
+  "raw_native_sources_modified": false
+}

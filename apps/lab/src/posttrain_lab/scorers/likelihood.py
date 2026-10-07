@@ -63,7 +63,9 @@ class LikelihoodSpanScorer:
                 )
             inputs, logprobs = cache[view_id]
             values = [
-                logprobs[action.token_index] for interval in span.action_intervals for action in interval.actions()
+                logprobs[index]
+                for interval in span.action_intervals
+                for index in range(interval.start.token_index, interval.end)
             ]
             results.append(
                 SpanAssessment(
@@ -88,15 +90,16 @@ def group_centered_likelihood_estimate(assessments: tuple[SpanAssessment, ...], 
     group, so credit is relative quality among samples of one prompt.
     """
     spans = {span.id: span for span in snapshot.spans}
+    # Relations name whole turns; a span's group is that of the turns it covers.
     member_group = {
-        action: relation.id
+        turn: relation.id
         for relation in snapshot.relations
         if relation.kind == "prompt-group"
-        for action in relation.members
+        for turn in relation.members
     }
     grouped: dict[str, list[tuple[str, float]]] = {}
     for assessment in assessments:
-        groups = {member_group.get(action) for action in spans[assessment.span_id].actions()}
+        groups = {member_group.get(interval.start.turn_id) for interval in spans[assessment.span_id].action_intervals}
         if len(groups) != 1 or None in groups:
             raise ValueError("process span must belong to exactly one complete prompt group")
         value = assessment.components[0].value

@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from .metric_catalog import metric_help
+from .metric_catalog import COLLECTION_TIME_METRIC, metric_help
 from .models import AlertSeverity, MetricHelp, ObservatoryModel
 
 type Reducer = Literal["last", "min", "max", "mean", "sum"]
@@ -39,6 +39,8 @@ class SummaryFieldDefinition(ObservatoryModel):
     label: str = Field(min_length=1)
     metric: str = Field(min_length=1)
     reducer: Reducer = "last"
+    # Reduce over only the last ``window`` points (for example recent collections), when set.
+    window: int | None = Field(default=None, ge=1)
     required: bool = False
     unit: str | None = None
 
@@ -205,6 +207,24 @@ _RESOLVED_UPDATE_REQUIREMENT = EvidenceRequirementDefinition(
         "train/rl/advantage_nonzero_fraction",
     ),
     reason="An explicit policy-update schedule must show applied versus attempted updates and the selected policy/KL support with its credit coverage.",
+)
+
+
+# Both the ordinary TRL path and the resolved engine emit these whenever vLLM
+# samples the rollouts the trainer scores, for GRPO-family runs and SAMPO alike.
+_POLICY_FRESHNESS_REQUIREMENT = EvidenceRequirementDefinition(
+    key="policy_freshness",
+    label="Rollout-policy correction",
+    level="conditional",
+    condition="decoupled_rollout",
+    metrics=(
+        "train/rl/sampling_logp_delta_mean",
+        "train/rl/sampling_logp_delta_max",
+        "train/rl/importance_sampling_ratio_mean",
+        "train/rl/importance_sampling_ratio_min",
+        "train/rl/importance_sampling_ratio_max",
+    ),
+    reason="A decoupled rollout server must expose how its sampling probabilities differ from the actor update.",
 )
 
 
@@ -637,7 +657,16 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
     job_kind="train.grpo",
     display_name="Group relative policy optimization",
     summary_fields=(
-        SummaryFieldDefinition(key="reward_mean", label="Mean reward", metric="train/rl/reward_mean", required=True),
+        # Each collection samples a different set of tasks, so one collection's mean moves with
+        # the task mix; the headline averages recent collections (about one pass over a task pool).
+        SummaryFieldDefinition(
+            key="reward_mean",
+            label="Mean reward, last 8 collections",
+            metric="train/rl/reward_mean",
+            reducer="mean",
+            window=8,
+            required=True,
+        ),
         SummaryFieldDefinition(key="reward_std", label="Reward standard deviation", metric="train/rl/reward_std"),
         SummaryFieldDefinition(
             key="zero_variance",
@@ -736,9 +765,10 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         ChartDefinition(
             key="efficiency",
             title="Runtime efficiency",
-            question="Where does step time go, and what effective rollout throughput results?",
+            question="Where does each collection's time go, and what effective rollout throughput results?",
             metrics=(
                 "train/rl/rollout_tokens_per_second",
+                COLLECTION_TIME_METRIC,
                 "train/step_time_seconds",
                 "train/rl/time/rollout_seconds",
                 "train/rl/time/reward_seconds",
@@ -783,7 +813,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
         ChartDefinition(
             key="active_sampling",
             title="Active sampling",
-            question="How many generation rounds did each update need, what share of candidates had usable reward variation, and how did the candidate window divide?",
+            question="How many generation rounds did each collection need, what share of candidates had usable reward variation, and how did the candidate window divide?",
             metrics=(
                 "train/rl/active_sampling_generation_rounds",
                 "train/rl/active_sampling_retained_fraction",
@@ -793,10 +823,15 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
                 "train/rl/active_sampling_candidate_groups_unused",
                 "train/rl/active_sampling_oversampled_groups",
                 "train/rl/active_sampling_discarded_groups",
+                "train/rl/active_sampling_retained_signal_mean",
+                "train/rl/active_sampling_eligible_signal_mean",
             ),
         ),
     ),
     metric_help=_help_for(
+        COLLECTION_TIME_METRIC,
+        "train/rl/active_sampling_retained_signal_mean",
+        "train/rl/active_sampling_eligible_signal_mean",
         "train/rl/reward_mean",
         "train/rl/reward_std",
         "train/rl/group_zero_variance_fraction",
@@ -1067,20 +1102,7 @@ GRPO_TELEMETRY = JobTelemetryDefinition(
             reason="KL evidence is owed whenever a non-zero reference penalty is selected.",
         ),
         _RESOLVED_UPDATE_REQUIREMENT,
-        EvidenceRequirementDefinition(
-            key="policy_freshness",
-            label="Rollout-policy correction",
-            level="conditional",
-            condition="decoupled_rollout",
-            metrics=(
-                "train/rl/sampling_logp_delta_mean",
-                "train/rl/sampling_logp_delta_max",
-                "train/rl/importance_sampling_ratio_mean",
-                "train/rl/importance_sampling_ratio_min",
-                "train/rl/importance_sampling_ratio_max",
-            ),
-            reason="A decoupled rollout server must expose how its sampling probabilities differ from the actor update.",
-        ),
+        _POLICY_FRESHNESS_REQUIREMENT,
         EvidenceRequirementDefinition(
             key="asynchronous_freshness",
             label="Asynchronous policy freshness",
@@ -1379,6 +1401,7 @@ SAMPO_EVIDENCE_REQUIREMENTS: tuple[EvidenceRequirementDefinition, ...] = (
         reason="Tool environments owe invocation and failure coverage in addition to reward.",
     ),
     _RESOLVED_UPDATE_REQUIREMENT,
+    _POLICY_FRESHNESS_REQUIREMENT,
 )
 
 SAMPO_TELEMETRY = _sampo_telemetry()

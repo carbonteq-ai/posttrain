@@ -280,6 +280,33 @@ def _synchronize_cuda() -> None:
         torch.cuda.synchronize()
 
 
+# TRL computes these from its own scalar group advantages before a rollout
+# function's precomputed advantages replace them. For SAMPO they describe credit
+# the policy is never trained on, and they collide with the hierarchical
+# credit statistics SAMPO reports under the same names at the same step.
+SAMPO_SUPERSEDED_NATIVE_METRICS = frozenset(
+    {
+        "advantages/mean",
+        "advantages/std",
+        "advantages/abs_mean",
+        "advantages/positive_fraction",
+        "advantages/negative_fraction",
+        "advantages/zero_fraction",
+    }
+)
+
+
+def native_trainer_record(native: Mapping[str, object], *, resolved: bool, sampo: bool) -> dict[str, object]:
+    """Drop native values whose meaning another posttrain writer owns at this step.
+
+    The resolved engine reports its own objective loss, so native windowed loss
+    is dropped. Ordinary SAMPO reports its supplied advantages, so TRL's
+    unused scalar-advantage statistics are dropped.
+    """
+    dropped = {"loss"} if resolved else SAMPO_SUPERSEDED_NATIVE_METRICS if sampo else frozenset()
+    return {key: value for key, value in native.items() if key not in dropped}
+
+
 def normalize_live_metrics(
     step: int,
     native: Mapping[str, object],
@@ -296,6 +323,8 @@ __all__ = [
     "ActorUpdateTelemetry",
     "actor_update_callback_type",
     "actor_update_trainer_type",
+    "native_trainer_record",
     "normalize_live_metrics",
+    "SAMPO_SUPERSEDED_NATIVE_METRICS",
     "SamplerGapAccumulator",
 ]

@@ -9,6 +9,65 @@ Series overviews: [v0.4 release notes](docs/releases/v0.4.md) and
 
 ## Unreleased
 
+## 0.4.15 - 2026-10-07
+
+SAMPO turn credit that the environment's verified outcomes can decide, a
+resolved TRL engine that fits colocated vLLM at 2.6B scale (peak trainer
+memory per update 84 GiB to 13.8 GiB), Observatory charts numbered by
+collection, and an environment and fork closure that is entirely released:
+environments at a `verifiers-environments` main commit with deterministic
+AutomationBench worlds, AutomationBench `1.0.5.post3`, Verifiers
+`0.3.2.dev102` and Trackio `0.31.5.post14.dev35`.
+
+### Added
+
+- SAMPO `goal_credit` (`group-relative`, `verified-sign`) with
+  `goal_credit_scale`. Group-relative credit gives the turn that first achieved
+  a verified goal `0.5/R × (1 − p_g)`, where `p_g` is the share of the group
+  that reached it. Verified-sign makes a goal turn's advantage at least zero and
+  a harm turn's at most zero whatever its episode scored. New metrics
+  `goal_credited_turn_fraction`, `harm_debited_turn_fraction`,
+  `goal_turn_credit_abs_mean`, `verified_turn_fraction` and
+  `sign_protected_turn_fraction`.
+- SAMPO `anchor_fallback: environment-state`: a turn with no exact-observation
+  sibling is compared with the group's other such turns that share an
+  environment state key (goals done, world digest, distinct reads bucketed).
+  Metric `fallback_anchor_turn_fraction`.
+- Reward projections can read per-turn goal keys, harm debits and state keys
+  (`turn_goal_prefix`, `turn_harm_key`, `turn_state_key`); checkpoints and
+  digests that do not select them are unchanged.
+- The adaptive curriculum (VORTEX yield-first) runs on the resolved SAMPO
+  engine, and active sampling can keep the surplus groups with the most
+  learning signal (`retain: learning_signal`).
+- Observatory: steps are numbered by collection on every surface; population
+  values are drawn across the updates their collection fed; evaluations show
+  episode outcomes and the environment's own tool-error metrics; the trainer's
+  allocator layout is reported before each sampler wake.
+
+### Changed
+
+- Resolved TRL updates run the trainer's backward once per score pack and
+  release each pack's graph, exact when no ratio segment spans packs (the
+  graph-retaining path is kept otherwise). One forward per episode and chunked
+  sampled-token log-probabilities.
+- SAMPO defaults to the authors' per-turn objective (`turn-rows`).
+- Environments move from `11f4d712` to a `verifiers-environments` main commit
+  whose AutomationBench worlds are deterministic per call and whose vendored
+  simulator equals AutomationBench `1.0.5.post3`. Simulator fixes change some
+  task outcomes; re-baseline evaluations on the new revision.
+- Verifiers `0.3.2.dev102` (`74dd3fbf`), Trackio `0.31.5.post14.dev35`.
+
+### Fixed
+
+- Colocated vLLM failed to wake after updates while frozen scores, ratios or a
+  retained evaluation graph held GPU memory.
+- Purge previews treated a run as missing its tracking run when a later
+  reconciliation had found it, blocked forever on lineage for runs whose
+  tracking plane was settled, inferred receipt ownership from a leftover run
+  directory, and could not settle a receiptless `submitted` admission entry.
+- The TRL generator kept leading assistant whitespace on a full re-render, and
+  train-client policy messages carried `provider_state`, splitting episodes.
+
 ## 0.4.14 - 2026-10-02
 
 The resolved policy update engine: an explicit `policy_updates` selection on

@@ -1,0 +1,998 @@
+{
+  "schema_version": 1,
+  "review_kind": "public_input_policy_and_manifest_capability_review",
+  "batch_number": 3,
+  "batch_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-03.json",
+  "batch_sha256": "689535bbc1dec2ab553ceae4f7ae60f1eb4e88e2f356a64c59e10b3b21f5ff15",
+  "index_path": "docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batches.json",
+  "pack_selection_sha256": "4a793692488e27ebd87b47c019c3c5a7efb69ebcf1ffe3c6518bea58a1583e00",
+  "index_selection_sha256_at_review": "13d326e79af6c064300d7aaeb6cf1b02fb7f14f8a50622cc3648ae8ce87798a3",
+  "provenance_note": "The index hashes exact selection-file bytes; packs hash canonical JSON selection contents. The exact pack hash and ordered task identities must match the index. Public-input hashes bind the complete inputs; hashes do not certify policy interpretation.",
+  "reviewed_task_count": 10,
+  "component_proposal_count": 0,
+  "accepted_manifest_count": 0,
+  "full_task_qualified_count": 0,
+  "source_boundary": {
+    "used": "Public prompts, initial worlds, named tools and current reusable capability schemas only.",
+    "not_used": [
+      "Hidden assertions or answers",
+      "Task-specific reward predicate code",
+      "Recorded episode contents or outcomes"
+    ],
+    "qualification_refs": "Copied for later exact-SHA replay only; not read or used as normative policy."
+  },
+  "classification_rules": [
+    "Only explicit or reviewed scoped prohibitions can generate negative credit; missing goals and verifier-validation conditions are distinct.",
+    "The system requires silent handling of excluded items; lower-priority procedural requests cannot mandate rejected-item narration.",
+    "No fixture ID pattern, record ordering or teacher prose becomes production policy.",
+    "Recipient-only findings do not establish message purpose or useful action credit.",
+    "Empty candidate populations and partial component outcomes do not establish task completion."
+  ],
+  "capability_snapshot": {
+    "source_files": [
+      "contracts/models.py",
+      "contracts/populations.py",
+      "contracts/predicates.py",
+      "contracts/values.py",
+      "contracts/sheet_effects.py",
+      "contracts/obligations.py"
+    ],
+    "repository": "/home/hammad/projects/verifiers-environments-reward-candidate-20261003/environments/automationbench_v1",
+    "available": "Opportunity fields/coverage; initial Gmail/Opportunity populations; Sheets populations; Asana, Gmail and newly registered Sheets row-write effects; guarded/required effects; typed comparisons and derived decimal/date values.",
+    "limits": "New decimal/date and Sheets capabilities are acknowledged, but do not supply absent service adapters, arbitrary content semantics, closed grouping, request singleton population or unresolved authoring decisions. This review does not certify their native qualification."
+  },
+  "component_manifest_proposals": [],
+  "no_executable_proposal_reason": "No task in this batch requests a supported Opportunity update or Asana action. Supported Gmail/Sheets mechanics alone do not express the requested purpose, grouped content or authorized output destination. No arbitrary email/row write is proposed merely to inflate coverage.",
+  "tasks": [
+    {
+      "task_name": "support.helpcrunch_engagement_scoring",
+      "public_input_sha256": "fc90062dd67b808f5d7d06ca2279c15f6043d558263531adfc57c96d366b8f68",
+      "goals": [
+        "Compute engagement scores from the scoring and tier sheets, tag each customer, create events for significant changes, alert growth about disengaged accounts, and post the dashboard."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Use page_view=1, feature_use=3 and support_contact=2; apply the declared 2x recent-activity multiplier and tier intervals.",
+        "Email uses Gmail; reporting preserves requested source amounts."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_engagement/ws_scoring]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_engagement/ws_tiers]"
+        },
+        {
+          "public_path": "helpcrunch.customers"
+        }
+      ],
+      "review_conclusions": [
+        "The eight named engagement examples yield 68, 60, 35, 35, 15, 14, 2 and 7 under the declared model and ordinary recent-event interpretation. These illustrate computation, not production identity lists.",
+        "Additional customers have activity dated after the simulated February 7 clock. Their IDs cannot be used as exclusion policy."
+      ],
+      "ambiguities": [
+        "The significance threshold and baseline for change events are unspecified.",
+        "Define the seven-day boundary and future-event treatment. Customers with no qualifying past events cannot disappear merely because their IDs look synthetic."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "service": "helpcrunch",
+          "collection": "customers",
+          "key": [
+            "id"
+          ]
+        },
+        "decision": {
+          "kind": "closed_nested_activity_sum",
+          "weights_from": "ss_engagement/ws_scoring",
+          "tier_intervals_from": "ss_engagement/ws_tiers",
+          "as_of": "2026-02-07",
+          "future_events": "unresolved",
+          "significant_change": "unresolved"
+        },
+        "effects": [
+          "helpcrunch tier tag retained state",
+          "helpcrunch engagement-assessed occurrence conditional on a qualified change",
+          "Gmail disengaged-account content",
+          "Slack growth-metrics dashboard"
+        ]
+      },
+      "capability_gaps": [
+        "HelpCrunch population and qualified tag/event effects",
+        "Bounded nested aggregation and score-to-tier decisions",
+        "Initial tier/change semantics and purpose-qualified grouped reports"
+      ],
+      "adversarial_cases": [
+        "Activity at the seven-day boundary and after the task clock.",
+        "Known tier change versus missing baseline; initial tag already correct.",
+        "Wrong score with correct tag; repeated event does not multiply progress."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/311ea44d3a40afe28b495a4280eabfbb9862a7c83d21233779afe505275ee33d/episode.json",
+        "episode_sha256": "c5168848b55beee19d6d83078ee28fb19acf74e1039e062547a74f3d5ce7ed8f",
+        "trace_ids": [
+          "86f2f23e98394b10af2c2fe4dc87a0d0"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "finance.xero_vendor_onboard",
+      "public_input_sha256": "18fe2dd354310c4eb56ba6bbe822de062e745103f5a3218ca756848da1d975d9",
+      "goals": [
+        "Create approved, verified new vendors as Xero suppliers and confirm additions in the originating Slack thread."
+      ],
+      "prohibitions": [
+        "Do not add vendors missing company, contact email or a valid tax ID, or vendors with a known sanctions flag.",
+        "Do not change existing contact details without the required signed change request.",
+        "Do not configure payment terms during setup."
+      ],
+      "goal_constraints": [
+        "Preserve source values verbatim.",
+        "The task system's silent-exclusion instruction precludes the procedure's request to narrate rejected vendors."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_vendor_proc]"
+        },
+        {
+          "public_path": "slack.messages[channel=vendor-requests]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_vendor_compliance/ws_sanctions]"
+        },
+        {
+          "public_path": "xero.contacts"
+        }
+      ],
+      "review_conclusions": [
+        "CloudNine already exists with a different billing email; approval to onboard does not prove authority to alter existing details.",
+        "The other visible requests have missing fields or a sanctions flag; creating a contact merely to produce positive signal is not justified."
+      ],
+      "ambiguities": [
+        "Existing-vendor matching and duplicate treatment need an explicit rule.",
+        "Absence of a signed form from a partial capture is not proof that no form exists.",
+        "Clarify whether the sanctions-sheet flag is within the procedure's 'known flag' scope rather than relying on fixture expectations."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "service": "slack",
+          "collection": "vendor request threads",
+          "key": [
+            "channel_id",
+            "thread_ts"
+          ]
+        },
+        "decision": {
+          "required_fields": [
+            "company",
+            "contact_email",
+            "tax_id"
+          ],
+          "approval": "source-bound approval fact",
+          "sanctions": "exact vendor join",
+          "existing": "Xero identity match",
+          "change_form": "qualified initial authority evidence"
+        },
+        "effects": [
+          "Xero supplier contact creation or justified initial satisfaction",
+          "Slack confirmation joined to the originating request thread"
+        ],
+        "blocked_fields": [
+          "payment_terms",
+          "existing contact details without authorization"
+        ]
+      },
+      "capability_gaps": [
+        "Xero contacts and Slack thread effect adapters",
+        "Source-bound request/approval/identity facts and closed authority lookup",
+        "Baseline-aware duplicate handling"
+      ],
+      "adversarial_cases": [
+        "Existing supplier with changed email but no form.",
+        "Sanctioned vendor with complete fields; tax ID text PENDING.",
+        "Correct confirmation in the wrong Slack thread; rejected vendor named in output."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/89004f39a08368ed73ea9ab4edd6d7502c77570c7f3c9ee1156ae726ed4542cb/episode.json",
+        "episode_sha256": "8002125feeb1986bbf5b013d0ee9966dd078ccb6e94271a5702d9c32d30c165c",
+        "trace_ids": [
+          "1ce5670284ce46d899f075f03cd9339b"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "hr.candidate_research_dossier",
+      "public_input_sha256": "80c86abe0dbc2daf905218dbbb4ba544293c00e889468811ce86c16fcc3d305a",
+      "goals": [
+        "Prepare source-grounded candidate dossiers and a prep brief for each panel member; handle background checks through the authorized process."
+      ],
+      "prohibitions": [
+        "Do not perform external research or LinkedIn lookup for the internal-transfer candidate.",
+        "Do not initiate third-party background checks directly; use the coordinator process."
+      ],
+      "goal_constraints": [
+        "Apply the withdrawal update before forming interview obligations.",
+        "Use the supplied performance record for the internal transfer and retain panel-specific focus.",
+        "A requested draft brief does not automatically authorize or require sending that brief."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_interview_prep/ws_schedule]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_app_vasquez]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_app_obrien]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_internal_transfer]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_bgcheck_policy]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_cancelled_interview]"
+        },
+        {
+          "public_path": "linkedin.profiles"
+        },
+        {
+          "public_path": "slack.messages"
+        }
+      ],
+      "review_conclusions": [
+        "The initial LinkedIn profiles contain identity/URL data, not the full experience claims from application emails.",
+        "Available tools include neither LinkedIn research nor third-party background checks. Their absence must remain visible in coverage."
+      ],
+      "ambiguities": [
+        "The schedule does not identify which candidates are finalists.",
+        "The destination and representation of draft dossiers/briefs are unspecified.",
+        "The controller must distinguish accessible initial LinkedIn data from a prohibited external lookup action."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "source": "ss_interview_prep/ws_schedule",
+          "key": [
+            "Candidate",
+            "Interview Date"
+          ],
+          "expand": "candidate x panel member after cancellation reconciliation"
+        },
+        "decision": {
+          "background_check": "only independently qualified finalists",
+          "internal_transfer": "use supplied performance evidence",
+          "content": "facts bound to candidate and panel focus"
+        },
+        "effects": [
+          "prepared brief artifact or declared destination",
+          "authorized coordinator request containing candidate and role"
+        ],
+        "access_guards": [
+          "external research for internal-transfer candidate"
+        ]
+      },
+      "capability_gaps": [
+        "Source-bound fact projection, panel expansion and draft-artifact evidence",
+        "Access/read-event evidence for negative research guards",
+        "Finalist population and output mode authoring"
+      ],
+      "adversarial_cases": [
+        "Withdrawn candidate remains Confirmed in sheet.",
+        "Correct panel address but unrelated message.",
+        "Unsupported LinkedIn claims; internal candidate looked up externally then repaired.",
+        "Interviewee incorrectly treated as finalist."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/7c22d86f8e86ca84bcc669162647629ff3fa9f7711cda6244f2bca354ee0292e/episode.json",
+        "episode_sha256": "f0983b575c775e4523dca279626feb9f7a651aafb686136127dcf0d06301e94f",
+        "trace_ids": [
+          "f482d86248fe4af8a4656fbcb729fb0e"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "marketing.google_ads_high_intent_list_from_hubspot",
+      "public_input_sha256": "28816fe479b71282e488731b101f1b32d72087ae5c71415a4b58a38b09dc4879",
+      "goals": [
+        "Add eligible strong-buying-signal contacts to High Intent in Google Ads account acc_1."
+      ],
+      "prohibitions": [
+        "Do not add opted-out, excluded, duplicate or demo-requested contacts."
+      ],
+      "goal_constraints": [
+        "The internal demand-generation policy sets lead score >=80; the external partner's 70+ recommendation does not establish a replacement rule.",
+        "Use exact account/list identity and preserve uniqueness."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_hi_policy]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_hi_partner]"
+        },
+        {
+          "public_path": "hubspot.contacts"
+        },
+        {
+          "public_path": "google_ads.customer_lists"
+        }
+      ],
+      "review_conclusions": [
+        "Known disqualifying fields support exclusions without requiring all other contacts to be resolved.",
+        "A missing demo_requested property cannot silently become false without an installed/public default contract."
+      ],
+      "ambiguities": [
+        "Missing boolean properties and unscored contacts need qualified default or unknown semantics.",
+        "Free-text competitor/duplicate/exclusion notes need reviewed facts or a reusable qualified semantic strategy."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "service": "hubspot",
+          "collection": "contacts",
+          "key": [
+            "id"
+          ]
+        },
+        "decision": {
+          "score_minimum": 80,
+          "opt_out": false,
+          "demo_requested": false,
+          "notes_exclusions": "source-bound reviewed facts",
+          "duplicate_identity": "explicit canonical-contact relation"
+        },
+        "effects": [
+          {
+            "service": "google_ads",
+            "action": "add email to customer list",
+            "account_id": "acc_1",
+            "list_name": "High Intent",
+            "list_id": "list_hi"
+          }
+        ]
+      },
+      "capability_gaps": [
+        "HubSpot property population and typed string parsing",
+        "Google Ads membership effect and retained-state evidence",
+        "Reviewed note facts and missing-property semantics"
+      ],
+      "adversarial_cases": [
+        "Score 79/80, string false vs missing, demo requested.",
+        "Personal duplicate email and same-name distinct people.",
+        "Wrong account/list; duplicate addition; missing late capture does not erase a qualified forbidden addition."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/fbddf1dcaffe74f97df66dbd863503cc19b3f2c6f020f466e3beb731e29afc67/episode.json",
+        "episode_sha256": "ecbc6075fd99a9a52a162db405abd9e2f21f77427967d3d613a4ab2adcff18b3",
+        "trace_ids": [
+          "ca7cfdf5c0cb47ee81372ce5a9dfc3f3"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "operations.docusign_contractor_offboard",
+      "public_input_sha256": "6a3d864d808cbd34cab949bf1990d24fd9786e9f72519335100dc8519ac8fbbc",
+      "goals": [
+        "Offboard exactly the single most-critical eligible contractor using DocuSign, Trello, Notion, and Slack notifications."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Restrict to January 27–February 2, Active status and signed NDA.",
+        "Choose earliest End Date, then clearance High > Standard > None.",
+        "Use Contractor Exit Agreement; CC hr@company.example.com and legal@company.example.com; track on brd_hr and document under pg_offboarding."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_contractors/ws_active]"
+        },
+        {
+          "public_path": "docusign.templates"
+        },
+        {
+          "public_path": "slack.users"
+        }
+      ],
+      "review_conclusions": [
+        "The public ordering selects Alex Rivera ahead of Alex Chen on the shared January 30 date. This is a derived example, not a manifest candidate-ID list."
+      ],
+      "ambiguities": [
+        "A complete tie after the specified ordering has no declared final tie-breaker.",
+        "Exact document prose/checklist is not prescribed."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "source": "ss_contractors/ws_active",
+          "key": [
+            "Email"
+          ]
+        },
+        "decision": {
+          "filter": {
+            "date_interval": [
+              "2026-01-27",
+              "2026-02-02"
+            ],
+            "Status": "Active",
+            "NDA Signed": "Yes"
+          },
+          "unique_order": [
+            [
+              "End Date",
+              "ascending"
+            ],
+            [
+              "Security Clearance",
+              [
+                "High",
+                "Standard",
+                "None"
+              ]
+            ]
+          ],
+          "count": 1
+        },
+        "effects": [
+          "DocuSign created envelope linked to exact template, signer, CCs and send",
+          "Trello tracking card on brd_hr",
+          "Notion child under pg_offboarding",
+          "Slack hr-ops and identified manager notification"
+        ]
+      },
+      "capability_gaps": [
+        "Unique ordered selection over a complete eligible population",
+        "DocuSign envelope workflow and generated-ID joins",
+        "Trello, Notion and Slack qualified effects/content"
+      ],
+      "adversarial_cases": [
+        "Ineligible earlier contractor; same-name contractors.",
+        "Unresolved full tie or missing population member.",
+        "Wrong template with similar name; draft envelope never sent; correct channel but wrong manager."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/d89a2feb503042581794f5ea89aae808329f1f7a7baf5b84fe0629ce94bae56c/episode.json",
+        "episode_sha256": "a1d9bc582c7ceb99f33c45565b53a9fcf01228e50a2277a407a13a6fbbf88814",
+        "trace_ids": [
+          "2800006842bf41269a229e651f335ee9"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.slack_channel_for_new_account",
+      "public_input_sha256": "7e0e05520ad75738abbeff5bef80bd281450ab99cae2a5bdccf0206683c04bd1",
+      "goals": [
+        "Create the dedicated Pinnacle Financial Group Slack channel, invite its account team, and record the created channel in Salesforce."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Channel naming follows acct- plus lowercase account name with hyphens.",
+        "Account team comes from that account's contacts whose description contains Account Team.",
+        "Resolve contacts to Slack users by email and bind CRM update to the actual created channel."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "slack.messages[id=msg_guidelines_001]"
+        },
+        {
+          "public_path": "salesforce.accounts"
+        },
+        {
+          "public_path": "salesforce.contacts"
+        },
+        {
+          "public_path": "slack.users"
+        }
+      ],
+      "review_conclusions": [
+        "The rules derive acct-pinnacle-financial-group and Sarah Chen, Marcus Johnson and Emily Rodriguez. A contact on the similarly named Partners account is not in this population.",
+        "The current record adapter supports Opportunity only; Account cannot be substituted."
+      ],
+      "ambiguities": [
+        "The Salesforce field/representation for the channel reference is unspecified.",
+        "Privacy, greeting and channel topic are not required by the supplied guidelines."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "service": "salesforce",
+          "collection": "contacts",
+          "key": [
+            "id"
+          ],
+          "join": "account_id equals the uniquely resolved target Account"
+        },
+        "decision": {
+          "team_condition": "description contains Account Team",
+          "channel_name": {
+            "prefix": "acct-",
+            "input": "account.name",
+            "transforms": [
+              "lowercase",
+              "spaces to hyphens"
+            ]
+          },
+          "users": "exact contact email to Slack user join"
+        },
+        "effects": [
+          "Slack channel creation with returned channel ID",
+          "retained invitations/membership for identified team",
+          "Salesforce Account reference to that same channel"
+        ]
+      },
+      "capability_gaps": [
+        "Account/contact populations, source string transforms and exact user lookup",
+        "Slack channel/membership effects",
+        "Salesforce Account field capability and output-ID relation"
+      ],
+      "adversarial_cases": [
+        "Pinnacle Financial Group versus Partners.",
+        "Escalation-only contact versus account team; duplicate email lookup.",
+        "Correct channel name but CRM points to another channel; invite then remove.",
+        "Arbitrary topic change must not earn required-goal credit."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/fc1bfb54115235d28b9639846b80b787ebb39614d07d8181ec8c9e21b3f97925/episode.json",
+        "episode_sha256": "282665f31f1b4e4b4139eb4bad53db8ac1fff2ece5162da8b7d3f2d653b6ca69",
+        "trace_ids": [
+          "aac84c30a8384becb8f9bbc678fba825"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.zoom_calendar_sync",
+      "public_input_sha256": "0ecd98e7749faa118508e291144385ff0869ff02bf88f3bfc0fa15bedf7aa3af",
+      "goals": [
+        "Create a Zoom meeting and matching Google Calendar event for Onboarding Call with Helix Corp on March 2, 2026 at 9 AM for 45 minutes, hosted by agent@company.example.com."
+      ],
+      "prohibitions": [],
+      "goal_constraints": [
+        "Both created objects must agree on the declared topic, start time and duration.",
+        "The meeting and calendar outcomes require independent qualified evidence."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "google_calendar.events"
+        }
+      ],
+      "review_conclusions": [
+        "The calendar begins empty; the Zoom service is absent from the public initial world. Missing service is not a schema-qualified empty collection."
+      ],
+      "ambiguities": [
+        "No timezone is supplied. Do not invent UTC as a policy requirement.",
+        "Whether the event must contain the generated Zoom join URL is not explicit; treat it as a separate reviewed linkage requirement."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "kind": "singleton public request",
+          "key": [
+            "request identity"
+          ]
+        },
+        "decision": {
+          "topic": "Onboarding Call with Helix Corp",
+          "date": "2026-03-02",
+          "time": "09:00",
+          "duration_minutes": 45,
+          "host": "agent@company.example.com",
+          "timezone": "unresolved"
+        },
+        "effects": [
+          "Zoom meeting creation",
+          "Google Calendar event creation",
+          "declared cross-object field consistency"
+        ]
+      },
+      "capability_gaps": [
+        "Public singleton request population",
+        "Zoom and Calendar qualified effects",
+        "Explicit timezone and optional generated-link semantics"
+      ],
+      "adversarial_cases": [
+        "Correct local clock but wrong timezone.",
+        "Zoom creation succeeds but calendar creation fails.",
+        "45-minute meeting paired with 30-minute event.",
+        "Initial Zoom service absent; ACK or persisted result missing."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/359a2c6bbd02fbb62d3c71d654f8ea30e53daef2adde3950582b1c9b5f1fe0c1/episode.json",
+        "episode_sha256": "3c29ef0b07c02d0e8b25c81d0355ef8991b3e770785c363876bd991e6c5ddc31",
+        "trace_ids": [
+          "fa82d78cddb948fdb05549915aa671ac"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.helpscout_jira_bugs",
+      "public_input_sha256": "4c5bbe76cd2c4b6deca6a0a6c689f2d43237e5be5d789ccab601bb774600f170",
+      "goals": [
+        "Create Jira bugs for eligible HelpScout conversations, tag processed conversations, note their Jira references, and summarize to engineering."
+      ],
+      "prohibitions": [
+        "Respect the policy's domain, tag and status exclusions, including the explicit NeverProcess internal domain."
+      ],
+      "goal_constraints": [
+        "Use exact bug-report tag and active status unless a scoped override actually changes them.",
+        "Enterprise override explicitly relaxes tag exclusions; do not infer that it overrides every restriction.",
+        "Use Jira project SUP and link each created issue back to its originating conversation."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_triage_policy/ws_severity_map]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_triage_policy/ws_exclusions]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_triage_policy/ws_overrides]"
+        },
+        {
+          "public_path": "helpscout.conversations"
+        }
+      ],
+      "review_conclusions": [
+        "blockedcorp.co is not blockedcorp.com; bug and bug-reports are not the exact bug-report tag.",
+        "The 500 error example matches two severity rows, so declared precedence matters."
+      ],
+      "ambiguities": [
+        "Keyword search scope (subject, body or both) and multiple-match precedence are not explicit.",
+        "The processed tag's exact value is unspecified.",
+        "Review the enterprise override's broad wording against its narrower stated reason before assigning negative credit at a disputed boundary."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "service": "helpscout",
+          "collection": "conversations",
+          "key": [
+            "id"
+          ]
+        },
+        "decision": {
+          "rules_from": "ss_triage_policy",
+          "domain_match": "exact parsed domain",
+          "tag_match": "exact set membership",
+          "keyword_scope": "unresolved",
+          "severity_precedence": "unresolved",
+          "override_scope": "reviewed per source row"
+        },
+        "effects": [
+          "Jira issue creation",
+          "HelpScout tag update",
+          "HelpScout note containing same returned issue key",
+          "Slack engineering summary"
+        ]
+      },
+      "capability_gaps": [
+        "HelpScout/Jira service populations and effects",
+        "Domain/keyword matching with explicit precedence and scope",
+        "Generated issue-key joins and grouped report content"
+      ],
+      "adversarial_cases": [
+        "500 error matches Critical and Major.",
+        "Excluded tag with VIP override; closed VIP conversation.",
+        "Domain suffix/lookalike; singular/plural tag mismatch.",
+        "Correct Jira issue but note uses another issue key; repeated triage."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/8d51e224c11b714c881027e84e76380ec5cfc97a0ed0f5dc7d5c7bf1571cc615/episode.json",
+        "episode_sha256": "39d8cc051a5ad902ef23c75becf9e476ec7ccc0623b31143cadad892199be34f",
+        "trace_ids": [
+          "d6f1b59431454ff3b83c075776090c94"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "finance.monthend_journal_entries",
+      "public_input_sha256": "6228820f954e5847ec5d3129849199031e2bc54789d7ea39d59a9253b731d9ea",
+      "goals": [
+        "Prepare January accrual journal entries and email the controller a review summary with balanced debit and credit totals."
+      ],
+      "prohibitions": [
+        "Exclude VOID and Cancelled worksheet items."
+      ],
+      "goal_constraints": [
+        "Uninvoiced services debit the expense account and credit Accrued Liabilities; prepaid recognition credits Prepaid Expenses.",
+        "Recognize only the current month's prepaid portion.",
+        "Keep original source amounts distinct from any policy-derived journal amounts."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_monthend_sop]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_monthend/ws_accruals]"
+        }
+      ],
+      "review_conclusions": [
+        "The new shared decimal primitives can express division and rounding with an explicit tie mode. They cannot decide which interpretation of conflicting public instructions is authoritative.",
+        "At nearest-dollar half-up, the three example entries are 4201, 6000 and 8326; half-even makes the first 4200. These are conditional arithmetic examples, not admitted expected values."
+      ],
+      "ambiguities": [
+        "The direct request says do not round values from source data while the SOP says round accrual amounts. Preserving verbatim source amounts alongside clearly labelled derived entries is plausible, but requires an explicit reviewed interpretation.",
+        "Nearest-dollar tie behavior at 4200.50 is unspecified.",
+        "No destination for prepared journal entries is named; presence of a Sheets append tool does not require inventing a journal worksheet."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "source": "ss_monthend/ws_accruals",
+          "key": [
+            "Item"
+          ]
+        },
+        "decision": {
+          "filter_excluded_status": [
+            "VOID",
+            "Cancelled"
+          ],
+          "service_amount": "estimated amount",
+          "prepaid_amount": "total prepaid / period months",
+          "rounding": "unresolved authority and tie mode",
+          "balance": "closed sum(debits) equals closed sum(credits)"
+        },
+        "effects": [
+          "prepared entry evidence in an authorized representation",
+          "single grouped Gmail summary to controller@company.example.com with exact source and derived amounts distinguished"
+        ]
+      },
+      "capability_gaps": [
+        "Closed grouping/aggregation and source amount evidence",
+        "Prepared-output destination and rounded-versus-verbatim policy resolution",
+        "Purpose/content-qualified grouped notification"
+      ],
+      "adversarial_cases": [
+        "Half-dollar ties and repeated row IDs.",
+        "VOID row contributes to total; prepaid treated as full expense.",
+        "Balanced totals with wrong individual accounts or missing rows.",
+        "Correct controller address with unrelated email; multiple emails do not create per-row useful credit."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/3be01bf8c1f19c9628c19701759c2b5a33a54e2f3296305f7aee5efd0fed25ec/episode.json",
+        "episode_sha256": "297e32a110da11525a5ad0b38380d7761bad09eb13193b829e08881769195573",
+        "trace_ids": [
+          "e082992fc17e43a3980580828680f5e9"
+        ]
+      },
+      "full_task_ready": false
+    },
+    {
+      "task_name": "hr.trello_recruiting_event_coordination",
+      "public_input_sha256": "e9059fc8813b543195e4aab4e1b0712cc943b194b4f108d3e4f85348630a12a7",
+      "goals": [
+        "Coordinate the April 25 career fair and prepare recruiter-specific Trello work after checking current logistics."
+      ],
+      "prohibitions": [
+        "The supplied Q2 procurement policy prohibits new physical-goods purchase orders until lifted; its application to the direct swag request must be explicitly reviewed."
+      ],
+      "goal_constraints": [
+        "Facilities owns venue bookings; the later logistics message says the venue is already confirmed.",
+        "Recruiter cards should contain booth role and prep checklist, respecting the leave update."
+      ],
+      "validation_requirements": [
+        "Qualified service result/ACK and source-bound evidence are required; unchanged or missing collections cannot prove an action or universal absence.",
+        "Goal failure is separate from an authored prohibition; partial coverage is never whole-task completion."
+      ],
+      "authority": [
+        {
+          "public_path": "prompt"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_career_fair]"
+        },
+        {
+          "public_path": "gmail.messages[id=msg_procurement_freeze]"
+        },
+        {
+          "public_path": "slack.messages[venue confirmation]"
+        },
+        {
+          "public_path": "google_sheets.rows[ss_career_fair/ws_recruiters]"
+        },
+        {
+          "public_path": "trello"
+        }
+      ],
+      "review_conclusions": [
+        "The existing venue confirmation is an initial-satisfaction claim, not evidence that the agent made a fresh booking.",
+        "The sheet supplies Trello card IDs but the initial Trello action map does not establish that the cards exist.",
+        "Available Trello tools update/comment/find/list; no create action is named."
+      ],
+      "ambiguities": [
+        "Resolve direct swag-order wording against the requested logistics review and procurement freeze without inventing a universal sender hierarchy.",
+        "The on-leave recruiter's replacement is unnamed.",
+        "The board, prep-checklist content and create-versus-update interpretation need source-backed resolution."
+      ],
+      "data_only_blueprint": {
+        "status": "not_executable_until_listed_capabilities_and_policy_decisions_are_ready",
+        "population": {
+          "source": "ss_career_fair/ws_recruiters",
+          "key": [
+            "Email"
+          ]
+        },
+        "decision": {
+          "event_date": "2026-04-25",
+          "venue": "bind existing public confirmation; no new-occurrence reward",
+          "physical_goods": "freeze unless an authorized lifting fact exists",
+          "availability": "leave interval intersect event date",
+          "replacement": "unresolved"
+        },
+        "effects": [
+          "qualified Trello preparation updates for appropriate recruiter roles",
+          "only additional logistics actions justified by unresolved needs"
+        ],
+        "baseline": [
+          "Grand Ballroom, Downtown Convention Center; confirmation VEN-2026-0425"
+        ]
+      },
+      "capability_gaps": [
+        "Trello retained card state and update effects",
+        "Initial satisfaction and source-bound logistics facts",
+        "Purpose-aware purchase-order prohibition and replacement population"
+      ],
+      "adversarial_cases": [
+        "Venue already booked; unnecessary duplicate booking.",
+        "Email to supplier is inquiry versus an actual new purchase order.",
+        "Leave dates overlap event; no named replacement.",
+        "Sheet references a missing card; prep card lacks its assigned role."
+      ],
+      "component_proposal_ids": [],
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/hr-remaining-firstpass/b2e3b5d03793888c6189fd3d15bfbab58f2a4a38d20756adcfcb133ba398a6b8/episode.json",
+        "episode_sha256": "b94b3a444e71be9cf09fd2c69cb0e831a1f1ab0efa13726d2eb219412a5baf1d",
+        "trace_ids": [
+          "d0431d40c5b74c0e870e8934e1262492"
+        ]
+      },
+      "full_task_ready": false
+    }
+  ],
+  "shared_capability_families": [
+    {
+      "id": "slack-and-linked-records",
+      "priority": 1,
+      "minimum": "Qualify Slack channel creation/membership and messaging, then Salesforce Account reference updates with exact generated-channel joins.",
+      "benefit": "Directly grounded account-channel workflow; messages also support six other workflows without requiring a general framework.",
+      "next_tasks": [
+        "sales.slack_channel_for_new_account"
+      ]
+    },
+    {
+      "id": "paired-scheduling",
+      "priority": 2,
+      "minimum": "Qualify Zoom meeting and Calendar event creation plus explicit timezone and shared-field consistency.",
+      "benefit": "Small service adapters and a singleton request population; timezone remains a policy parameter.",
+      "next_tasks": [
+        "simple.zoom_calendar_sync"
+      ]
+    },
+    {
+      "id": "finite-policy-decisions",
+      "priority": 3,
+      "minimum": "Complete eligible-population selection, unique lexicographic minimum, scoped rule precedence and exact service populations. Reuse existing decimal/date predicates.",
+      "benefit": "Contractor ordering, HelpScout triage, HubSpot exclusions and engagement computation; no hard-coded expected row IDs.",
+      "next_tasks": [
+        "operations.docusign_contractor_offboard",
+        "support.helpscout_jira_bugs",
+        "marketing.google_ads_high_intent_list_from_hubspot"
+      ]
+    },
+    {
+      "id": "content-and-grouped-output",
+      "priority": 4,
+      "minimum": "Source-bound facts, explicit purpose and output mode, bounded sums/grouping, and generated-output joins. Optional registered semantic assessment must retain uncertainty and evidence.",
+      "benefit": "Journal summaries, dossiers and engagement dashboard cannot be established by recipient or append occurrence alone.",
+      "next_tasks": [
+        "finance.monthend_journal_entries",
+        "hr.candidate_research_dossier",
+        "support.helpcrunch_engagement_scoring"
+      ]
+    },
+    {
+      "id": "baseline-and-scoped-guards",
+      "priority": 5,
+      "minimum": "Qualified initial satisfaction, retained service state and access/order events; semantic purchase orders differ from mere messages.",
+      "benefit": "Existing Xero contact, already-booked venue, unavailable research and procurement restrictions remain distinct.",
+      "next_tasks": [
+        "finance.xero_vendor_onboard",
+        "hr.trello_recruiting_event_coordination"
+      ]
+    }
+  ],
+  "next_actions": [
+    "Review the account-channel field representation and Zoom timezone before authoring exact components.",
+    "Extend reusable service capabilities in the environment candidate; preserve manifest-only task authoring.",
+    "Promote only bounded components with native scoring/reload, mutation and missing-evidence cases; retain all remaining goals as open."
+  ],
+  "validation": {
+    "schema_validation": "No executable ContractSpec proposed; schema-validation count is zero, not ten. Deferred blueprints are explicitly not ContractSpec.",
+    "public_binding_validation": "Exact batch SHA and index task order pass; all ten canonical public-input hashes pass; exact-byte and canonical-JSON selection hashes independently pass.",
+    "capability_validation": "Imported current ContractSpec schema: Sheets row writes and derived decimal/date values are present. Account RecordSource rejects with record_object_capability_unimplemented. Zoom, Calendar, Slack, HelpScout, Xero and Google Ads adapters are absent from the schema. No executable proposal validation or native scoring is claimed.",
+    "native_task_scoring": "not_run_by_reviewer"
+  }
+}

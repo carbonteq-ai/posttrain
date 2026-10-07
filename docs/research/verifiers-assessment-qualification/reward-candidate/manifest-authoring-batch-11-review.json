@@ -1,0 +1,608 @@
+{
+  "schema_version": 1,
+  "review_kind": "public_input_policy_and_manifest_capability_review",
+  "batch_number": 11,
+  "batch_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-11.json",
+  "batch_sha256": "a448ca6f4eea22e13631a136a1d938b3ef05ea7f47e547a62e78ca6231ad8e0e",
+  "index_path": "docs/research/verifiers-assessment-qualification/reward-candidate/manifest-authoring-batches.json",
+  "pack_selection_sha256": "4a793692488e27ebd87b47c019c3c5a7efb69ebcf1ffe3c6518bea58a1583e00",
+  "index_selection_sha256_at_review": "13d326e79af6c064300d7aaeb6cf1b02fb7f14f8a50622cc3648ae8ce87798a3",
+  "reviewed_task_count": 5,
+  "component_proposal_count": 0,
+  "accepted_manifest_count": 0,
+  "full_task_qualified_count": 0,
+  "source_boundary": {
+    "used": "Public prompts, initial state, tool inventory and shared capability schemas.",
+    "not_used": [
+      "Hidden answers/assertions",
+      "Task-specific scoring functions",
+      "Recorded episode contents/teacher action paths"
+    ],
+    "qualification_refs": "Copied only for immutable future replay; no policy inferred from them."
+  },
+  "capability_snapshot": {
+    "available": "Initial Sheets/Gmail/Opportunity populations, typed/derived predicates, qualified Sheets writes, Gmail send and Asana effects, exact Opportunity record fields and retained Sheets checks.",
+    "qualification_limit": "Draft review adds no native qualification, installed manifests or credit policy. Existing source admission and retained-completion tests do not supply missing service/content semantics.",
+    "gaps": "Instagram and Slack effects, Intercom/Gmail drafts/read state, request population, reusable content/action-item/model-result facts and bounded template selection."
+  },
+  "component_manifest_proposals": [],
+  "tasks": [
+    {
+      "task_name": "marketing.instagram_approved_asset_publish",
+      "domain": "marketing",
+      "family": "marketing.social-and-community",
+      "public_input_sha256": "beadcd3fefed4e87cac663ba742208420a0121204b26aa2353a35124ba7f0ee0",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/timed/5ade1cb453859e53c97a2a7eb31130bc640aeef1bf229ac9485a0e695840be4f/episode.json",
+        "episode_sha256": "c807eb0af2643a81f23663d881712723cd4e17f6af640b1c931bbe34d05d5726",
+        "trace_ids": [
+          "b978dd4d493f4f548e18f3950e1f9b4d"
+        ]
+      },
+      "goals": [
+        "Publish the requested week's Ready AI Assist Launch photo using its exact source image URL and caption.",
+        "After publication, the supplied social-ops reminder requests a channel notification identifying the caption and image URL actually used; preserve its authority caveat."
+      ],
+      "prohibitions": [
+        "Skip Scheduled for Later, Needs Revision and other campaigns.",
+        "Honor the explicit row-level legal HOLD; Ready alone does not discharge trademark clearance.",
+        "Apply the system instruction to omit skipped/excluded entities from output narratives."
+      ],
+      "goal_constraints": [
+        "Week is explicitly 2026-01-26; campaign equality must not include AI Assist Launch Series.",
+        "No public requirement or available write tool requires marking the calendar Posted."
+      ],
+      "authority": [
+        "User and simulated local clock; ss_ig_cal/ws_queue; held row's notes; social-ops message from U_SOCIAL_MGR."
+      ],
+      "review_conclusions": [
+        "The publicly eligible unheld row supplies https://img.example.com/ig-aiassist.png and caption Meet Nimbus AI Assist - support that scales.; these are derived source values, not a fixed expected-output list.",
+        "Publication and a truthful notification are separate qualified effects; reporting success cannot substitute for publishing."
+      ],
+      "ambiguities": [
+        "U_SOCIAL_MGR has no directory entry establishing a managerial role. Treat the supplied workflow reminder as a reviewed authority choice, not a proven role based on its ID.",
+        "The simulated clock has no timezone; do not compare it as a global instant to Slack timestamps."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial calendar rows in the declared spreadsheet/tab, identified by native member identity.",
+        "policy": "Requested week AND exact campaign AND Ready AND no active legal hold; preserve explicit skip conditions.",
+        "goal": "Qualified Instagram photo occurrence with exact URL/caption; linked social-ops notification of those same published facts.",
+        "execution_status": "Deferred; no registered Instagram/Slack manifest effects.",
+        "public_source_bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "2d84e27620d44dcab6de4c5ad9772c170378fa0b9a0d4c318f28c492e04a4016"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              5,
+              "cells",
+              "notes"
+            ],
+            "canonical_sha256": "1cbe4e16f36129fa73c8007c9fcd3674a03600e6e27d17ad347211aaff2969cb"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "messages",
+              0
+            ],
+            "canonical_sha256": "95faaf87231670380c65fa456147e49c860a168dcf45b01f942d6cc0a8ea5323"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "worksheets",
+              0,
+              "headers"
+            ],
+            "canonical_sha256": "7bde29d8f42bf42814b3fb08a825e50177ed0a0451279ee7c24a98fd88fdd0d8"
+          }
+        ]
+      },
+      "capability_gaps": [
+        "Instagram photo effect adapter and Slack channel-message evidence adapter.",
+        "Reviewed note-based hold facts without task-specific parsing; content-fact matching for the publish notification.",
+        "Goal/guard closure over the finite calendar population and publication inventory."
+      ],
+      "adversarial_cases": [
+        "Ready legal-hold row must not pass.",
+        "AI Assist Launch Series and next week's Ready row must not pass.",
+        "A correct notification after a failed publish is not completion.",
+        "Do not award duplicate completion for repeated publication."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "operations.chatgpt_feedback_analysis",
+      "domain": "operations",
+      "family": "operations.customer-and-marketing-workflows",
+      "public_input_sha256": "cb3ee3ee129ea5812f4ddf02a0499ddb10d399e5b70a48d20bc774856496d227",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/aadb91d785c8f4049826074710ff3a89092f78e94631ae7e3448586d6eb2b61c/episode.json",
+        "episode_sha256": "499275a11688e5c9702cef871265e9a4c5c5b47a8b5568732031f5194f30f19e",
+        "trace_ids": [
+          "d601d795e07940efb2de67dfe9688201"
+        ]
+      },
+      "goals": [
+        "Process unread external Feedback emails in the requested date scope through ChatGPT sentiment analysis and the effective routing configuration.",
+        "Mark processed emails read, including held feedback explicitly covered by the override."
+      ],
+      "prohibitions": [
+        "Skip PROCESSED-labeled and internal @company.example.com emails.",
+        "Do not post neutral, self-resolved or seasonal-held feedback to any Slack channel.",
+        "Keep excluded entities out of output narratives under the system instruction."
+      ],
+      "goal_constraints": [
+        "Negative enterprise/corp domains include group under the Q1 override and require customer-issues plus vip-escalations; other negative feedback routes only to customer-issues.",
+        "Positive feedback routes to customer-wins with customer email and summary, except overriding holds/resolution rules.",
+        "Preserve included source values verbatim; no requirement to add a PROCESSED label is stated."
+      ],
+      "authority": [
+        "User's date/scope; ss_feedback_config/ws_routing_rules and ws_routing_overrides_q1; each email's actual headers/body/labels."
+      ],
+      "review_conclusions": [
+        "The account-specific resolution update in upset@megacorp feedback overrides its earlier negative tone.",
+        "The seasonal rule applies to body text as well as domain: positive techdynamic feedback mentioning winter/seasonal is held.",
+        "The request requires agent use of ChatGPT. Its output is an attributable model result, not automatically a verified sentiment fact; uncertainty/disagreement must remain visible."
+      ],
+      "ambiguities": [
+        "Last 24 hours, since January29, and today January29 do not supply an exact end time/timezone. Do not invent one.",
+        "Keyword case/boundaries and resolution-language negation need declared semantics; naive substring resolved also matches not resolved.",
+        "A summary may paraphrase feedback meaning while copied source values must remain verbatim; exact whole-message templates would narrow valid outputs."
+      ],
+      "data_only_blueprint": {
+        "population": "Initial Gmail messages satisfying unread, subject/date and external/unprocessed conditions, keyed by native message ID.",
+        "policy": "Apply effective Q1 domain expansion; seasonal and self-resolution overrides dominate sentiment routing.",
+        "goal": "Source-bound ChatGPT result, appropriate per-email Slack channel set/content, and retained read status; zero Slack effects for explicit holds.",
+        "execution_status": "Deferred; procedural tool-output, Slack and read-status capabilities missing.",
+        "public_source_bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "8c5dc6306e2c58dc265aff74fa0938e2b9a5f0c9956515cde1af54479c5e5140"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              0,
+              "cells"
+            ],
+            "canonical_sha256": "a1b893dca3cd9082e7d753459b746185b4f65f1f9c029dd39f64bbd9814a7b6d"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              1,
+              "cells"
+            ],
+            "canonical_sha256": "9026ce1fd8763defe1e0ddaf4d24eb1c420ca05b10f60d57da7fe8962b1a7f25"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              2,
+              "cells"
+            ],
+            "canonical_sha256": "cb5671e3c2386e4dd69f75294ca95d5f1dbd51ae136349f8c3b5a1c81fcc30fc"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              3,
+              "cells"
+            ],
+            "canonical_sha256": "c64ebd67c6eada9a995b04c9b56b4af413cc216b16e266c865b846f28929ff67"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              4,
+              "cells"
+            ],
+            "canonical_sha256": "4ac30abf5bcafc6421e3686a8eed28ad57c5f5dd99ba2a79d39eb063f280d055"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              5,
+              "cells"
+            ],
+            "canonical_sha256": "e06c4e2967bfbb6ea3717297add6e25b998a1ee0c5f6e0166a2f9a5c4a6d78b3"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              6,
+              "cells"
+            ],
+            "canonical_sha256": "47a61471b13e9054c14a238d7b5f2d6a87d8248652a656b10bd629d25b3ce2e4"
+          }
+        ]
+      },
+      "capability_gaps": [
+        "Generic declared lexical/date-scope operations and effective policy precedence.",
+        "Source-bound model/tool-result facts with provenance and confidence; optional correctness assessment separate from tool-use evidence.",
+        "Slack send and Gmail read-state adapters; finite set-of-required-channels goals and prohibited-channel scope.",
+        "Content semantic facts without fabricated teacher prose or task-specific evaluators."
+      ],
+      "adversarial_cases": [
+        "Sender name happy does not prove positive sentiment.",
+        "group domains must follow the override; seasonal body text blocks posting even on an ordinary domain.",
+        "Resolution override must dominate a negative first paragraph.",
+        "Missing Slack capture cannot prove no prohibited post; mark-read alone cannot complete a required routed item."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "sales.call_transcription",
+      "domain": "sales",
+      "family": "sales.unresolved-workflows",
+      "public_input_sha256": "02372956836ee1d31017cba27143529cf305b515c9262da7f8e986aedab44560",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/781591da2a36d4487c936d1d3d4ed96eb7f924175dba19084c1ca3f69a330c45/episode.json",
+        "episode_sha256": "44e05c969db4c3e03a5037b79d99b5810db450ed1b5e381a77fb75ccc5623b97",
+        "trace_ids": [
+          "d5398458f2aa4b8483dd4417a5c6758a"
+        ]
+      },
+      "goals": [
+        "Extract the Discovery Call - Acme Corp action items and distribute follow-ups to their named owners.",
+        "Update the matching Acme opportunity and post a deal-channel summary including the relevant source amount."
+      ],
+      "prohibitions": [
+        "Do not narrate skipped or unrelated entities under the system instruction."
+      ],
+      "goal_constraints": [
+        "The meeting summary assigns Alice the pricing proposal by Friday, Bob the technical demo with the customer's IT team, and Carol the ROI analysis case study.",
+        "The linked opportunity amount is 150000.0 and the deal channel is deals-acme.",
+        "Accept semantically equivalent summaries and suitable owner-addressed messages; do not force an unrequested exact description or new sales stage."
+      ],
+      "authority": [
+        "User; the matching Zoom meeting summary and linked completed recording; Salesforce Acme account/opportunity; Slack user and channel directory."
+      ],
+      "review_conclusions": [
+        "Public initial data contains a meeting summary and recording URL, not an accessible transcript body or evidence that audio was downloaded.",
+        "The installed Opportunity exact-field checker cannot encode a useful arbitrary summary without inventing exact prose; checking unchanged amount or Discovery alone would pad coverage.",
+        "Alice Chen, Bob Smith and Carol Davis resolve through supplied Slack users; Dan and Eve have no action items in this meeting."
+      ],
+      "ambiguities": [
+        "Update the opportunity does not name mandatory fields or a new stage. A meaningful description/action-item update is plausible, but stage Proposal is not publicly mandated.",
+        "Friday is relative to the source meeting dated January15 2024, while other records use2026. Keep the source deadline wording unless a reviewed calendar interpretation is adopted.",
+        "The user asks review of the recording, but available tools expose meeting/recording metadata; do not claim audio transcription from a URL or summary alone."
+      ],
+      "data_only_blueprint": {
+        "population": "One reviewed public request joined by exact meeting topic -> recording meeting_id -> Acme account/opportunity and owner directory.",
+        "policy": "Manifest-authored action-item facts bound to the meeting summary, not a replay path or fabricated stage.",
+        "goal": "Owner-addressed follow-ups carrying the correct action/deadline; meaningful retained opportunity action-item update; deals-acme summary containing the relevant 150000 amount.",
+        "execution_status": "Deferred; request population, reusable prose facts and Slack evidence required.",
+        "public_source_bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "8a8c226339442b9077c65904d0c7f0d9143338fb4d7fbecfa17abf6da3b19a7e"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "zoom",
+              "meetings",
+              0
+            ],
+            "canonical_sha256": "92ca16a693aebcffb0d02e5c7511a713eb6a25097761b595491fe4198fb515f6"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "zoom",
+              "recordings",
+              0
+            ],
+            "canonical_sha256": "22a2398444819ffd8c82974f3660d67f7c261cc12fb811be719649f334d3b48d"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "salesforce",
+              "opportunities",
+              0
+            ],
+            "canonical_sha256": "4e2d41f652eff40e3c5c48f79c282afca5c7b7ec5e1caeec537f28a4ba26d264"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "users"
+            ],
+            "canonical_sha256": "eddf015f60a5539fe8e2b3ebd6b4ce0e51d776b0817ef15370863e9b5fd6f8a8"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "slack",
+              "channels",
+              0
+            ],
+            "canonical_sha256": "b6060a1490963ce9808bbbe86ed632db9b2a172aa09b087bd6dddeac63a267e8"
+          }
+        ]
+      },
+      "capability_gaps": [
+        "Reviewed request population plus source-bound semantic action-item facts.",
+        "Slack direct/channel message effects and owner identity resolution.",
+        "Content-aware retained Opportunity updates that accept valid paraphrases and preserve actual changed-field causality.",
+        "Separate evidence of metadata review from unsupported audio-transcription claims."
+      ],
+      "adversarial_cases": [
+        "Correct amount with no action items is not useful completion.",
+        "Sending every follow-up to Alice does not discharge Bob/Carol obligations.",
+        "A fixed Proposal-stage requirement would reject valid public-compliant updates.",
+        "Do not extract amounts/actions from unrelated channel chatter."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "simple.gmail_invoice_email",
+      "domain": "simple",
+      "family": "simple.email-communication",
+      "public_input_sha256": "16de24b482f6efd7cf73a3c55f8b973c943cd41d9558b01fee9216e390bc1589",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/b1cd1d1203f97b736c1a53ef952a6fc340ff3cabfec679d2cb92051face26504/episode.json",
+        "episode_sha256": "d8e3e7f59b4939d5250573ecf485f8ca4a56d5055de8240041634545e5736e25",
+        "trace_ids": [
+          "63daeaad685e45528307bbae4be04672"
+        ]
+      },
+      "goals": [
+        "Send Rachel Kim the requested invoice email with the exact subject and invoice/payment facts."
+      ],
+      "prohibitions": [
+        "Do not narrate skipped entities under the system instruction."
+      ],
+      "goal_constraints": [
+        "Recipient rachel.kim@globexfin.example.com; subject Invoice #INV-2026-0342 - February Services.",
+        "Body communicates $12,500 for February consulting services, Net 30 and file reference invoice_INV-2026-0342.pdf.",
+        "Reference to an attachment and proof of an attached file are separate facts."
+      ],
+      "authority": [
+        "User request; available gmail_send_email tool; empty initial Gmail messages/drafts."
+      ],
+      "review_conclusions": [
+        "This is the smallest complete-goal opportunity in the batch: one fresh qualified Gmail send with source-bound recipient, exact subject and body facts.",
+        "No attachment bytes, artifact reference or retrieval tool is supplied. A filename mention cannot itself prove physical attachment.",
+        "A recipient-only or exact-subject-only component would accept unrelated content and is deliberately not proposed."
+      ],
+      "ambiguities": [
+        "Resolve whether the simulator task asks a filename reference only or actual attachment evidence. Do not fabricate an artifact to make a full attachment claim.",
+        "Many polite bodies satisfy the facts; a single canonical body string would unnecessarily reject valid outputs."
+      ],
+      "data_only_blueprint": {
+        "population": "One explicitly reviewed public-request member carrying recipient, subject, amount, service period, payment terms and filename.",
+        "policy": "All facts must be true of the same qualified fresh Gmail send; text that denies the requested terms must not pass lexical-only checks.",
+        "goal": "Purpose-qualified invoice message; attachment status remains separately unavailable unless supported source evidence proves it.",
+        "execution_status": "Deferred until request population/content facts and attachment interpretation are qualified.",
+        "public_source_bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "409a037e7c76df3def225e5f9d22b3a41fa1690e6108cdc304b1789ef91fd0d4"
+          }
+        ]
+      },
+      "capability_gaps": [
+        "Reviewed source-bound request population without a fake Sheet.",
+        "Reusable message-content fact checks with negation/contradiction handling, keeping deterministic and optional model evidence distinct.",
+        "Attachment capability/evidence or explicitly bounded filename-reference semantics."
+      ],
+      "adversarial_cases": [
+        "An unrelated email to Rachel with the right subject is not completion.",
+        "Net 60, $1250 or a different invoice number must fail the corresponding fact.",
+        "Body saying invoice is not attached cannot pass a filename-token check.",
+        "Repeated sends/rescoring cannot multiply one obligation's completion credit."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    },
+    {
+      "task_name": "support.intercom_auto_response_drafts",
+      "domain": "support",
+      "family": "support.intercom-workflows",
+      "public_input_sha256": "12daf78946e6ed9cc428f09f43f15ea980ee09dac27ed2ee4301e2f52d79737f",
+      "qualification_source": {
+        "episode_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/luna-reference-campaign-01/remaining700/untimed/665719603cdd01414906fd0a9b80d1eef64c4a5c38711755735b790fec54d9aa/episode.json",
+        "episode_sha256": "d9b13897fc43256c5f6836e5d477d5027d9a1d60614a503e7011fc38ed2ff5bb",
+        "trace_ids": [
+          "b836ee79c4e74910976603d74826cd77"
+        ]
+      },
+      "goals": [
+        "Draft responses for open Intercom conversations using matching templates and track the work.",
+        "Include configured Batch_Reference in each draft/note and names/counts of affected entities in the applicable output messages."
+      ],
+      "prohibitions": [
+        "Do not expose skipped/excluded entities in summaries under the system instruction."
+      ],
+      "goal_constraints": [
+        "Drafts are the requested output; a Gmail send is not a substitute.",
+        "Use exact source template values and AUTO-RESP-20260210 batch reference.",
+        "Closed/snoozed states are outside the requested open population; no invented template is authorized for unmatched feedback/shipping tags."
+      ],
+      "authority": [
+        "User; ss_templates/ws_responses and ws_config; Intercom conversation status/tags and linked contact directory."
+      ],
+      "review_conclusions": [
+        "Amy's billing and Brad's login conversations have single template matches. Drew has both billing and login tags, so priority interpretation must be explicit.",
+        "The supplied template priorities are1 and2, but the public material does not explicitly define ranking direction or multi-template composition.",
+        "Intercom add-note is available for tracking; no mandatory spreadsheet log write or external summary channel is stated."
+      ],
+      "ambiguities": [
+        "Choose and review priority direction/tie policy for multi-tag matches; do not disguise an inference as explicit policy.",
+        "Tracked properly does not define a strict note-before/after-draft order or exact note wording.",
+        "No fallback response is specified for open conversations without a matching template; unresolved applicability must not be counted as completed.",
+        "Names/counts may be reported in a suitable final message or relevant notes; do not invent a destination."
+      ],
+      "data_only_blueprint": {
+        "population": "Native open Intercom conversations -> contact identity -> matching template candidates; exact Batch_Reference lookup.",
+        "policy": "Reviewed selection/cardinality rule for multiple tag matches; unavailable on unresolved template/contact/config ambiguity.",
+        "goal": "Persisted Gmail draft with correct recipient/template/batch reference and associated Intercom tracking evidence; report actual affected names/counts.",
+        "execution_status": "Deferred; Intercom population/notes, Gmail drafts and template-selection primitives missing.",
+        "public_source_bindings": [
+          {
+            "path": [
+              "task_evidence",
+              "prompt"
+            ],
+            "canonical_sha256": "537e87934ba4a914aeb7b1b66682d48f2905328af2a651299b4111bfd823446c"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              0,
+              "cells"
+            ],
+            "canonical_sha256": "233d121e4b285f8f7054b079ab0bdeca2e6a1fdfc7cbf42976520cbb3b737c64"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              1,
+              "cells"
+            ],
+            "canonical_sha256": "dfc7e7d9f18af0fcbd51d869b570c48ea270e39459eb484462720ceefa7c89a0"
+          },
+          {
+            "path": [
+              "task_evidence",
+              "initial",
+              "google_sheets",
+              "rows",
+              2,
+              "cells"
+            ],
+            "canonical_sha256": "340df974ca1a4fd2ac9d0d14c124027a7892395505f1a5d0324b84947b7ae121"
+          }
+        ]
+      },
+      "capability_gaps": [
+        "Intercom collection/relationship and note adapters; Gmail draft evidence distinct from send.",
+        "Finite candidate ranking/tie or declared composition operation over templates.",
+        "Generated draft/conversation linkage, exact copied-content facts and evidence-derived counts."
+      ],
+      "adversarial_cases": [
+        "Drafting for closed or snoozed conversations is outside the selected goal population; do not invent a universal harm rule merely from that scope.",
+        "An actual send does not satisfy the persisted-draft goal.",
+        "Incorrect contact or missing batch reference must fail even if template text is right.",
+        "One draft for two unrelated conversations cannot silently discharge both; notes claiming success without a draft do not complete the goal."
+      ],
+      "component_proposal_ids": [],
+      "full_task_ready": false
+    }
+  ],
+  "small_complete_task_opportunities": [
+    {
+      "task": "simple.gmail_invoice_email",
+      "next": "Request population plus same-send exact recipient/subject and semantic body facts; explicitly resolve filename-reference versus physical attachment evidence.",
+      "complete_now": false
+    },
+    {
+      "task": "marketing.instagram_approved_asset_publish",
+      "next": "Instagram publish adapter, reviewed hold facts and Slack notification evidence; exact selected image/caption keep the main outcome deterministic.",
+      "complete_now": false
+    }
+  ],
+  "shared_capability_families": [
+    {
+      "family": "qualified_message_and_draft_evidence",
+      "tasks": [
+        "marketing.instagram_approved_asset_publish",
+        "operations.chatgpt_feedback_analysis",
+        "sales.call_transcription",
+        "simple.gmail_invoice_email",
+        "support.intercom_auto_response_drafts"
+      ],
+      "minimum": "Add only requested service operations with actual ACK/result/persisted-state scope; distinguish drafts, sends, read state and attachments."
+    },
+    {
+      "family": "source_bound_content_and_request_facts",
+      "tasks": [
+        "sales.call_transcription",
+        "simple.gmail_invoice_email",
+        "support.intercom_auto_response_drafts"
+      ],
+      "minimum": "Reviewed request/action facts and template values become manifest data; reusable content checks accept paraphrases where allowed and reject contradictions. No per-task Python."
+    },
+    {
+      "family": "finite_policy_composition",
+      "tasks": [
+        "marketing.instagram_approved_asset_publish",
+        "operations.chatgpt_feedback_analysis",
+        "support.intercom_auto_response_drafts"
+      ],
+      "minimum": "Declare eligibility, override precedence, source authority and unresolved selection; expose partial inventories and ambiguous decisions rather than treating unknown as absent."
+    }
+  ],
+  "validation": {
+    "pack_hash_and_task_order": "pass",
+    "public_input_hashes": "5/5",
+    "selection_hashes": "Both canonical selection and exact selection-file hashes independently recomputed",
+    "contract_schema": "Not applicable: zero executable ContractSpec proposals",
+    "deferred_blueprint_bindings": "23/23 public digests match; 23/23 independently modified bound values mismatch; review JSON roundtrip pass",
+    "source_binding_model_admission": "23/23 SourceBinding admission and JSON roundtrip pass; no ContractSpec validation inferred",
+    "native_Task_score": "Not run; review only",
+    "whole_task_qualification": 0
+  }
+}

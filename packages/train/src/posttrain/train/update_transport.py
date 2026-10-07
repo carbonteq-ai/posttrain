@@ -1,63 +1,42 @@
 """Typed reconstruction of resolved checkpoint records, without recomputing credit.
 
-This decodes the existing native checkpoint sidecar. It does not authenticate a
+This decodes the native checkpoint sidecar. It does not authenticate a
 checkpoint: callers must verify its recovery seal and component hashes first.
-Only framework record types supplied by this module are instantiated.
+Only framework record types are instantiated, field by field.
+
+Schema v4 stores the population's conditioning views (with their sampled token
+indices), the prepared advantages as one list aligned with population
+positions, the objective selection and each occurrence's contributions and
+turns. The objective is recomputed from the frozen inputs and must reproduce
+its retained digest. Sidecars from the per-token engine (v1 to v3) are not
+readable by this engine.
 """
 
 from __future__ import annotations
 
 import math
-import types
-from dataclasses import asdict, dataclass, fields, is_dataclass
-from functools import lru_cache
-from typing import Any, Literal, TypeAliasType, Union, get_args, get_origin, get_type_hints
+from dataclasses import asdict, dataclass
+from typing import Any
+
+import numpy as np
 
 from .update_credit import PreparedCredit
 from .update_objectives import ObjectiveSpec, objective_population
-from .update_plan import ExecutionCapabilities, ObjectivePopulation, PolicyExecutionBudget, ResolvedUpdate, plan_packs
-from .update_records import InvalidPolicyUpdate, PopulationSnapshot, record_digest
+from .update_plan import ExecutionCapabilities, PolicyExecutionBudget, ResolvedUpdate, plan_packs
+from .update_records import (
+    ActionInterval,
+    ActionRef,
+    ActionSelection,
+    ConditioningView,
+    InvalidPolicyUpdate,
+    PolicyVersions,
+    PopulationRelation,
+    PopulationSnapshot,
+    SemanticSpan,
+)
 from .update_resolution import ResolvedPolicyPopulation
 
-
-@lru_cache
-def _hints(record_type: type) -> dict[str, Any]:
-    return get_type_hints(record_type)
-
-
-def _decode(expected: Any, value: Any) -> Any:
-    """Strict data-only decoding using trusted framework type annotations."""
-    if isinstance(expected, TypeAliasType):
-        return _decode(expected.__value__, value)
-    origin, arguments = get_origin(expected), get_args(expected)
-    if origin is Literal:
-        if any(type(value) is type(option) and value == option for option in arguments):
-            return value
-    elif origin in (Union, types.UnionType):
-        for option in arguments:
-            try:
-                return _decode(option, value)
-            except InvalidPolicyUpdate:
-                pass
-    elif origin is tuple and isinstance(value, list):
-        if len(arguments) == 2 and arguments[1] is Ellipsis:
-            return tuple(_decode(arguments[0], item) for item in value)
-        if len(arguments) == len(value):
-            return tuple(_decode(kind, item) for kind, item in zip(arguments, value, strict=True))
-    elif isinstance(expected, type) and is_dataclass(expected):
-        if isinstance(value, dict) and set(value) == {field.name for field in fields(expected)}:
-            try:
-                return expected(**{name: _decode(kind, value[name]) for name, kind in _hints(expected).items()})
-            except (TypeError, ValueError) as error:
-                raise InvalidPolicyUpdate(f"invalid retained {expected.__name__} record") from error
-    elif expected is float:
-        if type(value) in (int, float) and math.isfinite(value):
-            # Preserve numeric representation: JSON integer coefficients are
-            # valid inputs and their structural digest must not change.
-            return value
-    elif expected in (str, int, bool, type(None)) and type(value) is expected:
-        return value
-    raise InvalidPolicyUpdate("retained population value does not match its record schema")
+SCHEMA = "posttrain.resolved-population.v4"
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,60 +47,164 @@ class RetainedResolvedPopulation:
     attempt_offset: int
 
 
-def population_payload(population: Any) -> dict[str, Any]:
-    """Encode the existing sidecar schema without repeating population records."""
-    updates, objectives = [], {}
-    for update in population.updates:
-        objectives[record_digest(update.objective)] = asdict(update.objective)
-        updates.append(
-            {
-                "digest": update.digest,
-                "objective_digest": record_digest(update.objective),
-                "schedule_digest": update.schedule_digest,
-                "epoch": update.epoch,
-                "minibatch": update.minibatch,
-                "contributions": [asdict(value) for value in update.contributions],
-                "occurrence_ids": list(update.occurrence_ids),
-                "dependencies": [asdict(value) for value in update.dependencies],
-                "discarded_contributions": list(update.discarded_contributions),
-            }
-        )
+def _snapshot_payload(snapshot: PopulationSnapshot) -> dict[str, Any]:
     return {
-        "schema": "posttrain.resolved-population.v3",
-        "population": asdict(population.updates[0].population),
-        "credit": asdict(population.credit),
+        "id": snapshot.id,
+        "native_evidence_ref": snapshot.native_evidence_ref,
+        "native_evidence_digest": snapshot.native_evidence_digest,
+        "conditioning": [asdict(view) for view in snapshot.conditioning],
+        "spans": [asdict(span) for span in snapshot.spans],
+        "relations": [asdict(relation) for relation in snapshot.relations],
+        "versions": asdict(snapshot.versions),
+        "selector_digest": snapshot.selector_digest,
+        "digest": snapshot.digest,
+    }
+
+
+def _credit_payload(credit: PreparedCredit) -> dict[str, Any]:
+    return {
+        "population_digest": credit.population_digest,
+        "estimator_id": credit.estimator_id,
+        "advantages": credit.advantages.tolist(),
+        "required_relations": list(credit.required_relations),
+        "component_weights": [list(item) for item in credit.component_weights],
+        "normalization": credit.normalization,
+        "observation_scope": credit.observation_scope,
+        "evidence_digests": list(credit.evidence_digests),
+        "meaning": credit.meaning,
+        "digest": credit.digest,
+    }
+
+
+def population_payload(population: Any) -> dict[str, Any]:
+    """Encode a resolved population's frozen inputs and occurrences."""
+    updates = population.updates
+    objective = updates[0].objective
+    return {
+        "schema": SCHEMA,
+        "population": _snapshot_payload(updates[0].population),
+        "credit": _credit_payload(population.credit),
         "spec": asdict(population.spec),
         "execution": asdict(population.execution),
         "capabilities": asdict(population.capabilities),
         "max_overflow_retries": getattr(population, "max_overflow_retries", 0),
         "applied_update_offset": getattr(population, "applied_update_offset", 0),
         "attempt_offset": getattr(population, "attempt_offset", 0),
-        "objectives": objectives,
-        "updates": updates,
+        "objective_digest": objective.digest,
+        "updates": [
+            {
+                "digest": update.digest,
+                "schedule_digest": update.schedule_digest,
+                "epoch": update.epoch,
+                "minibatch": update.minibatch,
+                "contributions": [objective.contributions[index].id for index in update.contributions],
+                "occurrence_ids": list(update.occurrence_ids),
+                "views": list(update.views),
+                "discarded_contributions": list(update.discarded_contributions),
+            }
+            for update in updates
+        ],
     }
 
 
-def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
-    """Restore frozen credit, masks and occurrences from v1/v2/v3 sidecars.
+def _strings(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise InvalidPolicyUpdate("retained population value does not match its record schema")
+    return tuple(value)
 
-    No reward estimator runs here. Recompute execution packs and validate the
-    objective contracts, preserving all original occurrence and credit digests.
-    Legacy v1 sidecars can describe only zero prior population offsets.
-    Legacy v1/v2 capabilities retain their ragged cost contract for one release.
+
+def _integers(value: Any) -> tuple[int, ...]:
+    if not isinstance(value, list) or any(type(item) is not int for item in value):
+        raise InvalidPolicyUpdate("retained population value does not match its record schema")
+    return tuple(value)
+
+
+def _action(value: dict[str, Any]) -> ActionRef:
+    return ActionRef(value["episode_id"], value["branch_id"], value["turn_id"], value["token_index"])
+
+
+def _snapshot(data: dict[str, Any]) -> PopulationSnapshot:
+    views = tuple(ConditioningView(**{**view, "sampled": _integers(view["sampled"])}) for view in data["conditioning"])
+    spans = tuple(
+        SemanticSpan(
+            span["id"],
+            span["role"],
+            span["projection_revision"],
+            tuple(ActionInterval(_action(item["start"]), item["end"]) for item in span["action_intervals"]),
+        )
+        for span in data["spans"]
+    )
+    relations = tuple(
+        PopulationRelation(
+            relation["id"],
+            relation["kind"],
+            _strings(relation["members"]),
+            relation["completeness"],
+            _strings(relation["expected_members"]),
+        )
+        for relation in data["relations"]
+    )
+    snapshot = PopulationSnapshot(
+        data["id"],
+        data["native_evidence_ref"],
+        data["native_evidence_digest"],
+        views,
+        spans,
+        relations,
+        PolicyVersions(**data["versions"]),
+        data["selector_digest"],
+    )
+    if snapshot.digest != data["digest"]:
+        raise InvalidPolicyUpdate("retained population differs from its frozen digest")
+    return snapshot
+
+
+def _credit(data: dict[str, Any]) -> PreparedCredit:
+    advantages = data["advantages"]
+    if not isinstance(advantages, list) or any(
+        type(value) not in (int, float) or not math.isfinite(value) for value in advantages
+    ):
+        raise InvalidPolicyUpdate("retained advantages must be finite numbers")
+    credit = PreparedCredit(
+        data["population_digest"],
+        data["estimator_id"],
+        np.asarray(advantages, dtype=np.float64),
+        _strings(data["required_relations"]),
+        tuple((name, weight) for name, weight in data["component_weights"]),
+        data["normalization"],
+        data["observation_scope"],
+        _strings(data["evidence_digests"]),
+        data["meaning"],
+    )
+    if credit.digest != data["digest"]:
+        raise InvalidPolicyUpdate("retained credit differs from its frozen digest")
+    return credit
+
+
+def _spec(data: dict[str, Any]) -> ObjectiveSpec:
+    return ObjectiveSpec(
+        **{
+            **data,
+            "policy_selection": _selection(data["policy_selection"]),
+            "kl_selection": _selection(data["kl_selection"]),
+        }
+    )
+
+
+def _selection(data: dict[str, Any]) -> ActionSelection:
+    return ActionSelection(data["mode"], _strings(data["span_ids"]), _strings(data["roles"]))
+
+
+def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
+    """Restore frozen credit, selections and occurrences from a v4 sidecar.
+
+    No reward estimator runs here. The objective and execution packs are
+    recomputed and must reproduce every retained digest.
     """
     try:
-        if not isinstance(payload, dict) or payload.get("schema") not in {
-            "posttrain.resolved-population.v1",
-            "posttrain.resolved-population.v2",
-            "posttrain.resolved-population.v3",
-        }:
+        if not isinstance(payload, dict) or payload.get("schema") != SCHEMA:
             raise InvalidPolicyUpdate("unsupported retained population schema")
-        data = dict(payload)
-        if data["schema"] == "posttrain.resolved-population.v1":
-            if data.get("applied_update_offset", 0) != 0 or data.get("attempt_offset", 0) != 0:
-                raise InvalidPolicyUpdate("legacy retained population cannot declare nonzero offsets")
-            data.update(applied_update_offset=0, attempt_offset=0)
-        if set(data) != {
+        expected_fields = {
             "schema",
             "population",
             "credit",
@@ -131,56 +214,54 @@ def decode_population_payload(payload: Any) -> RetainedResolvedPopulation:
             "max_overflow_retries",
             "applied_update_offset",
             "attempt_offset",
-            "objectives",
+            "objective_digest",
             "updates",
-        }:
+        }
+        if set(payload) != expected_fields:
             raise InvalidPolicyUpdate("retained population fields differ from the supported schema")
-        snapshot = _decode(PopulationSnapshot, data["population"])
-        credit = _decode(PreparedCredit, data["credit"])
-        spec = _decode(ObjectiveSpec, data["spec"])
-        execution = _decode(PolicyExecutionBudget, data["execution"])
-        capability_data = data["capabilities"]
-        if data["schema"] != "posttrain.resolved-population.v3":
-            legacy_fields = {"definition_ids", "statistics", "max_context_tokens", "cross_pack_dependencies"}
-            if not isinstance(capability_data, dict) or set(capability_data) != legacy_fields:
-                raise InvalidPolicyUpdate("legacy population cannot declare a new physical context layout")
-            capability_data = {**capability_data, "context_layout": "ragged"}
-        capabilities = _decode(ExecutionCapabilities, capability_data)
-        expected_objective = objective_population(snapshot, spec, credit)
-        if not isinstance(data["objectives"], dict) or not isinstance(data["updates"], list):
-            raise InvalidPolicyUpdate("retained objective and occurrence containers are invalid")
-        objectives = {digest: _decode(ObjectivePopulation, value) for digest, value in data["objectives"].items()}
-        if not objectives or any(
-            digest != record_digest(value) or value != expected_objective for digest, value in objectives.items()
-        ):
+        snapshot = _snapshot(payload["population"])
+        credit = _credit(payload["credit"])
+        spec = _spec(payload["spec"])
+        execution = PolicyExecutionBudget(**payload["execution"])
+        capabilities = ExecutionCapabilities(
+            **{
+                **payload["capabilities"],
+                "definition_ids": _strings(payload["capabilities"]["definition_ids"]),
+                "statistics": _strings(payload["capabilities"]["statistics"]),
+            }
+        )
+        objective = objective_population(snapshot, spec, credit)
+        if objective.digest != payload["objective_digest"]:
             raise InvalidPolicyUpdate("retained objective differs from its frozen resolved contract")
+        index_of = {contribution.id: index for index, contribution in enumerate(objective.contributions)}
         updates = []
-        used_objectives = set()
-        for item in data["updates"]:
-            values = dict(item)
-            digest, objective_digest = values.pop("digest"), values.pop("objective_digest")
-            used_objectives.add(objective_digest)
-            objective = objectives[objective_digest]
-            update = _decode(
-                ResolvedUpdate,
-                {**values, "population": data["population"], "objective": data["objectives"][objective_digest]},
+        for item in payload["updates"]:
+            contributions = tuple(index_of[identity] for identity in _strings(item["contributions"]))
+            update = ResolvedUpdate(
+                snapshot,
+                objective,
+                item["schedule_digest"],
+                item["epoch"],
+                item["minibatch"],
+                contributions,
+                _strings(item["occurrence_ids"]),
+                _integers(item["views"]),
+                _strings(item["discarded_contributions"]),
             )
-            if update.digest != digest or any(
+            if update.digest != item["digest"] or any(
                 type(index) is not int or index < 0 for index in (update.epoch, update.minibatch)
             ):
                 raise InvalidPolicyUpdate("retained occurrence digest or cursor differs")
-            if any(contribution not in objective.contributions for contribution in update.contributions):
-                raise InvalidPolicyUpdate("retained occurrence changes original contributions")
             updates.append(update)
-        if used_objectives != set(objectives) or len({update.digest for update in updates}) != len(updates):
-            raise InvalidPolicyUpdate("retained population has unused objectives or duplicate occurrences")
-        offsets = tuple(
-            _decode(int, data[name]) for name in ("max_overflow_retries", "applied_update_offset", "attempt_offset")
-        )
-        if any(value < 0 for value in offsets) or offsets[2] < offsets[1]:
+        if not updates or len({update.digest for update in updates}) != len(updates):
+            raise InvalidPolicyUpdate("retained population has no or duplicate occurrences")
+        offsets = tuple(payload[name] for name in ("max_overflow_retries", "applied_update_offset", "attempt_offset"))
+        if any(type(value) is not int or value < 0 for value in offsets) or offsets[2] < offsets[1]:
             raise InvalidPolicyUpdate("retained population offsets or retry limit are incoherent")
         packs = tuple(plan_packs(update, execution, capabilities) for update in updates)
         resolved = ResolvedPolicyPopulation(snapshot, credit, spec, tuple(updates), packs, execution, capabilities)
         return RetainedResolvedPopulation(resolved, *offsets)
     except (TypeError, ValueError, KeyError) as error:
+        if isinstance(error, InvalidPolicyUpdate):
+            raise
         raise InvalidPolicyUpdate("retained population cannot reconstruct a valid resolved contract") from error

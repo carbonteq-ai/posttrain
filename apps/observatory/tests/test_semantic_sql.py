@@ -76,19 +76,23 @@ def test_runs_come_from_configs_and_lifecycle(trackio_project: TrackioDataSource
 def test_updates_apply_the_same_rules_as_the_python_readers(
     trackio_project: TrackioDataSource, trackio_engine: str
 ) -> None:
-    result = _query(
+    result = _query(trackio_project, measures=("update_seconds:sum", "entropy:last"), by=("run.id",), runs=("grpo-a",))
+    (row,) = _rows(result)
+    assert row["update_seconds_sum"] == 620.0
+    assert row["entropy_last"] == 0.25
+    assert result.sql is not None and "updates AS t" in result.sql and result.engine == trackio_engine
+    # Population values are collection measures; a legacy run has one collection per update.
+    collected = _query(
         trackio_project,
-        measures=("update_seconds:sum", "rollout_seconds:sum", "rollout_share", "entropy:last", "tool_call_rate"),
+        measures=("rollout_seconds:sum", "collection_seconds:sum", "rollout_share", "tool_call_rate"),
         by=("run.id",),
         runs=("grpo-a",),
     )
-    (row,) = _rows(result)
-    assert row["update_seconds_sum"] == 620.0
+    (row,) = _rows(collected)
     assert row["rollout_seconds_sum"] == 530.0  # 360 + 80 + 90: the three batches of update 1 add up
-    assert row["rollout_share"] == pytest.approx(530.0 / 620.0)
-    assert row["entropy_last"] == 0.25
+    assert row["rollout_share"] == pytest.approx(530.0 / row["collection_seconds_sum"])
     assert row["tool_call_rate"] == 0.75
-    assert result.sql is not None and "updates AS t" in result.sql and result.engine == trackio_engine
+    assert collected.sql is not None and "collections AS t" in collected.sql
 
     # Equivalence: the SQL view and posttrain.tracking.logical_series (through the reader) agree per update.
     for metric, measure in (
@@ -99,9 +103,10 @@ def test_updates_apply_the_same_rules_as_the_python_readers(
     ):
         (series,) = asyncio.run(trackio_project.metric_series("grpo-a", (metric,)))
         python = {point.step: point.value for point in series.points}
+        grain = "update" if measure == "update_seconds" else "collection"
         sql = {
-            row["update.step"]: row[measure]
-            for row in _rows(_query(trackio_project, measures=(measure,), by=("update.step",), runs=("grpo-a",)))
+            row[f"{grain}.step"]: row[measure]
+            for row in _rows(_query(trackio_project, measures=(measure,), by=(f"{grain}.step",), runs=("grpo-a",)))
             if row[measure] is not None
         }
         assert sql == python, metric
@@ -230,3 +235,86 @@ def test_statements_that_read_no_semantic_table_pass_through(
         run_sql_query(FRAMEWORK_MODEL, trackio_project, SqlQuery(sql="select count(*) as notes from run_notes"))
     )
     assert result.rows == ((0,),)
+
+
+@pytest.mark.parametrize("run_id", ["resolved-tagged", "resolved-untagged"])
+def test_collections_are_populations_and_updates_name_theirs(resolved_project: TrackioDataSource, run_id: str) -> None:
+    # Each population feeds two updates. Collection values exist once per collection, and every
+    # update maps to its collection whether the trainer tagged it or the reader derives it.
+    collections = asyncio.run(
+        run_sql_query(
+            FRAMEWORK_MODEL,
+            resolved_project,
+            SqlQuery(
+                sql="select step, updates, collection_seconds, reward, rollouts_attempted, rollout_share_input"
+                " from (select step, updates, collection_seconds, reward, rollouts_attempted,"
+                " rollout_seconds / collection_seconds as rollout_share_input from collections) c order by step",
+                runs=(run_id,),
+            ),
+        )
+    )
+    assert _rows(collections) == [
+        {
+            "step": 1,
+            "updates": 2,
+            "collection_seconds": 150.0,
+            "reward": 0.4,
+            "rollouts_attempted": 160.0,
+            "rollout_share_input": 2.0,
+        },
+        {
+            "step": 3,
+            "updates": 2,
+            "collection_seconds": 150.0,
+            "reward": 0.6,
+            "rollouts_attempted": 160.0,
+            "rollout_share_input": 2.0,
+        },
+    ]
+    updates = asyncio.run(
+        run_sql_query(
+            FRAMEWORK_MODEL,
+            resolved_project,
+            SqlQuery(sql="select step, collection_step, entropy from updates order by step", runs=(run_id,)),
+        )
+    )
+    assert [(row["step"], row["collection_step"]) for row in _rows(updates)] == [(1, 1), (2, 1), (3, 3), (4, 3)]
+    # Collection values are not update columns: per-update views never repeat or divide them.
+    with pytest.raises(QueryError, match="reward"):
+        asyncio.run(
+            run_sql_query(FRAMEWORK_MODEL, resolved_project, SqlQuery(sql="select reward from updates", runs=(run_id,)))
+        )
+
+
+def test_the_evaluation_view_reads_environment_metrics_per_run_and_name(trackio_project: TrackioDataSource) -> None:
+    from posttrain_observatory.evaluations import ENVIRONMENT_METRICS_SQL
+
+    result = asyncio.run(
+        run_sql_query(FRAMEWORK_MODEL, trackio_project, SqlQuery(sql=ENVIRONMENT_METRICS_SQL, runs=("grpo-a",)))
+    )
+    rows = {(row[0], row[1]): row[2:] for row in map(list, result.rows)}
+    # grpo-a's rollouts 0, 1 and 2 carry metrics (rollout-3 predates them and is not counted); a
+    # truncated attempt still counts because only failed attempts are excluded.
+    mistakes = rows[("grpo-a", "tool_mistakes")]
+    assert mistakes[0] == pytest.approx((0 + 1 + 2) / 3)  # mean per episode
+    assert mistakes[1] == pytest.approx(2 / 3)  # share of episodes with at least one
+    assert mistakes[2] == 3  # episodes that recorded it
+    unknown = rows[("grpo-a", "tool_unknown_id")]
+    assert unknown[0] == pytest.approx(1 / 3) and unknown[1] == pytest.approx(1 / 3)
+
+
+def test_raw_environment_metric_rows_join_to_rollouts_by_trace(trackio_project: TrackioDataSource) -> None:
+    result = asyncio.run(
+        run_sql_query(
+            FRAMEWORK_MODEL,
+            trackio_project,
+            SqlQuery(
+                sql=(
+                    "select o.trace, m.value from rollouts o join trace_environment_metrics m on m.external_id = o.trace "
+                    "where m.name = 'tool_mistakes' order by o.trace"
+                ),
+                runs=("grpo-a",),
+            ),
+        )
+    )
+    assert [list(row) for row in result.rows] == [["rollout-0", 0.0], ["rollout-1", 1.0], ["rollout-2", 2.0]]

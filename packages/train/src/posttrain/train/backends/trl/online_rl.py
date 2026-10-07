@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
+from dataclasses import asdict
 from typing import Any, Literal, cast
 
 from posttrain.common import ModelVariant
 
 from ...bindings import TrainingBinding
+from ...integrations.verifiers_generation import encode_parser_evidence, prepare_parser_evidence
 from ...online_rl import PolicySampling, PolicyTurnRequest, PolicyTurnResult
 from ...policy_messages import ToolCallAdmission, parsed_policy_message
 from ...profiles import CAPOSettings, GDPOSettings, GRPOSettings, OnPolicyDistillationSettings, SAMPOSettings
-from ...rendering import bridged_message_spans, create_renderer
+from ...rendering import bridged_message_spans, create_renderer, full_render_messages
 
 
 class TrlPolicyGenerator:
@@ -31,6 +33,13 @@ class TrlPolicyGenerator:
         self._trainer = trainer
         self._tokenizer = tokenizer
         self._renderer = create_renderer(tokenizer, model, training.renderer)
+        prepare_parser_evidence()
+        self._parser_configuration = {
+            "renderer_selection": asdict(training.renderer),
+            "model_variant": model.id,
+            "tokenizer_fingerprint": model.tokenizer_fingerprint,
+            "chat_template": getattr(tokenizer, "chat_template", None),
+        }
         self._tool_call_protocol = model.conversation.tool_calls
         self._max_completion_length = settings.max_completion_length
         self._retain_generation_logprobs = retain_generation_logprobs
@@ -80,7 +89,9 @@ class TrlPolicyGenerator:
                 tools=tools or None,
             )
         if rendered is None:
-            rendered = self._renderer.render(messages, tools=tools or None, add_generation_prompt=True)
+            rendered = self._renderer.render(
+                full_render_messages(messages), tools=tools or None, add_generation_prompt=True
+            )
             spans = tuple(rendered.message_token_spans())
         else:
             spans = bridged_message_spans(rendered, request.tail_start, len(request.previous_token_ids))
@@ -104,7 +115,7 @@ class TrlPolicyGenerator:
             # Resolved policy collection must preserve the existing Verifiers
             # train-client admission used by native veRL. Named nonconforming
             # calls reach the tool and yield native validation evidence; their
-            # original syntax remains recorded in provider_state.
+            # original syntax remains in the turn's generated-call evidence.
             admission=self._tool_call_admission,
         )
         finish_reason = _finish_reason(
@@ -128,6 +139,13 @@ class TrlPolicyGenerator:
             prompt_is_content=tuple(bool(value) for value in rendered.is_content),
             raw_response=raw_response,
             reasoning_tokens=getattr(parsed, "reasoning_tokens", None),
+            parser_evidence=encode_parser_evidence(
+                parsed,
+                token_ids,
+                message,
+                self._renderer,
+                configuration={**self._parser_configuration, "admission": self._tool_call_admission, "tools": tools},
+            ),
         )
 
     async def _generate_tokens(

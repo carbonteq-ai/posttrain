@@ -1,0 +1,142 @@
+[
+  {
+    "task_name": "finance.vendor_insurance_verification",
+    "draft_sha256": "bfedbb6926d594c0330dd011d09c12dcf7acffd2fdda087fecb9f07c0f34931d",
+    "checks": 7,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.bank_fee_analysis",
+    "draft_sha256": "701e9365516eed0aa6a90f62c8489cbd80689ae109a013e4a4f9d2fdb27ecd9b",
+    "checks": 7,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.credit_limit_review",
+    "draft_sha256": "0cd93a99839a0ce096af3a42f978d4557cbdd4b1c2836cde039e0e2a3d7f4f43",
+    "checks": 8,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.expense_anomaly_detection",
+    "draft_sha256": "f5dbbfdce071359527f47130b1f24b4e3633338c12a87073ac87d7fa944ac9ce",
+    "checks": 7,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.expense_reclassification",
+    "draft_sha256": "38916d0864fa8e513468be5c1456af0c2df1aa514cfcb4bbebd074860b240b94",
+    "checks": 6,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.intercompany_balance_recon",
+    "draft_sha256": "2d4a2c501c63a36f0e13d8f90f36b3e1500a33dcb9b8159d82df40b75538d085",
+    "checks": 5,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.budget_variance_analysis",
+    "draft_sha256": "f9c2a4fe1142b395fffd1651a5d0af8ff4d4d63cce385e699f5c6e2b455d3b8f",
+    "checks": 14,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.annual_budget_prep",
+    "draft_sha256": "d5d6b48198ec78d63b4f262008ae3eb9c7ead13bc621b1fa27e2696878dd626a",
+    "checks": 5,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.revenue_recognition",
+    "draft_sha256": "8910a185daa3455ca9c171fc39a9e78b553f59363f9f6d46f32a0a0fb55df514",
+    "checks": 7,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "finance.wire_transfer_approval",
+    "draft_sha256": "74ef87cdf1575a5ff1e7fed68486e6ee42aa8dd2b0f69d426f4b5b26ee983f8f",
+    "checks": 8,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.zendesk_freshdesk_sync",
+    "draft_sha256": "54314fc447a1e6adf1b61561fde3a1f05bfcec00d4e96964ea83a6693e8e0dc7",
+    "checks": 3,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.gorgias_channel_consolidation",
+    "draft_sha256": "4c3d57bab95688725da261689a61eea0200944dff747495f1910d4b9f1af5093",
+    "checks": 5,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.zoho_risk_scoring",
+    "draft_sha256": "c37f7b455b87efd1969e0597a166b26635fcda6c94725b487e37b7c6bc9ab930",
+    "checks": 6,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.zendesk_maintenance_notify",
+    "draft_sha256": "38cb704fd521e1c101431d4d6b693641893119b964568e31d2ed6ca935135bea",
+    "checks": 3,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.zoho_desk_capacity_planning",
+    "draft_sha256": "e5902a8496f7fd784c6a9d79921530583b79a221df4cbfdc34a3e0e8c9e3b98d",
+    "checks": 2,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.gorgias_order_lookup",
+    "draft_sha256": "98399dc4924bdb081d1d18c754b32b1e1dfdd601a4031d3019825353f5e370cd",
+    "checks": 7,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.gorgias_fraud_detection",
+    "draft_sha256": "98438da3f3243de60949026b8cc6ca57ab9b6c3fa1e80f0f41a339b45a84a6fc",
+    "checks": 3,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.helpscout_response_audit",
+    "draft_sha256": "a4cfc59a53c897ade23a3271ffe275937725d74e627844513d166b06eec4d414",
+    "checks": 5,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.zendesk_automated_responses",
+    "draft_sha256": "c2fc2dbb616f5feea730767e8b27a80532f7a874dff2fc395d65937b7af7b86e",
+    "checks": 2,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  },
+  {
+    "task_name": "support.intercom_sentiment_escalation",
+    "draft_sha256": "63dce24cfcd942f59b295e7cf749986693a1b90b43e18f3a3cfbc68420b04f5d",
+    "checks": 3,
+    "whole_task_status": "not_qualified",
+    "audit": "schema/hash/episode binding/obligation inventory/review length checked; representative controls inspected separately"
+  }
+]

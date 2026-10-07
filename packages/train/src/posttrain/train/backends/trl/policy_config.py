@@ -371,7 +371,7 @@ def _rollout_execution_config(
     if not isinstance(raw, Mapping):
         raise ValueError("TRL backend_options.rollout_execution must be a mapping")
     expected = {"env_workers", "episodes_per_worker", "worker_native_threads"}
-    unknown = set(raw).difference(expected)
+    unknown = set(raw).difference(expected | {"memory_budget_gb"})
     missing = expected.difference(raw)
     if unknown or missing:
         details = []
@@ -380,12 +380,17 @@ def _rollout_execution_config(
         if unknown:
             details.append(f"unknown {', '.join(sorted(unknown))}")
         raise ValueError(f"invalid TRL rollout_execution mapping: {'; '.join(details)}")
-    values: dict[str, int] = {}
+    values: dict[str, Any] = {}
     for name in expected:
         value = raw[name]
         if isinstance(value, bool) or not isinstance(value, int):
             raise ValueError(f"TRL rollout_execution.{name} must be an integer")
         values[name] = value
+    if "memory_budget_gb" in raw:
+        budget = raw["memory_budget_gb"]
+        if isinstance(budget, bool) or not isinstance(budget, int | float) or not budget > 0:
+            raise ValueError("TRL rollout_execution.memory_budget_gb must be a positive number")
+        values["memory_budget_gb"] = float(budget)
     if request.inference.backend.split("@", 1)[0] != "vllm":
         raise ValueError("TRL rollout_execution requires a vLLM rollout inference binding")
     if request.inference.engine.get("mode") != "colocate":

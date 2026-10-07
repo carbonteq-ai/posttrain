@@ -235,6 +235,34 @@ describe('EvidenceChart scale policy', () => {
     expect(option.series.map((item: { yAxisIndex: number }) => item.yAxisIndex)).toEqual([0, 0, 1]);
   });
 
+  it('holds a per-collection series across the updates its collection fed', () => {
+    // Collections at 1 and 2 with four updates each (0.25 … 2); collection 3 sampled, no update yet.
+    const updates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+    render(<EvidenceChart
+      ariaLabel="Policy optimization"
+      heldSeries={['train/rl/reward_mean']}
+      series={[
+        { name: 'train/rl/reward_mean', points: [{ step: 1, value: 0.4 }, { step: 2, value: 0.38 }, { step: 3, value: 0.39 }] },
+        { name: 'train/rl/entropy', points: updates.map((step) => ({ step, value: 0.2 })) },
+      ]}
+    />);
+
+    const option = chartMocks.setOption.mock.calls[0][0];
+    const reward = option.series.find((item: { name: string }) => item.name === 'train/rl/reward_mean');
+    expect(reward.step).toBe('start');
+    const points = reward.data.map((item: number[] | { value: number[] }) => (Array.isArray(item) ? item : item.value));
+    expect(points).toEqual([
+      [0, 0.4], [0.25, 0.4], [0.5, 0.4], [0.75, 0.4], [1, 0.4],
+      [1.25, 0.38], [1.5, 0.38], [1.75, 0.38], [2, 0.38],
+      [3, 0.39],
+    ]);
+    // Only recorded collections carry markers; the axis starts where the first collection's updates do.
+    expect(reward.data.filter((item: unknown) => Array.isArray(item))).toEqual([[1, 0.4], [2, 0.38], [3, 0.39]]);
+    expect(option.xAxis[0].min).toBe(0);
+    const entropy = option.series.find((item: { name: string }) => item.name === 'train/rl/entropy');
+    expect(entropy.step).toBeUndefined();
+  });
+
   it('keeps policy loss and entropy in one divided panel with independent axes', () => {
     render(<EvidenceChart
       ariaLabel="Policy optimization"

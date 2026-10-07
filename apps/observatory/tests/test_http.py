@@ -301,7 +301,7 @@ def test_run_notes_are_added_rendered_revised_and_deleted_over_http(trackio_proj
     key = RunLocator(source_id="local", run_id="grpo-a").key
     with client:
         card = client.get(f"/api/v1/runs/{key}/card").json()
-        assert card["template"] == "group-policy@3" and card["unresolved"] == []
+        assert card["template"] == "group-policy@4" and card["unresolved"] == []
         body = (
             "```sql r\nselect max_by(entropy, step) as last from updates\n```\n"
             "Final entropy {{r.last | round 2}}. <script>x</script>"

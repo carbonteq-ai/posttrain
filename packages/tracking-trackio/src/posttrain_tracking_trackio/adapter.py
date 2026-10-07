@@ -69,6 +69,8 @@ from trackio.remote_client import RemoteClient
 from trackio.run import Run as TrackioSDKRun
 from trackio.utils import parse_trackio_server_url
 
+from .assessment_results import training_verifiers_results
+
 _RESERVED_HISTORY_KEYS = {"step", "timestamp"}
 _TRACE_FACT_WRITE_CHUNK_SIZE = 1000
 
@@ -247,6 +249,14 @@ def _trackio_trace_facts(
             "the configured Trackio build does not support trace facts; "
             "install the declared Trackio trace-facts release before logging this run"
         )
+    extra: dict[str, Any] = {}
+    if facts.environment_metrics:
+        if "environment_metrics" not in getattr(update_type, "__dataclass_fields__", {}):
+            raise ContractError(
+                "the configured Trackio build cannot store environment metrics; "
+                "install Trackio 0.31.5.post14.dev33 or newer before logging traces with them"
+            )
+        extra["environment_metrics"] = dict(facts.environment_metrics)
     return update_type(
         trace_type=trace_type,
         external_id=external_id,
@@ -269,6 +279,7 @@ def _trackio_trace_facts(
         provenance=dict(facts.provenance),
         state=facts.state,
         replace_reward_components=replace_reward_components,
+        **extra,
     )
 
 
@@ -368,11 +379,16 @@ class TrackioTrackedRun:
         self._run.log(values, step=observation.step)
 
     def trace(self, observation: TraceObservation) -> None:
+        attributes = (
+            training_verifiers_results(observation.attributes)
+            if observation.trace_type in {"verifiers", "verifiers.assessment-results"} and self._spec.stage == "train"
+            else dict(observation.attributes)
+        )
         metadata = {
             "external_id": observation.external_id,
             "observation_type": observation.trace_type,
-            "posttrain_attributes": dict(observation.attributes),
-            **dict(observation.attributes),
+            "posttrain_attributes": attributes,
+            **attributes,
         }
         if observation.trace_type == "verifiers":
             if len(observation.facts) > 1:
@@ -384,14 +400,24 @@ class TrackioTrackedRun:
                     observation.external_id,
                     observation.facts[0],
                 )
-            trace = trackio.VerifiersTrace(dict(observation.payload), **trace_arguments)
+            payload = (
+                training_verifiers_results(observation.payload)
+                if self._spec.stage == "train"
+                else dict(observation.payload)
+            )
+            trace = trackio.VerifiersTrace(payload, **trace_arguments)
         else:
-            messages = observation.payload.get("messages")
+            payload = (
+                training_verifiers_results(observation.payload)
+                if observation.trace_type == "verifiers.assessment-results" and self._spec.stage == "train"
+                else dict(observation.payload)
+            )
+            messages = payload.get("messages")
             if messages is None:
                 messages = []
             if not isinstance(messages, list) or not all(isinstance(item, dict) for item in messages):
                 raise ContractError("generic Trackio traces require a JSON messages list")
-            extra = {key: value for key, value in observation.payload.items() if key != "messages"}
+            extra = {key: value for key, value in payload.items() if key != "messages"}
             trace = trackio.Trace(
                 [dict(item) for item in cast(list[dict[str, Any]], messages)],
                 metadata={"posttrain_payload_extra": extra, **extra, **metadata},
@@ -1968,13 +1994,19 @@ class TrackioDataSource:
         cached = self._provider_runs_by_id.get(run_id)
         if cached is not None:
             return cached
+        # One request carries every run's configuration; reading each run's own config cost one
+        # summary request per run in the project before the wanted run was found.
+        configs = self._api.run_configs(self.project)
+        found = None
         for run in self._api.runs(self.project):
-            config = run.config or {}
-            posttrain_run_id = config.get("run_id")
+            config = configs.get(run.id) or {}
+            posttrain_run_id = config.get("run_id") if isinstance(config, Mapping) else None
             if isinstance(posttrain_run_id, str):
                 self._provider_runs_by_id[posttrain_run_id] = run
-            if posttrain_run_id == run_id:
-                return run
+                if posttrain_run_id == run_id:
+                    found = run
+        if found is not None:
+            return found
         raise LookupError(f"posttrain run {run_id!r} was not found in Trackio project {self.project!r}")
 
     def _provider_run_by_id(self, provider_run_id: str) -> Any:

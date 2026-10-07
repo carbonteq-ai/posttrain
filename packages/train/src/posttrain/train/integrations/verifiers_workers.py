@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import inspect
+import logging
+import os
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -36,6 +38,50 @@ class _EpisodeDeadline(RuntimeError):
 
 class _NativeEpisodeFailure(RuntimeError):
     pass
+
+
+logger = logging.getLogger(__name__)
+
+
+def _process_memory_bytes(pid: int, page: int) -> int:
+    """Proportional set size (shared pages split among their sharers).
+
+    Forked tool servers and harness programs share the zygote's preloaded
+    pages copy-on-write; summing RSS would count those once per process and
+    overstate real use several times. Falls back to RSS where smaps_rollup is
+    unavailable.
+    """
+    try:
+        with open(f"/proc/{pid}/smaps_rollup", encoding="ascii") as stream:
+            for line in stream:
+                if line.startswith("Pss:"):
+                    return int(line.split()[1]) * 1024
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        pass
+    with open(f"/proc/{pid}/statm", encoding="ascii") as stream:
+        return int(stream.read().split()[1]) * page
+
+
+def process_tree_rss_bytes(pid: int) -> int:
+    """Memory (PSS) of a process and all its descendants, read from /proc.
+
+    Processes that exit while being read are skipped; an unreadable root counts 0.
+    """
+    page = os.sysconf("SC_PAGE_SIZE")
+    total, pending, seen = 0, [pid], set()
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        try:
+            total += _process_memory_bytes(current, page)
+            for task in os.listdir(f"/proc/{current}/task"):
+                with open(f"/proc/{current}/task/{task}/children", encoding="ascii") as stream:
+                    pending.extend(int(child) for child in stream.read().split())
+        except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError, IndexError):
+            continue
+    return total
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +175,8 @@ class VerifiersWorkerPool:
         self._cancelled: set[EpisodeKey] = set()
         self._fatal_error: BaseException | None = None
         self._closing = False
+        self._memory_task: asyncio.Task[None] | None = None
+        self.peak_worker_rss_bytes = 0
         self._lock = asyncio.Lock()
 
     @property
@@ -183,6 +231,9 @@ class VerifiersWorkerPool:
             await asyncio.gather(startup, return_exceptions=True)
             await self.aclose()
             raise
+        self._memory_task = asyncio.create_task(
+            self._watch_memory(execution_config.memory_budget_gb), name="verifiers-worker-memory"
+        )
 
     async def open_admission(self, collection: CollectionKey) -> None:
         async with self._lock:
@@ -389,6 +440,10 @@ class VerifiersWorkerPool:
             if client is not None:
                 await client.close()
         finally:
+            memory_task, self._memory_task = self._memory_task, None
+            if memory_task is not None and not memory_task.done():
+                memory_task.cancel()
+                await asyncio.gather(memory_task, return_exceptions=True)
             if pool_task is not None and not pool_task.done():
                 pool_task.cancel()
             if pool_task is not None:
@@ -405,6 +460,58 @@ class VerifiersWorkerPool:
             raise CollectionExecutionError(
                 f"native Verifiers worker shutdown could not prove drainage: {close_error}"
             ) from close_error
+
+    def worker_rss_bytes(self) -> int:
+        """Current resident memory across every environment worker's process tree."""
+        pool = self._pool
+        processes = [worker.get("process") for worker in getattr(pool, "workers", ()) or ()]
+        return sum(process_tree_rss_bytes(process.pid) for process in processes if getattr(process, "pid", None))
+
+    async def _watch_memory(self, budget_gb: float | None, interval: float = 5.0) -> None:
+        """Track worker memory; past the budget, fail and tear down the pool.
+
+        Ending the pool frees the workers' memory at once and turns every
+        in-flight episode into a broker failure carrying this diagnostic, rather
+        than letting the host's OOM killer end the whole job without one.
+        """
+        budget = None if budget_gb is None else budget_gb * 2**30
+        last_report = 0.0
+        loop = asyncio.get_running_loop()
+        while self._pool is not None and not self._closing:
+            await asyncio.sleep(interval)
+            pool, pool_task = self._pool, self._pool_task
+            if pool is None or pool_task is None or pool_task.done():
+                return
+            processes = [worker.get("process") for worker in getattr(pool, "workers", ()) or ()]
+            usage = [
+                (process.pid, await asyncio.to_thread(process_tree_rss_bytes, process.pid))
+                for process in processes
+                if getattr(process, "pid", None)
+            ]
+            total = sum(rss for _, rss in usage)
+            self.peak_worker_rss_bytes = max(self.peak_worker_rss_bytes, total)
+            now = loop.time()
+            if now - last_report >= 60.0:
+                last_report = now
+                logger.info(
+                    "environment workers: %.1f GiB proportional memory (peak %.1f GiB) across %d workers",
+                    total / 2**30,
+                    self.peak_worker_rss_bytes / 2**30,
+                    len(usage),
+                )
+            if budget is not None and total > budget:
+                largest = ", ".join(
+                    f"pid {pid}: {rss / 2**30:.1f} GiB" for pid, rss in sorted(usage, key=lambda item: -item[1])[:3]
+                )
+                failure = CollectionExecutionError(
+                    f"environment workers use {total / 2**30:.1f} GiB, over the {budget_gb:g} GiB "
+                    f"rollout_execution.memory_budget_gb (largest: {largest})"
+                )
+                logger.error("%s", failure)
+                if self._fatal_error is None:
+                    self._fatal_error = failure
+                pool_task.cancel()
+                return
 
     def _native_factories(self) -> tuple[Callable[..., Any], Callable[[str], Any]]:
         if self._pool_factory is not None and self._client_factory is not None:

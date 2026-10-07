@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import torch
 import torch.distributed as dist
 from posttrain.environment.verifiers_conditioning import NativeConditioningInput
@@ -20,11 +21,11 @@ from ..update_credit import PreparedCredit
 from ..update_distribution import DistributedScorePlan, resolve_score_rounds
 from ..update_objectives import ResolvedObjectiveTerm
 from ..update_plan import ExecutionCapabilities, PolicyExecutionBudget, ResolvedUpdate, plan_packs
-from ..update_records import ActionRef, ConditioningView, InvalidPolicyUpdate
+from ..update_records import ConditioningView, InvalidPolicyUpdate
 from .policy_update_distribution import all_ranks_finite, distributed_score_carrier, gather_current_scores
 from .policy_update_math import ObjectiveEvaluation, ScoreBundle
 from .policy_update_replay import prepare_score_adjoints
-from .policy_update_scoring import FrozenPopulationScores, score_actions
+from .policy_update_scoring import FrozenPopulationScores, PositionScores, score_views
 
 
 @dataclass(frozen=True)
@@ -51,7 +52,7 @@ def compute_distributed_graph_loss(
     device: torch.device,
     score_temperature: float,
     score_contract: str,
-    sampler_correction: Mapping[ActionRef, float] | None,
+    sampler_correction: np.ndarray | None,
     group: Any = None,
 ) -> DistributedGraphEvaluation:
     """Retain owned graphs with matched native forwards, then one true backward.
@@ -62,7 +63,7 @@ def compute_distributed_graph_loss(
     scaler, checkpoint, model wrapping or population collection is constructed here.
     """
     rank, size = dist.get_rank(group), dist.get_world_size(group)
-    contexts = {view.id: view for view in update.population.conditioning}
+    population = update.population
     valid, rounds, inputs, identity = True, (), {}, None
     preflight_error = None
     try:
@@ -76,7 +77,7 @@ def compute_distributed_graph_loss(
             score_contract=score_contract,
             score_temperature=score_temperature,
         )
-        if term.kl_weights:
+        if term.kl_weight.any():
             if reference is None or update.population.versions.reference is None:
                 raise InvalidPolicyUpdate("distributed graph KL lacks frozen reference evidence")
             reference.validate(
@@ -85,8 +86,8 @@ def compute_distributed_graph_loss(
                 score_contract=score_contract,
                 score_temperature=score_temperature,
             )
-        for context in {work.context_id for row in rounds for work in row}:
-            view = contexts[context]
+        for index in {work.view for row in rounds for work in row}:
+            view = population.conditioning[index]
             source = read_input(view)
             if (
                 source.record.context_contract != "causal-text@1"
@@ -95,26 +96,18 @@ def compute_distributed_graph_loss(
                 or source.record.context_tokens != view.context_tokens
             ):
                 raise InvalidPolicyUpdate("distributed graph native input differs from its original view")
-            inputs[context] = source
+            inputs[view.id] = source
 
-        def frozen_digest(values):
-            return hashlib.sha256(
-                torch.stack([values[record.action].detach().float().cpu() for record in update.population.actions])
-                .numpy()
-                .tobytes()
-            ).hexdigest()
+        def frozen_digest(values: torch.Tensor) -> str:
+            return hashlib.sha256(values.detach().float().cpu().numpy().tobytes()).hexdigest()
 
-        correction = (
-            [(asdict(action), value) for action, value in sorted(sampler_correction.items())]
-            if sampler_correction
-            else None
-        )
+        correction = None if sampler_correction is None else np.asarray(sampler_correction, dtype=np.float64).tolist()
         identity = (
             plan.digest,
             term.digest,
             credit.digest,
             frozen_digest(old.values),
-            frozen_digest(reference.values) if term.kl_weights and reference is not None else None,
+            frozen_digest(reference.values) if term.kl_weight.any() and reference is not None else None,
             json.dumps(correction, sort_keys=True, allow_nan=False),
             score_contract,
             score_temperature,
@@ -132,29 +125,38 @@ def compute_distributed_graph_loss(
         raise InvalidPolicyUpdate(
             "distributed graph preflight differs or rejects native evidence across ranks"
         ) from preflight_error
-    current, anchors = {}, []
+    current: list[PositionScores] = []
+    anchors = []
     for row in rounds:
         work = row[rank]
         try:
-            values = score_actions(
+            scored = score_views(
                 model,
-                update.population,
-                work.actions,
+                population,
+                (work.view,),
                 read_input=lambda view: inputs[view.id],
                 device=device,
                 score_temperature=score_temperature,
             )
-            valid_scores = all(bool(torch.isfinite(value)) for value in values.values())
+            valid_scores = bool(torch.isfinite(scored.values).all())
         except InvalidPolicyUpdate:
-            values, valid_scores = {}, False
+            scored, valid_scores = None, False
         if not all_ranks_finite(valid_scores, device=device, group=group):
             raise InvalidPolicyUpdate("distributed graph scores are nonfinite on a rank")
+        assert scored is not None
         if work.contributes:
-            current.update(values)
+            current.append(scored)
         else:
-            anchors.append(torch.stack(tuple(values.values())).sum())
-    global_scores = gather_current_scores(
-        plan, current, parameter_version=term.parameter_version, device=device, group=group
+            anchors.append(scored.values.sum())
+    local = (
+        PositionScores(
+            np.concatenate([part.positions for part in current]), torch.cat([part.values for part in current])
+        )
+        if current
+        else PositionScores(np.zeros(0, dtype=np.int64), torch.zeros(0, device=device))
+    )
+    global_scores, scored_mask = gather_current_scores(
+        plan, population, local, rank=rank, parameter_version=term.parameter_version, device=device, group=group
     )
     prepared = prepare_score_adjoints(
         term,
@@ -163,14 +165,16 @@ def compute_distributed_graph_loss(
             global_scores,
             old.values,
             term.parameter_version,
-            reference.values if reference is not None else {},
+            scored_mask,
+            reference.values if reference is not None else None,
             sampler_correction,
         ),
     )
     carrier = distributed_score_carrier(
         plan,
+        population,
         prepared,
-        current,
+        local if current else None,
         rank=rank,
         parameter_version=term.parameter_version,
         empty_anchor=torch.stack(anchors).sum() if anchors and not current else None,

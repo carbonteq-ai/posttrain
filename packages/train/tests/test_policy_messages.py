@@ -225,11 +225,10 @@ def test_train_client_admission_acts_on_the_calls_verifiers_train_client_runs():
     ]
     assert [call["name"] for call in message["tool_calls"]] == ["asana_create_task", "asana_get_task"]
     assert message["tool_calls"][0]["arguments"] == '{"projects": "proj_eng"}'
-    assert [(item["type"], item["status"], item["raw"]) for item in message["provider_state"]] == [
-        ("posttrain.nonconforming_tool_call", "invalid_json", raw[0:10]),
-        ("posttrain.rejected_tool_call", "unknown_tool", raw[20:30]),
-        ("posttrain.rejected_tool_call", "unclosed_block", raw[30:]),
-    ]
+    # The message the harness echoes back must hash like the sampled one, so
+    # nonconforming evidence stays in the turn's generated-call record instead.
+    assert "provider_state" not in message
+    assert set(message) == {"role", "content", "reasoning_content", "tool_calls"}
 
 
 def test_strict_admission_still_keeps_nonconforming_calls_as_text():

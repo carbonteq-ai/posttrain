@@ -1,0 +1,32 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-1.2b/automationbench-manifest-steps-smoke-ws-vllm
+stage: train
+description: Two resolved SAMPO updates on LFM2.5-1.2B with colocated async vLLM rollouts and native rollout workers on the RTX PRO 6000 workstation; qualifies TRL vLLM sampler correction on the resolved engine with AutomationBench manifest step credit before the 2.6B comparison run.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-1.2b-automationbench-manifest-steps-smoke-ws-vllm@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    environment: environment
+    settings: training
+    reward_projection: training
+    training: training
+    rollout_inference: inference
+  jobs:
+    - id: sampo
+      kind: train.sampo
+      definition: train/sampo-turns@1
+  expected_artifacts: [trained adapter, native Verifiers trajectories, per-turn environment reward evidence, training summary]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-1.2b-thinking@bf16}
+  environment: {type: ref, family: environment, id: automationbench-manifest-steps-mixv2-smoke-vllm-v1}
+  settings: {type: ref, family: training, id: lfm2.5-1.2b/automationbench-manifest-steps-smoke-vllm-v1}
+  reward_projection: {type: ref, family: training, id: reward/automationbench-manifest-steps@1}
+  training: {type: ref, family: training, id: training/lfm2.5-1.2b-trl-lora-manifest-ws-vllm@1}
+  rollout_inference: {type: ref, family: inference, id: inference/lfm2.5-1.2b-vllm-manifest-ws@1}
+enabled_optional_jobs: []
+metadata:
+  question: Do resolved TRL SAMPO updates with vLLM rollouts train correctly (sampler-correction weights near one and finite, findings present, credit on the issuing step, finite non-zero gradient norm)?
+  labels: [experiment, smoke, sampo, manifest-steps, automationbench, lfm2.5, workstation, vllm]

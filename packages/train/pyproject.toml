@@ -7,6 +7,7 @@ license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "httpx>=0.28,<0.29",
+    "numpy>=2.3,<3",
     "posttrain-common",
     "posttrain-data",
     "posttrain-environment",
@@ -15,7 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 verifiers = [
-    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@e6a3d9bbfe6959b97878f451fc721793a232cd5f",
+    "verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@74dd3fbf176d60cb0070f2408bc8a597bbfc099e",
 ]
 trl = [
     "torch>=2.13,<2.14",

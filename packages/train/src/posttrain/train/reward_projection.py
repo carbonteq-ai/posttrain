@@ -61,6 +61,12 @@ class RewardProjection:
     turn_reward_key: str | None = None
     turn_error_key: str | None = None
     turn_reward_includes_terminal_outcome: bool | None = None
+    # Per-turn verified outcomes: components named <turn_goal_prefix><goal key> carry the
+    # goal's weight; turn_harm_key names the turn's harm debit.
+    turn_goal_prefix: str | None = None
+    turn_harm_key: str | None = None
+    # Turn evidence field mapping each native turn id to an environment state key.
+    turn_state_key: str | None = None
 
     def __post_init__(self) -> None:
         if not self.id.strip() or not self.revision.strip() or not self.components:
@@ -85,6 +91,14 @@ class RewardProjection:
             raise InvalidRewardEvidence("direct turn rewards must declare whether they include terminal outcome")
         if self.turn_reward_key is None and self.turn_reward_includes_terminal_outcome is not None:
             raise InvalidRewardEvidence("terminal outcome declaration requires direct turn reward selection")
+        if (self.turn_goal_prefix is None) != (self.turn_harm_key is None):
+            raise InvalidRewardEvidence("turn goals and harms are selected together")
+        if self.turn_goal_prefix is not None and (
+            not self.turn_goal_prefix.strip() or not str(self.turn_harm_key).strip() or self.turns_info_key is None
+        ):
+            raise InvalidRewardEvidence("turn goals and harms require named components and turn evidence")
+        if self.turn_state_key is not None and (not self.turn_state_key.strip() or self.turns_info_key is None):
+            raise InvalidRewardEvidence("turn state keys require a named field and turn evidence")
         if self.turn_error_key is not None:
             if not self.turn_error_key.strip() or self.turns_info_key is None or self.process_info_key is not None:
                 raise InvalidRewardEvidence(
@@ -136,6 +150,52 @@ class RewardProjection:
         if self.turn_reward_key is None:
             return None
         return tuple(item.require(self.turn_reward_key) for item in self.turn_assessments(observation, turn_ids))
+
+    def project_turn_state_keys(
+        self,
+        observation: TraceObservation,
+        turn_ids: tuple[str, ...],
+    ) -> tuple[str | None, ...] | None:
+        """Per turn: the environment state key, or None where the environment declared none."""
+        if self.turn_state_key is None:
+            return None
+        self.turn_assessments(observation, turn_ids)  # authenticates the evidence envelope
+        info = observation.payload.get("info")
+        assert isinstance(info, Mapping) and self.turns_info_key is not None
+        envelope = info[self.turns_info_key]
+        keys = envelope.get(self.turn_state_key) if isinstance(envelope, Mapping) else None
+        if keys is None:
+            return tuple(None for _ in turn_ids)
+        if not isinstance(keys, Mapping) or set(keys) != set(turn_ids):
+            raise InvalidRewardEvidence("turn state keys must name every native turn with a non-empty key")
+        selected: list[str | None] = []
+        for turn_id in turn_ids:
+            value = keys[turn_id]
+            if not isinstance(value, str) or not value.strip():
+                raise InvalidRewardEvidence("turn state keys must name every native turn with a non-empty key")
+            selected.append(value)
+        return tuple(selected)
+
+    def project_turn_outcomes(
+        self,
+        observation: TraceObservation,
+        turn_ids: tuple[str, ...],
+    ) -> tuple[tuple[tuple[tuple[str, float], ...], float], ...] | None:
+        """Per turn: ((goal key, weight), ...) and harm debit; None when unselected."""
+        if self.turn_goal_prefix is None or self.turn_harm_key is None:
+            return None
+        prefix = self.turn_goal_prefix
+        result = []
+        for item in self.turn_assessments(observation, turn_ids):
+            goals = []
+            for component in item.components:
+                if not component.name.startswith(prefix):
+                    continue
+                if component.status != "valid" or component.value is None or component.value <= 0:
+                    raise InvalidRewardEvidence(f"turn goal {component.name!r} needs a valid positive weight")
+                goals.append((component.name[len(prefix) :], float(component.value)))
+            result.append((tuple(sorted(goals)), item.require(self.turn_harm_key)))
+        return tuple(result)
 
     def project(
         self,

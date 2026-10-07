@@ -28,6 +28,23 @@ from trl.trainer.grpo_trainer import GRPOTrainer  # noqa: E402
 from .test_update_execution import resolved  # noqa: E402
 
 
+def retained_identity(retained) -> tuple:
+    """Population-sized records compare by digest; counters and small records compare structurally."""
+    resolved = retained.resolved
+    return (
+        resolved.snapshot.digest,
+        resolved.credit.digest,
+        resolved.spec,
+        tuple(update.digest for update in resolved.updates),
+        resolved.packs,
+        resolved.execution,
+        resolved.capabilities,
+        retained.max_overflow_retries,
+        retained.applied_update_offset,
+        retained.attempt_offset,
+    )
+
+
 @pytest.mark.parametrize("minibatch", [1, 2])
 def test_native_trl_train_applies_each_declared_update_once(tmp_path, minibatch):
     torch.manual_seed(19)
@@ -51,7 +68,7 @@ def test_native_trl_train_applies_each_declared_update_once(tmp_path, minibatch)
         score_contract="causal@1",
         sampler_correction=None,
     )
-    assert population.updates == updates
+    assert [item.digest for item in population.updates] == [item.digest for item in updates]
     assert population.credit is prepared.credit
     config = GPT2Config(
         vocab_size=7,
@@ -106,9 +123,16 @@ def test_native_trl_train_applies_each_declared_update_once(tmp_path, minibatch)
     assert trainer.state.global_step == population.applied_updates == population.next_update == len(updates)
     assert population.attempts == len(updates)
     assert population.old.policy_version == snapshot.versions.old_score
-    assert all(not value.requires_grad for value in population.old.values.values())
+    assert population.old.values.shape == (snapshot.size,) and not population.old.values.requires_grad
     assert any(not torch.equal(parameter, before[name]) for name, parameter in model.named_parameters())
     assert population.last_evaluation.parameter_version.endswith(f"applied-{len(updates) - 1}")
+    # The kept evaluation is evidence only: a graph kept past the trainer's step
+    # would hold the update's leaves (and their gradients) on the device.
+    evaluation = population.last_evaluation
+    assert all(
+        value.grad_fn is None and not value.requires_grad
+        for value in (evaluation.loss, evaluation.policy_loss, evaluation.kl_loss)
+    )
 
 
 def test_resolved_adapter_rejects_native_double_scheduling():
@@ -285,8 +309,7 @@ def test_native_trl_checkpoint_resume_matches_uninterrupted_update(tmp_path):
     assert resumed.state.global_step == actual.next_update == actual.applied_updates == actual.attempts == 2
     for left, right in zip(uninterrupted.model.parameters(), resumed.model.parameters(), strict=True):
         torch.testing.assert_close(left, right, rtol=1e-6, atol=1e-6)
-    for action in expected.old.values:
-        torch.testing.assert_close(expected.old.values[action], actual.old.values[action], rtol=0, atol=0)
+    torch.testing.assert_close(expected.old.values, actual.old.values, rtol=0, atol=0)
 
 
 @pytest.mark.parametrize("stop_step", [2, 3])
@@ -360,7 +383,8 @@ def test_native_trl_continuous_populations_resume_without_recollection_or_optimi
                 attempt_offset=retained.attempt_offset,
             )
             identity = population_recovery_identity(runtime, runtime_identity="native-cpu-fixture@1", world_size=1)
-            assert load_retained_population(checkpoint, identity, sampler_correction=None) == retained
+            loaded = load_retained_population(checkpoint, identity, sampler_correction=None)
+            assert retained_identity(loaded) == retained_identity(retained)
             restored.append(runtime)
             return runtime
 
@@ -423,10 +447,7 @@ def test_native_trl_continuous_populations_resume_without_recollection_or_optimi
     uninterrupted.train()
     assert [p.applied_update_offset for p in collected] == [0, 2]
     assert collected[0].old.policy_version == "old-0" and collected[1].old.policy_version == "old-2"
-    assert any(
-        not torch.equal(collected[0].old.values[action], collected[1].old.values[action])
-        for action in collected[0].old.values
-    )
+    assert not torch.equal(collected[0].old.values, collected[1].old.values)
     interrupted, _, _, _ = make(tmp_path / "interrupted", stop=True)
     interrupted.train()
     checkpoint = tmp_path / "interrupted" / f"checkpoint-{stop_step}"
@@ -443,7 +464,4 @@ def test_native_trl_continuous_populations_resume_without_recollection_or_optimi
     for parameter, values in left_state["state"].items():
         for key, value in values.items():
             torch.testing.assert_close(value, right_state["state"][parameter][key], rtol=0, atol=0)
-    for action in expected.active().old.values:
-        torch.testing.assert_close(
-            expected.active().old.values[action], actual.active().old.values[action], rtol=0, atol=0
-        )
+    torch.testing.assert_close(expected.active().old.values, actual.active().old.values, rtol=0, atol=0)

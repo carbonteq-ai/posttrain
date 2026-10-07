@@ -10,7 +10,7 @@ import math
 import re
 import time
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import fmean
 from typing import Any, Literal, cast
@@ -19,6 +19,7 @@ from posttrain.advisor import ArchitectureLoader
 from posttrain.common import JsonValue
 from posttrain.tracking import (
     EventRecord,
+    MetricPoint,
     MetricSeries,
     NoteSource,
     ProjectSql,
@@ -39,9 +40,11 @@ from .discovery import TrackioSourceDiscovery
 from .evaluation_contracts import read_evaluation_contract
 from .evaluations import EvaluationIndex, EvaluationTaskScores, evaluation_index, evaluation_tasks
 from .execution_targets import execution_target_capacity, execution_target_contexts
+from .metric_catalog import CATALOG_BY_METRIC, COLLECTION_TIME_METRIC, DERIVED_COLLECTION_METRICS
 from .models import (
     BackendRuntimeSummary,
     ChartView,
+    ComparisonDifference,
     ComparisonRow,
     EvaluationBreakdownSpec,
     EvaluationFacetSpec,
@@ -118,12 +121,14 @@ from .sources import RunSourceRegistry
 from .telemetry import (
     DEFAULT_TELEMETRY_DEFINITIONS,
     GROUP_POLICY_JOB_KINDS,
+    ChartDefinition,
     EvidenceCondition,
     HealthRuleDefinition,
     JobTelemetryDefinition,
 )
 from .traces import (
     filtered_trace_summary_page,
+    newer_trace_summaries,
     prompt_group_reward_view,
     rollout_behavior_view,
     trace_evaluation_view,
@@ -134,8 +139,10 @@ from .traces import (
 from .traces import get_trace_detail as load_trace_detail
 
 
-def _reduce(series: MetricSeries, reducer: str) -> float | None:
+def _reduce(series: MetricSeries, reducer: str, window: int | None = None) -> float | None:
     values = [point.value for point in series.points]
+    if window is not None:
+        values = values[-window:]
     if not values:
         return None
     reducers = {
@@ -494,6 +501,65 @@ def _comparison_context(view: EvaluationRunView | RunView) -> dict[str, JsonValu
         "environment": environment_id,
         "environment_revision": environment_revision,
     }
+
+
+TRAINING_COMPARISON_INPUTS: tuple[tuple[str, str], ...] = (
+    ("model", "Model"),
+    ("reward_function", "Reward function"),
+    ("environment", "Environment"),
+    ("task_mix", "Task mix"),
+    ("tasks", "Tasks"),
+    ("max_turns", "Turns per episode"),
+    ("reply_tokens", "Reply token budget"),
+    ("prompts_per_collection", "Prompt groups per collection"),
+    ("rollouts_per_prompt", "Rollouts per prompt group"),
+    ("updates_per_collection", "Updates per collection"),
+    ("collections", "Collections recorded"),
+)
+"""Training inputs shown beside a comparison, and flagged when they differ (`collections` is progress, not flagged)."""
+
+
+def _nested(value: object, *path: str) -> JsonValue:
+    for key in path:
+        if not isinstance(value, Mapping):
+            return None
+        value = value.get(key)
+    return cast(JsonValue, value) if isinstance(value, str | int | float | bool) or value is None else None
+
+
+def _training_comparison_context(view: RunView) -> dict[str, JsonValue]:
+    """The inputs that decide what a training run's reward, step and time mean."""
+
+    inputs = view.resolved_inputs
+    environment = inputs.get("environment")
+    starts = view.collection_steps
+    spans = [later - earlier for earlier, later in zip(starts, starts[1:], strict=False)]
+    reward_points = next(
+        (series.points for chart in view.charts for series in chart.series if series.name == "train/rl/reward_mean"),
+        (),
+    )
+    return {
+        "model": _selection_identity(inputs.get("model"))[0],
+        "reward_function": _selection_identity(inputs.get("reward_projection"))[0],
+        "environment": _selection_identity(environment)[0],
+        "task_mix": _nested(environment, "resolved", "parameters", "task_mix_id"),
+        "tasks": _nested(environment, "resolved", "num_tasks"),
+        "max_turns": _nested(environment, "resolved", "parameters", "max_turns"),
+        "reply_tokens": _nested(inputs.get("rollout_inference"), "resolved", "sampling", "max_tokens")
+        or _nested(environment, "resolved", "sampling", "max_tokens"),
+        "prompts_per_collection": _nested(inputs.get("settings"), "resolved", "num_prompts_per_step"),
+        "rollouts_per_prompt": _nested(inputs.get("settings"), "resolved", "num_generations"),
+        "updates_per_collection": max(set(spans), key=spans.count) if spans else 1,
+        "collections": len(starts) or len(reward_points),
+    }
+
+
+def _training_differences(contexts: Sequence[Mapping[str, JsonValue]]) -> tuple[ComparisonDifference, ...]:
+    return tuple(
+        ComparisonDifference(key=key, label=label, values=tuple(context.get(key) for context in contexts))
+        for key, label in TRAINING_COMPARISON_INPUTS
+        if key != "collections" and len({json.dumps(context.get(key)) for context in contexts}) > 1
+    )
 
 
 def _presentation_metric_series(series: MetricSeries) -> MetricSeries:
@@ -1054,6 +1120,104 @@ def _config_values(value: JsonValue, key: str) -> tuple[JsonValue, ...]:
     return tuple(values)
 
 
+def _metric_grain(metric: str) -> Literal["update", "collection"]:
+    if metric in DERIVED_COLLECTION_METRICS:
+        return "collection"
+    entry = CATALOG_BY_METRIC.get(metric)
+    return "collection" if entry is not None and entry.entity == "collection" else "update"
+
+
+COLLECTION_START_METRICS = ("train/rl/collection_updates", "train/rl/reward_mean", "train/rl/rollouts_attempted")
+
+
+def _collection_starts(by_name: Mapping[str, MetricSeries], names: Iterable[str]) -> tuple[int, ...]:
+    """Each collection's first-update step, in order, when collections span several updates; else empty."""
+
+    def steps(selected: Iterable[str]) -> set[int]:
+        return {
+            point.step
+            for name in selected
+            for point in by_name.get(name, MetricSeries(name=name)).points
+            if point.step is not None
+        }
+
+    names = tuple(names)
+    collections = steps(name for name in names if _metric_grain(name) == "collection")
+    updates = steps(name for name in names if _metric_grain(name) == "update")
+    return tuple(sorted(collections)) if collections and updates - collections else ()
+
+
+def _collection_time(
+    by_name: Mapping[str, MetricSeries], collection_steps: Sequence[int], *, finished: bool
+) -> MetricSeries | None:
+    """Each collection's wall time: the summed step time of its updates, at its first update's step.
+
+    Without multi-update collections every update is its own collection, so collection time is step
+    time. A collection still training (fewer recorded updates than planned) is left out so the last
+    point never reads as a sudden speed-up.
+    """
+
+    step_time = by_name.get("train/step_time_seconds")
+    if step_time is None or not step_time.points:
+        return None
+    timed = sorted((point for point in step_time.points if point.step is not None), key=lambda point: point.step or 0)
+    if not collection_steps:
+        return MetricSeries(name=COLLECTION_TIME_METRIC, points=tuple(timed))
+    planned = {
+        point.step: int(point.value)
+        for point in by_name.get("train/rl/collection_updates", MetricSeries(name="train/rl/collection_updates")).points
+        if point.step is not None and point.value >= 1
+    }
+    points: list[MetricPoint] = []
+    for index, start in enumerate(collection_steps):
+        end = collection_steps[index + 1] if index + 1 < len(collection_steps) else None
+        members = [point for point in timed if (point.step or 0) >= start and (end is None or (point.step or 0) < end)]
+        if not members:
+            continue
+        if end is None and not finished:
+            expected = planned.get(start) or (start - collection_steps[index - 1] if index else None)
+            if expected is None or len(members) < expected:
+                continue
+        points.append(
+            MetricPoint(
+                value=sum(point.value for point in members),
+                step=start,
+                observed_at=members[-1].observed_at,
+            )
+        )
+    return MetricSeries(name=COLLECTION_TIME_METRIC, points=tuple(points))
+
+
+def _chart_views(
+    definitions: Sequence[ChartDefinition],
+    by_name: Mapping[str, MetricSeries],
+    presentation_by_name: Mapping[str, MetricSeries],
+    collection_steps: Sequence[int] = (),
+) -> tuple[ChartView, ...]:
+    """Chart views, naming the series that are per collection when collections span updates.
+
+    When a run trains on each sampled population with several updates, population
+    (collection) metrics have one point per collection while optimizer metrics have
+    one per update. Charts keep both; ``collection_series`` tells readers which values
+    hold across the updates of their collection.
+    """
+
+    multi_update = bool(collection_steps)
+    return tuple(
+        ChartView(
+            key=chart.key,
+            title=chart.title,
+            question=chart.question,
+            series=tuple(presentation_by_name.get(name, MetricSeries(name=name)) for name in chart.metrics),
+            collection_series=(
+                tuple(name for name in chart.metrics if _metric_grain(name) == "collection") if multi_update else ()
+            ),
+        )
+        for chart in definitions
+        if any(by_name.get(name, MetricSeries(name=name)).points for name in chart.metrics)
+    )
+
+
 def _config_positive_int(resolved_inputs: Mapping[str, JsonValue], key: str) -> int | None:
     for value in _config_values(dict(resolved_inputs), key):
         if isinstance(value, int) and not isinstance(value, bool) and value > 0:
@@ -1263,7 +1427,8 @@ class ObservatoryService:
         # Reads model configs for the settings calculator; None keeps reviews to rule findings.
         self._architecture_loader = architecture_loader
         self._trace_read_contexts: dict[tuple[str, str], _TraceReadContext] = {}
-        self._trace_summary_cache: dict[tuple[str, str], tuple[float, tuple[TraceSummary, ...], bool]] = {}
+        # (expires at, summaries newest first, live, last full read at)
+        self._trace_summary_cache: dict[tuple[str, str], tuple[float, tuple[TraceSummary, ...], bool, float]] = {}
         self._trace_summary_locks: dict[tuple[str, str], asyncio.Lock] = {}
         self._rollout_behavior_cache: dict[tuple[str, str], tuple[float, RolloutBehaviorView]] = {}
         self._rollout_behavior_locks: dict[tuple[str, str], asyncio.Lock] = {}
@@ -1477,11 +1642,16 @@ class ObservatoryService:
         source = self.registry.resolve(locator)
         if detail is None:
             detail = await source.get_run(locator.run_id)
-        names = tuple(sorted(definition.metric_names))
+        names = tuple(sorted(definition.metric_names - DERIVED_COLLECTION_METRICS))
         series_values, artifacts = await asyncio.gather(
             _read_metric_series(source, locator.run_id, names), source.artifacts(locator.run_id)
         )
         by_name = {series.name: series for series in series_values}
+        collection_steps = _collection_starts(by_name, names)
+        if COLLECTION_TIME_METRIC in definition.metric_names:
+            collection_time = _collection_time(by_name, collection_steps, finished=detail.summary.status != "running")
+            if collection_time is not None:
+                by_name[COLLECTION_TIME_METRIC] = collection_time
         presentation_by_name = {
             name: _presentation_metric_series(_downsample(series, 400)[0]) for name, series in by_name.items()
         }
@@ -1492,25 +1662,21 @@ class ObservatoryService:
                 metric=field.metric,
                 state=(
                     "available"
-                    if (value := _reduce(by_name.get(field.metric, MetricSeries(name=field.metric)), field.reducer))
+                    if (
+                        value := _reduce(
+                            by_name.get(field.metric, MetricSeries(name=field.metric)), field.reducer, field.window
+                        )
+                    )
                     is not None
                     else "missing"
                 ),
                 value=value,
                 unit=field.unit,
+                window=field.window,
             )
             for field in definition.summary_fields
         )
-        charts = tuple(
-            ChartView(
-                key=chart.key,
-                title=chart.title,
-                question=chart.question,
-                series=tuple(presentation_by_name.get(name, MetricSeries(name=name)) for name in chart.metrics),
-            )
-            for chart in definition.charts
-            if any(by_name.get(name, MetricSeries(name=name)).points for name in chart.metrics)
-        )
+        charts = _chart_views(definition.charts, by_name, presentation_by_name, collection_steps)
         completeness = _evidence_completeness(
             definition,
             detail.resolved_inputs,
@@ -1526,6 +1692,7 @@ class ObservatoryService:
             run=detail.summary,
             summary=summary,
             charts=charts,
+            collection_steps=collection_steps,
             metric_help=definition.metric_help,
             completeness=completeness,
             grpo=(
@@ -1770,7 +1937,14 @@ class ObservatoryService:
         environment_concurrency = _config_positive_int(detail.resolved_inputs, "max_concurrent")
         inference_sequence_cap = _config_positive_int(detail.resolved_inputs, "max_num_seqs")
         rollouts_per_prompt = _config_positive_int(detail.resolved_inputs, "num_generations")
-        rollouts_per_update = _config_positive_int(detail.resolved_inputs, "global_batch_size")
+        # Rollouts in one collection (sampled population): prompt groups times attempts per prompt,
+        # else veRL's global batch. One collection may feed several optimizer updates.
+        prompts_per_collection = _config_positive_int(detail.resolved_inputs, "num_prompts_per_step")
+        rollouts_per_collection = (
+            prompts_per_collection * rollouts_per_prompt
+            if prompts_per_collection is not None and rollouts_per_prompt is not None
+            else _config_positive_int(detail.resolved_inputs, "global_batch_size")
+        )
         backend_runtime = (
             BackendRuntimeSummary(
                 kv_cache_capacity_tokens=kv_capacity,
@@ -1815,7 +1989,7 @@ class ObservatoryService:
                 environment_concurrency=environment_concurrency,
                 inference_sequence_cap=inference_sequence_cap,
                 rollouts_per_prompt=rollouts_per_prompt,
-                rollouts_per_update=rollouts_per_update,
+                rollouts_per_collection=rollouts_per_collection,
             )
             if any(
                 value is not None
@@ -1829,7 +2003,7 @@ class ObservatoryService:
                     environment_concurrency,
                     inference_sequence_cap,
                     rollouts_per_prompt,
-                    rollouts_per_update,
+                    rollouts_per_collection,
                 )
             )
             or mtp_selected
@@ -2016,7 +2190,11 @@ class ObservatoryService:
                     run_id=view.run.run_id,
                     values={key: values[key].value for key in definition.comparison_keys},
                     states={key: values[key].state for key in definition.comparison_keys},
-                    context=(_comparison_context(view) if isinstance(view, EvaluationRunView) else {}),
+                    context=(
+                        _comparison_context(view)
+                        if isinstance(view, EvaluationRunView)
+                        else _training_comparison_context(view)
+                    ),
                 )
             )
         return RunComparison(
@@ -2024,7 +2202,8 @@ class ObservatoryService:
             state="comparable",
             columns=definition.comparison_keys,
             rows=tuple(rows),
-            basis=basis,
+            basis=basis or ("job kind",),
+            differences=() if evaluation_views else _training_differences([row.context for row in rows]),
         )
 
     async def get_trace_evaluation_view(
@@ -2135,7 +2314,16 @@ class ObservatoryService:
         locator = self._locator(run)
         context = await self._trace_read_context(locator)
         summaries, _ = await self._trace_filter_population(locator, context)
-        return trace_filter_options(summaries)
+        options = trace_filter_options(summaries)
+        # A rollout's step is its collection's first update; number collections when they span updates.
+        source = self.registry.resolve(locator)
+        names = tuple(
+            name
+            for name in (*COLLECTION_START_METRICS, "train/step_time_seconds")
+            if name in context.detail.metric_names
+        )
+        series = {item.name: item for item in await source.metric_series(locator.run_id, names)} if names else {}
+        return options.model_copy(update={"collection_steps": _collection_starts(series, names)})
 
     async def get_rollout_time(self, run: str | RunLocator) -> RolloutTimeView:
         """Per-step rollout phase time; finished steps are reused across refreshes."""
@@ -2213,31 +2401,58 @@ class ObservatoryService:
         locator: RunLocator,
         context: _TraceReadContext,
     ) -> tuple[tuple[TraceSummary, ...], bool]:
+        """Every summary of a run, for exact run-wide filters.
+
+        A finished run's population is read once and kept. A live run's cache is
+        refreshed after 15 seconds by reading only the traces newer than it holds,
+        with a full re-read every 10 minutes; before, every refresh re-read the
+        whole run (minutes for a large RL run, whose payloads Trackio reads whole).
+        """
+
         key = (locator.source_id, locator.run_id)
         cached = self._trace_summary_cache.get(key)
-        if cached is not None and cached[0] > time.monotonic():
+        now = time.monotonic()
+        if cached is not None and cached[0] > now:
             return cached[1], cached[2]
         lock = self._trace_summary_locks.setdefault(key, asyncio.Lock())
         async with lock:
             cached = self._trace_summary_cache.get(key)
-            if cached is not None and cached[0] > time.monotonic():
+            now = time.monotonic()
+            if cached is not None and cached[0] > now:
                 return cached[1], cached[2]
             detail = context.detail
-            summaries, live = await trace_summary_population(
-                self.registry.resolve(locator),
-                locator.run_id,
-                trace_type=context.trace_type,
-                newest_first=detail.summary.job_kind.startswith("train."),
-                metadata=(
-                    _evaluation_metadata(detail.resolved_inputs)
-                    if detail.summary.job_kind.startswith("eval.")
-                    else None
-                ),
+            source = self.registry.resolve(locator)
+            running = detail.summary.status == "running"
+            newest_first = detail.summary.job_kind.startswith("train.")
+            metadata = (
+                _evaluation_metadata(detail.resolved_inputs) if detail.summary.job_kind.startswith("eval.") else None
             )
+            if cached is not None and newest_first and now - cached[3] < 600.0:
+                newer, live = await newer_trace_summaries(
+                    source,
+                    locator.run_id,
+                    trace_type=context.trace_type,
+                    metadata=metadata,
+                    known=frozenset(item.external_id for item in cached[1]),
+                )
+                summaries, full_at = (*newer, *cached[1]), cached[3]
+            else:
+                summaries, live = await trace_summary_population(
+                    source,
+                    locator.run_id,
+                    trace_type=context.trace_type,
+                    newest_first=newest_first,
+                    metadata=metadata,
+                )
+                full_at = now
+            # Freshness counts from when the read finished: a full read of a large run takes longer
+            # than the live refresh interval.
+            self._trace_summary_cache.pop(key, None)
             self._trace_summary_cache[key] = (
-                time.monotonic() + (15.0 if detail.summary.status == "running" else 120.0),
+                time.monotonic() + (15.0 if running else 3600.0),
                 summaries,
                 live,
+                full_at,
             )
             if len(self._trace_summary_cache) > 4:
                 self._trace_summary_cache.pop(next(iter(self._trace_summary_cache)))

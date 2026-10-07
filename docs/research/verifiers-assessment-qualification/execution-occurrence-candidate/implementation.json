@@ -1,0 +1,44 @@
+{
+  "candidate_only": true,
+  "original_source": "/home/hammad/projects/verifiers",
+  "candidate": "/home/hammad/projects/verifiers-credit-candidate-20261003",
+  "original_files_checked": 230,
+  "original_changes": [],
+  "parent_independent_isolation_check": {
+    "files": 230,
+    "changes": 0,
+    "source": "parent message 2026-10-03"
+  },
+  "new_model_calls": 0,
+  "native_projection_support": "unsupported_without_execution_generated_call_token_relation",
+  "files": [
+    {
+      "path": "verifiers/v1/assessments.py",
+      "sha256": "c73ec839af55b4e8ebc47e875723adcf1db7d6758f3b69c34bb0df8450172148"
+    },
+    {
+      "path": "verifiers/v1/assessment_source.py",
+      "sha256": "65693d7ba468ccf02248416d0d7495e332fcd99fd3705b2567d12d1562775c69"
+    },
+    {
+      "path": "verifiers/v1/episode_assessment.py",
+      "sha256": "61f52e9b40fa91007b390849ee49ba6cf3def460179adb4b0e72a92551516fb8"
+    },
+    {
+      "path": "verifiers/v1/credit.py",
+      "sha256": "a76a5720a3097e73503a220d208ee4eeeaf8ef316cc4711f9e0d100cfab9bccb"
+    },
+    {
+      "path": "verifiers/v1/assessment_projection.py",
+      "sha256": "196cf9d9c18c306d46c8b0a70e7b7caee0671e2f6e5132880d84543d0b607b38"
+    },
+    {
+      "path": "verifiers/v1/__init__.py",
+      "sha256": "51c466e5b0d2081d1e791dcd906511b3488e917e70234e1ab51b9624b8c4b651"
+    },
+    {
+      "path": "tests/v1/test_scoring.py",
+      "sha256": "2e5fde685e6d1fc9753b8a76f7ed3f0cccebcb33be5be0c385fd73da6336f349"
+    }
+  ]
+}

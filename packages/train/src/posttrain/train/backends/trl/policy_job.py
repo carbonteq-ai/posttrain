@@ -9,8 +9,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
+import numpy as np
 from posttrain.common import RunContext
 
 from ...online_rl import policy_sampling_from_mapping
@@ -20,10 +21,11 @@ from ...update_plan import ExecutionCapabilities
 from ...update_records import InvalidPolicyUpdate, PolicyVersions
 from ...update_recovery import inspect_update_recovery
 from ...update_resolution import resolve_policy_population
-from ...update_sampler_correction import recipe_sampler_correction_weights
+from ...update_sampler_correction import recipe_sampler_correction_weights, sampler_correction_recipe
+from ...update_telemetry import update_metrics
 from ...update_transport import decode_population_payload
 from ..policy_update_admission import AdmittedNativePopulation
-from .policy_rollouts import collect_active_resolved_population, collect_resolved_population
+from .policy_rollouts import CurriculumCandidates, collect_active_resolved_population, collect_resolved_population
 from .policy_updates import ResolvedTRLPopulation, ResolvedTRLRun
 from .update_totals import RolloutUpdateTotals
 
@@ -63,7 +65,14 @@ def validate_resolved_job(request: GRPORequest | SAMPORequest | GDPORequest | CA
     if request.training.runtime.nodes != 1 or request.training.runtime.devices_per_node != 1:
         raise InvalidPolicyUpdate("resolved TRL job has not qualified distributed native execution")
     if request.inference.backend.split("@", 1)[0] == "vllm":
-        raise InvalidPolicyUpdate("resolved TRL job has not qualified production sampler correction")
+        from .policy_config import _rollout_execution_config
+
+        # Sampler correction compares frozen trainer scores with the processed
+        # logprobs vLLM returns for each sampled token (TRL configures colocated
+        # vLLM with logprobs_mode=processed_logprobs). Only the colocated async
+        # collection runtime carries them into native traces.
+        if request.inference.engine.get("mode") != "colocate" or _rollout_execution_config(request) is None:
+            raise InvalidPolicyUpdate("resolved TRL vLLM collection requires colocated async rollout execution")
     sampling = policy_sampling_from_mapping(getattr(request.inference, "sampling", {}), settings.max_completion_length)
     if (
         sampling.top_p != 1
@@ -76,7 +85,8 @@ def validate_resolved_job(request: GRPORequest | SAMPORequest | GDPORequest | CA
     if (
         (getattr(settings, "active_sampling", None) is not None and not isinstance(request, SAMPORequest))
         or getattr(settings, "dynamic_sampling", None) is not None
-        or getattr(settings, "adaptive_curriculum", None) is not None
+        # A curriculum chooses the active rounds' candidates, which only SAMPO's resolved collection runs.
+        or (getattr(settings, "adaptive_curriculum", None) is not None and not isinstance(request, SAMPORequest))
     ):
         raise InvalidPolicyUpdate(
             "resolved TRL job has not qualified production filtering/refill/curriculum composition"
@@ -167,6 +177,10 @@ def job_identity(request: Any, tokenizer: Any, native_trainer: type) -> tuple[st
     return f"resolved-trl-job/{runtime}", f"renderer/{template}"
 
 
+def _detached_scores(frozen: Any) -> np.ndarray | None:
+    return None if frozen is None else frozen.values.detach().double().cpu().numpy()
+
+
 def _decode_native(evidence: bytes) -> Mapping[str, Any]:
     from ...integrations.verifiers_population_artifact import decode_native_population
 
@@ -176,7 +190,19 @@ def _decode_native(evidence: bytes) -> Mapping[str, Any]:
     if not isinstance(first, dict):
         raise InvalidPolicyUpdate("resolved job recovery requires native record objects")
     format = "verifiers-native-episodes" if "traces" in first else "verifiers-native-traces"
-    return decode_native_population(evidence, format=format)
+    return decode_native_population(evidence, format=format, content="conditioning")
+
+
+def _observed_sampled_scores(admitted: AdmittedNativePopulation) -> np.ndarray | None:
+    """Sampled scores for gap observation of a restored population, when its evidence retains them.
+
+    Restoration uses the sealed correction weights; it never needs sampled
+    scores, so evidence without them only omits the sampler-gap metrics.
+    """
+    try:
+        return admitted.read_input.sampling_log_scores(admitted.resolved.snapshot)
+    except InvalidPolicyUpdate:
+        return None
 
 
 @dataclass
@@ -190,6 +216,9 @@ class ResolvedTRLJob:
     score_temperature: float
     totals: RolloutUpdateTotals
     max_overflow_retries: int = 0
+    # The adaptive curriculum runtime (VORTEX yield-first or quota), when selected: it chooses
+    # each active round's tasks instead of the shuffled inventory.
+    curriculum: Any = None
     trainer: Any = field(default=None, init=False, repr=False)
     run: ResolvedTRLRun = field(init=False)
     capabilities: ExecutionCapabilities = field(init=False)
@@ -201,6 +230,9 @@ class ResolvedTRLJob:
         Native Trainer's logged loss is a windowed total, not policy loss.
         Prepared-credit statistics describe selected actions, without changing
         their objective weights or claiming that a nonzero gradient was applied.
+        Clipping, sampler-correction weights and entropy describe the same
+        selected actions; grad_norm and gradient_clipped come from the native
+        log record through the shared observation callback.
         """
         if step == self._observed_applied:
             return
@@ -225,26 +257,35 @@ class ResolvedTRLJob:
             "train/rl/kl_loss": float(evaluation.kl_loss.detach()),
             "train/rl/applied_optimizer_updates": step,
             "train/rl/optimizer_attempts": population.global_attempts,
-            "train/rl/selected_policy_actions": len(term.policy_weights),
-            "train/rl/selected_kl_actions": len(term.kl_weights),
+            "train/rl/selected_policy_actions": int(term.policy_positions.size),
+            "train/rl/selected_kl_actions": int(term.kl_positions.size),
         }
         if population.spec.beta:
             values["train/rl/kl"] = values["train/rl/kl_loss"] / population.spec.beta
-        if term.policy_weights:
-            credit = {item.action: item.advantage for item in population.credit.values}
-            advantages = [credit[item.action] for item in term.policy_weights]
-            mean = sum(advantages) / len(advantages)
-            values.update(
-                {
-                    "train/rl/advantage_mean": mean,
-                    "train/rl/advantage_abs_mean": sum(abs(value) for value in advantages) / len(advantages),
-                    "train/rl/advantage_std": (sum((value - mean) ** 2 for value in advantages) / len(advantages))
-                    ** 0.5,
-                    "train/rl/advantage_nonzero_fraction": sum(value != 0 for value in advantages) / len(advantages),
-                    "train/rl/clip_fraction": len(evaluation.clipped_actions) / len(term.policy_weights),
-                }
+        values.update(
+            update_metrics(
+                term,
+                population.credit,
+                episode_of=update.population.episode_of,
+                ratios=evaluation.ratios.detach().double().cpu().numpy(),
+                clipped=evaluation.clipped,
+                sampler_correction=population.sampler_correction,
+                correction_recipe=sampler_correction_recipe(self.request.settings),
+                entropies=evaluation.entropies,
+                old_scores=_detached_scores(population.old),
+                sampled_scores=population.sampled_scores,
             )
-        self.context.metrics(values, step=step, attributes={"measurement_scope": "resolved-applied-update"})
+        )
+        self.context.metrics(
+            values,
+            step=step,
+            attributes={
+                "measurement_scope": "resolved-applied-update",
+                # The population this update trained on, identified by its first update's step.
+                "collection_step": population.applied_update_offset + 1,
+                "collection_update": population.next_update,
+            },
+        )
         self.context.event(
             "resolved_policy_update_applied",
             {
@@ -277,10 +318,11 @@ class ResolvedTRLJob:
         if len(self.rows) < self.reservation:
             raise InvalidPolicyUpdate("resolved collection inventory cannot fill distinct complete groups")
         self.capabilities = ExecutionCapabilities(
-            ("grpo@1", "dapo@1", "sampo@1", "sampo-spans@1", "gdpo@1", "capo@1"),
+            ("grpo@1", "dapo@1", "sampo@1", "sampo-turns@1", "sampo-spans@1", "gdpo@1", "capo@1"),
             ("sampled-logp", "old-logp", "reference-logp"),
             self.request.settings.max_prompt_length + self.request.settings.max_completion_length,
             True,
+            prefix_sharing=True,
         )
         self.run = ResolvedTRLRun(self.collect, self.restore)
 
@@ -299,19 +341,32 @@ class ResolvedTRLJob:
     def collect(self, applied: int, attempts: int) -> ResolvedTRLPopulation:
         if self.trainer is None or self.trainer.state.global_step != applied:
             raise InvalidPolicyUpdate("resolved job collector is not bound at the native applied boundary")
-        ordered = list(self.rows)
-        if self.request.settings.shuffle_prompts:
-            random.Random(self.request.settings.loop.seed + applied).shuffle(ordered)
         active = isinstance(self.request, SAMPORequest) and self.request.settings.active_sampling is not None
-        start = (applied * self.reservation if active else applied) % len(ordered)
-        selected = [ordered[(start + index) % len(ordered)] for index in range(self.reservation)]
-        selection: dict[str, object] = {
-            "schema": "posttrain.resolved-task-selection@1",
-            "applied": applied,
-            "tasks": [row["example_id"] for row in selected],
-            "seed": self.request.settings.loop.seed,
-            "shuffle": self.request.settings.shuffle_prompts,
-        }
+        candidates: Any
+        if self.curriculum is not None:
+            # The curriculum decides each round after observing the earlier ones; its decisions and
+            # evidence are journaled by the runtime and the collection evidence records the tasks.
+            candidates = CurriculumCandidates(self.curriculum, applied + 1, self.request.settings.num_generations)
+            selection: dict[str, object] = {
+                "schema": "posttrain.resolved-task-selection@1",
+                "applied": applied,
+                "selector": "adaptive-curriculum",
+                "curriculum": asdict(cast(Any, self.request.settings).adaptive_curriculum),
+                "decision_index": self.curriculum.controller.decision_index,
+            }
+        else:
+            ordered = list(self.rows)
+            if self.request.settings.shuffle_prompts:
+                random.Random(self.request.settings.loop.seed + applied).shuffle(ordered)
+            start = (applied * self.reservation if active else applied) % len(ordered)
+            candidates = [ordered[(start + index) % len(ordered)] for index in range(self.reservation)]
+            selection = {
+                "schema": "posttrain.resolved-task-selection@1",
+                "applied": applied,
+                "tasks": [row["example_id"] for row in candidates],
+                "seed": self.request.settings.loop.seed,
+                "shuffle": self.request.settings.shuffle_prompts,
+            }
         if active:
             assert isinstance(self.request, SAMPORequest)
             selection["active_sampling"] = asdict(self.request.settings.active_sampling)
@@ -333,13 +388,13 @@ class ResolvedTRLJob:
                 self.request,
                 self.tokenizer,
                 self.trainer,
-                selected,
+                candidates,
                 self.capabilities,
                 evidence_directory=Path(self.trainer.args.output_dir).parent / "collection-evidence",
                 **common,
             )
         else:
-            rows = [row for row in selected for _ in range(self.request.settings.num_generations)]
+            rows = [row for row in candidates for _ in range(self.request.settings.num_generations)]
             admitted = collect_resolved_population(
                 self.context, self.request, self.tokenizer, self.trainer, rows, self.capabilities, **common
             )
@@ -347,6 +402,7 @@ class ResolvedTRLJob:
             admitted, score_temperature=self.score_temperature, score_contract=SCORE_CONTRACT, sampler_correction=None
         )
         sampled = admitted.read_input.sampling_log_scores(admitted.resolved.snapshot)
+        population.sampled_scores = sampled
         population.prepare_sampler_correction = lambda old: recipe_sampler_correction_weights(
             self.request.settings, admitted.resolved.snapshot, old, sampled
         )
@@ -364,6 +420,7 @@ class ResolvedTRLJob:
             policy_version=snapshot.versions.reference,
             score_contract=SCORE_CONTRACT,
             score_temperature=self.score_temperature,
+            prefix_sharing=population.capabilities.prefix_sharing,
         )
         if self.trainer.ref_model is not None:
             return freeze_population_scores(self.trainer.ref_model, snapshot, **kwargs)
@@ -408,7 +465,7 @@ class ResolvedTRLJob:
             self.versions(retained.applied_update_offset), sampler=selected.snapshot.versions.sampler
         )
         if (
-            selected != retained.resolved
+            selected.digest != retained.resolved.digest
             or retained.max_overflow_retries != self.max_overflow_retries
             or selected.snapshot.versions != expected_versions
             or any(view.template_revision != self.template_revision for view in selected.snapshot.conditioning)
@@ -435,9 +492,11 @@ class ResolvedTRLJob:
             checkpoint, identity, sampler_correction=correction, decode=_decode_native
         )
         self._observed_applied = state.native_applied_updates
-        return ResolvedTRLPopulation.from_admitted(
+        population = ResolvedTRLPopulation.from_admitted(
             admitted,
             score_temperature=self.score_temperature,
             score_contract=SCORE_CONTRACT,
             sampler_correction=correction,
         )
+        population.sampled_scores = _observed_sampled_scores(admitted)
+        return population

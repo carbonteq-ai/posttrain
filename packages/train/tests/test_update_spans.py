@@ -4,6 +4,7 @@ import json
 from dataclasses import replace
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 from posttrain.train.backends.policy_update_admission import AdmittedNativePopulation
 from posttrain.train.update_plan import PolicyExecutionBudget, PolicyUpdateSchedule, PolicyUpdateSettings
@@ -69,14 +70,20 @@ def test_admission_derives_reasoning_and_answer_spans_on_original_actions():
         "trace-1/node-1/answer",
         "trace-1/node-1/reasoning",
     ]
-    reasoning = spans["trace-0/node-1/reasoning"].actions()
-    assert [(action.turn_id, action.token_index) for action in reasoning] == [("trace-0/node-1", 1)]
+    reasoning = snapshot.span_positions(spans["trace-0/node-1/reasoning"])
+    assert [(snapshot.action(int(p)).turn_id, snapshot.action(int(p)).token_index) for p in reasoning] == [
+        ("trace-0/node-1", 1)
+    ]
     assert {span.projection_revision for span in spans.values()} == {"verifiers.renderer-reasoning-prefix@1"}
-    assert snapshot.select_roles(("reasoning",)) == tuple(
-        sorted(action for span in spans.values() if span.role == "reasoning" for action in span.actions())
-    )
+    expected = np.zeros(snapshot.size, dtype=bool)
+    for span in spans.values():
+        if span.role == "reasoning":
+            expected[snapshot.span_positions(span)] = True
+    assert snapshot.select_roles(("reasoning",)).tolist() == expected.tolist()
     # Reasoning policy support and full KL support are selected independently.
-    assert set(snapshot.select_roles(("reasoning", "answer"))) == {record.action for record in snapshot.actions}
+    assert snapshot.select_roles(("reasoning", "answer")).all()
+    objective = admitted.resolved.updates[0].objective
+    assert objective.policy.tolist() == expected.tolist()
 
 
 def test_admission_rejects_spans_without_renderer_reasoning_accounting():

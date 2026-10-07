@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import json
 import math
 import re
@@ -438,11 +439,19 @@ def test_verl_policy_generator_preserves_complete_sampling_policy(monkeypatch: p
     sys.modules.pop(module_name, None)
 
 
+@pytest.mark.parametrize("native_transport", [False, True])
 def test_verl_policy_generator_takes_lfm25_python_calls_from_the_renderer_like_trl(
     monkeypatch: pytest.MonkeyPatch,
+    native_transport: bool,
 ) -> None:
     """LFM2.5 emits a Python call list; the renderer parses it, as on TRL's train client."""
 
+    if native_transport or importlib.util.find_spec("verifiers") is not None:
+        vf = pytest.importorskip("verifiers.v1")
+        if not hasattr(vf, "GeneratedCallAttempt"):
+            pytest.skip("requires native assessment candidate checkout")
+        # Load the real native client before the renderer-construction stub.
+        importlib.import_module("verifiers.v1.clients.train")
     module_name = "posttrain.train.backends.verl.agent_loop"
     monkeypatch.delitem(sys.modules, module_name, raising=False)
     for package in ("verl", "verl.experimental", "verl.experimental.agent_loop"):
@@ -567,6 +576,103 @@ def test_verl_policy_generator_takes_lfm25_python_calls_from_the_renderer_like_t
         )
     )
     assert bridged.prompt_message_spans == (None, None, (4, 6))
+    if native_transport:
+        import verifiers.v1 as vf  # bound above too; native transport always loads it
+        from posttrain.train.integrations.verifiers import _PolicyClient
+        from posttrain.train.integrations.verifiers_generation import decode_parser_evidence
+        from verifiers.v1.assessment_source import capture_trace_source
+        from verifiers.v1.dialects.chat import ChatDialect
+        from verifiers.v1.graph import prepare_turn
+
+        assert result.parser_evidence is not None and bridged.parser_evidence is not None
+        first = decode_parser_evidence(result.parser_evidence).attempts
+        second = decode_parser_evidence(bridged.parser_evidence).attempts
+        assert first[0].token_span == second[0].token_span == (0, 2)
+        assert first[0].completion_token_digest == second[0].completion_token_digest
+
+        class CapturedGenerator:
+            async def generate(self, request):
+                return result
+
+        response = asyncio.run(
+            _PolicyClient(CapturedGenerator()).get_response(
+                ChatDialect(),
+                {"messages": [{"role": "user", "content": "find"}], "tools": list(tools)},
+                "model",
+                SimpleNamespace(max_tokens=32, temperature=1.0, top_p=1.0),
+            )
+        )
+        trace = vf.Trace(
+            episode_id="episode",
+            agent=vf.AgentInfo(config=vf.AgentConfig()),
+            task=vf.TraceTask(type="Task", data=vf.TaskData(prompt="find")),
+        )
+        index = prepare_turn(trace, [vf.UserMessage(content="find")]).commit(response)
+        source = capture_trace_source(trace)
+        subject = vf.SubjectRef(
+            kind="call",
+            snapshot_id=source.snapshot_id,
+            episode_id="episode",
+            trace_id=trace.id,
+            node_index=index,
+            node_content_digest=source.nodes[index].node_content_digest,
+            call_index=0,
+        )
+        restored = vf.WireTrace.model_validate(trace.to_record())
+        # A restored wire trace is the trace shape project_subject reads.
+        projection = vf.project_subject(subject, source, cast(Any, restored))
+        assert projection.status == "exact_call"
+        assert [(item.start, item.end) for item in projection.intervals] == [(0, 2)]
+        assert restored.nodes[index].token_ids == [3, 4]
+        producer = restored.nodes[index].generated_call_producer
+        assert producer is not None
+        assert json.loads(producer.descriptor_json)["configuration"]["renderer_config"] == "lfm2.5"
+        from posttrain.environment.verifiers_conditioning import (
+            materialize_native_conditioning,
+            native_conditioning_records,
+        )
+        from verifiers.v1.trace import ModelCall
+
+        trace.calls.append(ModelCall(node=index, model="model", usage=response.usage))
+        turn = prepare_turn(
+            trace,
+            [
+                vf.UserMessage(content="find"),
+                response.message,
+                vf.ToolMessage(tool_call_id="call_0", content="result"),
+            ],
+        )
+        next_response = asyncio.run(
+            _PolicyClient(generator).get_response(
+                ChatDialect(),
+                {"tools": list(tools)},
+                "model",
+                SimpleNamespace(max_tokens=32, temperature=1.0, top_p=1.0),
+                turn=turn,
+            )
+        )
+        next_index = turn.commit(next_response)
+        trace.calls.append(ModelCall(node=next_index, model="model", usage=next_response.usage))
+        next_source = capture_trace_source(trace)
+        next_subject = vf.SubjectRef(
+            kind="call",
+            snapshot_id=next_source.snapshot_id,
+            episode_id="episode",
+            trace_id=trace.id,
+            node_index=next_index,
+            node_content_digest=next_source.nodes[next_index].node_content_digest,
+            call_index=0,
+        )
+        projected = vf.project_subject(next_subject, next_source, trace)
+        assert projected.status == "exact_call"
+        assert [(item.start, item.end) for item in projected.intervals] == [(1, 3)]
+        record = native_conditioning_records(
+            trace, sampled_node_indices=(next_index,), context_contract="causal-text@1"
+        )[0]
+        conditioning = materialize_native_conditioning(trace, record)
+        assert conditioning.token_ids == tuple(next_response.tokens.prompt_ids + next_response.tokens.completion_ids)
+        local_support = set(range(projected.intervals[0].start, projected.intervals[0].end))
+        assert tuple(physical for local, physical in conditioning.action_positions if local in local_support) == (7, 8)
     sys.modules.pop(module_name, None)
 
 

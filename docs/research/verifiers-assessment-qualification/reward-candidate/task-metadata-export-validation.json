@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "export_path": "/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/task-metadata/luna-selected120-metadata.json",
+  "export_digest": "8e883896996e4fefcd03c93029ddb30f5049c864a62e09bcb68c438df99d9b6c",
+  "scope": "Selected 120 development reference tasks, not whole AutomationBench inventory",
+  "tasks": 120,
+  "matched_frozen_tasks": 120,
+  "domains": {
+    "finance": 20,
+    "hr": 20,
+    "marketing": 20,
+    "operations": 20,
+    "sales": 20,
+    "support": 20
+  },
+  "exact_sampled_output": {
+    "unavailable": 120
+  },
+  "sdk_reported_output": {
+    "observed": 120
+  },
+  "tool_dispatch_counts": {
+    "observed": 120
+  },
+  "classification_status": {
+    "not_reviewed": 360
+  },
+  "redesigned_guard_qualification": "unassessed",
+  "efficiency_limits": "not_derived_or_activated"
+}

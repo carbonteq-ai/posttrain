@@ -39,6 +39,7 @@ from posttrain.train import (
     GDPOSettings,
     GRPOSettings,
     OnPolicyDistillationSettings,
+    PolicyUpdateSettings,
     QuantizationPlan,
     SAMPOSettings,
     SFTSettings,
@@ -930,7 +931,20 @@ def _active_sampling_details(sampling: ActiveGroupSampling) -> dict[str, JsonVal
         details["oversample"] = sampling.oversample
     if sampling.oversample_refill:
         details["oversample_refill"] = sampling.oversample_refill
+    if sampling.retain != "first":
+        details["retain"] = sampling.retain
     return details
+
+
+def _json_value(value: object) -> JsonValue:
+    """Dataclass dumps as JSON values: tuples become lists, mappings get string keys."""
+    if isinstance(value, Mapping):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise ContractError(f"settings value of type {type(value).__name__} has no JSON form")
 
 
 def _selection_details(value: Selection) -> dict[str, JsonValue]:
@@ -1122,6 +1136,24 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
         if isinstance(value, SAMPOSettings):
             details["active_sampling"] = _active_sampling_details(value.active_sampling)
             details["kl_reference"] = value.kl_reference
+            # How SAMPO builds credit and corrects for the sampler, so readers can tell runs apart.
+            details.update(
+                {
+                    "discount_gamma": value.discount_gamma,
+                    "step_advantage_weight": value.step_advantage_weight,
+                    "advantage_normalization": value.advantage_normalization,
+                    "importance_sampling_mode": value.importance_sampling_mode,
+                    "importance_sampling_clip_min": value.importance_sampling_clip_min,
+                    "importance_sampling_clip_max": value.importance_sampling_clip_max,
+                    "truncation_penalty": value.truncation_penalty,
+                    "mask_truncated_completions": value.mask_truncated_completions,
+                    "max_admission_attempts": value.max_admission_attempts,
+                }
+            )
+        policy_updates = getattr(value, "policy_updates", None)
+        if isinstance(policy_updates, PolicyUpdateSettings):
+            # Only present when declared: how one collected population becomes optimizer updates.
+            details["policy_updates"] = _json_value(asdict(policy_updates))
         if isinstance(value, OnPolicyDistillationSettings):
             details.update(
                 {
