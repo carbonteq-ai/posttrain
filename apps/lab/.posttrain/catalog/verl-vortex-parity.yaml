@@ -922,7 +922,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
+      dependency_lock_sha256: 2184b69d95197675853bf30e8d62be6d3b07727409279d100b809465f269738b
 
   training/qwen3.5-0.8b-verl-lora-parity-local-g16@1:
     selection_type: training-binding
@@ -959,7 +959,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
+      dependency_lock_sha256: 2184b69d95197675853bf30e8d62be6d3b07727409279d100b809465f269738b
 
   training/lfm2.5-1.2b-verl-lora-parity-local-g16@1:
     selection_type: training-binding
@@ -999,7 +999,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
+      dependency_lock_sha256: 2184b69d95197675853bf30e8d62be6d3b07727409279d100b809465f269738b
 
   training/lfm2.5-1.2b-verl-lora-parity-ws-g16@1:
     selection_type: training-binding
@@ -1040,7 +1040,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: 1895e88a50fbc5623f0419f834af5a086dc17ef50c6739cf988f71a41e50f5b6
+      dependency_lock_sha256: 2184b69d95197675853bf30e8d62be6d3b07727409279d100b809465f269738b
 
   training/qwen3.5-0.8b-verl-lora-parity-ws-g16@1:
     selection_type: training-binding

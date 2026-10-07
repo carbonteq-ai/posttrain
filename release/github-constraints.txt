@@ -1,13 +1,13 @@
 # Immutable maintained-fork sources used by GitHub-first framework releases.
 trl @ git+https://github.com/carbonteq-ai/trl.git@c4d0db051a7839fe1b1d587185fac33ba88c784f
 vllm @ git+https://github.com/carbonteq-ai/vllm.git@f09e4479123d348cee87d217c695a22f9b2daacc
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@9d95aeb31965d6c945e2621259ac78f9d5e97c76
-alphabet-sort @ git+https://github.com/carbonteq-ai/verifiers.git@9d95aeb31965d6c945e2621259ac78f9d5e97c76#subdirectory=environments/alphabet_sort
-code-golf @ git+https://github.com/carbonteq-ai/verifiers.git@9d95aeb31965d6c945e2621259ac78f9d5e97c76#subdirectory=environments/code_golf
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@3cd9045ab23c11c6006202066244063aa012dc47
+alphabet-sort @ git+https://github.com/carbonteq-ai/verifiers.git@3cd9045ab23c11c6006202066244063aa012dc47#subdirectory=environments/alphabet_sort
+code-golf @ git+https://github.com/carbonteq-ai/verifiers.git@3cd9045ab23c11c6006202066244063aa012dc47#subdirectory=environments/code_golf
 gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/gsm8k_v1
 automationbench-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/automationbench_v1
 mmlu-pro-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/mmlu_pro_v1
 ifeval-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/ifeval_v1
 reasoning-gym-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/reasoning_gym_v1
 math-python-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/math_python_v1
-reverse-text @ git+https://github.com/carbonteq-ai/verifiers.git@9d95aeb31965d6c945e2621259ac78f9d5e97c76#subdirectory=environments/reverse_text
+reverse-text @ git+https://github.com/carbonteq-ai/verifiers.git@3cd9045ab23c11c6006202066244063aa012dc47#subdirectory=environments/reverse_text
