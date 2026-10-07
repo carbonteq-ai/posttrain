@@ -38,7 +38,7 @@ The duplicate Slack instruction conflicts with the higher-priority system instru
 
 ## Provenance
 
-Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-10.json`  
+Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-10.json`
 Exact SHA-256: `a99c6aa6fca047d97221b28679aec5811c74e9c7e651d352c8b5f4161d53e42c`
 
 Pack SHA and ordered identities match the index. All ten public-input hashes pass. Exact-byte and canonical-JSON selection hashes were independently recomputed under their documented schemes.

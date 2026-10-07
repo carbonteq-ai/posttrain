@@ -1040,17 +1040,31 @@ def test_training_assignment_results_preserve_credit_and_remove_source_bodies() 
     native["info"]["automationbench_capture"] = {"snapshots": "PRIVATE-ASSESSMENT-WORLD"}
     batch = native["assessment_batches"][1]
     contribution = {
-        "contribution_id": "credit", "parent_assessment_ids": ["assessment-1"],
-        "recipient": batch["assessments"][0]["subject"], "signal": batch["assessments"][0]["signal"],
-        "channel": "guard", "status": "valid", "value": -1, "weight": 2,
-        "allocation": "fixed_mass", "attribution": "coarse", "reason": "PRIVATE-ASSESSMENT",
+        "contribution_id": "credit",
+        "parent_assessment_ids": ["assessment-1"],
+        "recipient": batch["assessments"][0]["subject"],
+        "signal": batch["assessments"][0]["signal"],
+        "channel": "guard",
+        "status": "valid",
+        "value": -1,
+        "weight": 2,
+        "allocation": "fixed_mass",
+        "attribution": "coarse",
+        "reason": "PRIVATE-ASSESSMENT",
     }
     assignment = {
-        "schema_version": 1, "status": "complete", "contributions": [contribution],
-        "request": {"source": batch["source"], "accepted": batch["assessments"],
-            "invocation_id": "assignment-invocation", "attempt_id": "assignment-attempt",
-            "allocation": "fixed_mass", "overlap_policy": "reject",
-            "rule": {"rule_id": "guard", "revision": "1", "configuration_json": "PRIVATE-ASSESSMENT"}},
+        "schema_version": 1,
+        "status": "complete",
+        "contributions": [contribution],
+        "request": {
+            "source": batch["source"],
+            "accepted": batch["assessments"],
+            "invocation_id": "assignment-invocation",
+            "attempt_id": "assignment-attempt",
+            "allocation": "fixed_mass",
+            "overlap_policy": "reject",
+            "rule": {"rule_id": "guard", "revision": "1", "configuration_json": "PRIVATE-ASSESSMENT"},
+        },
     }
     running = deepcopy(assignment)
     running.update(status="running", contributions=[])
@@ -1094,11 +1108,19 @@ def test_training_execution_results_preserve_coordinates_without_payloads() -> N
     native = _assessment_export_fixture()
     batch = native["assessment_batches"][1]
     subject = {
-        "kind": "execution", "snapshot_id": "snapshot-1", "episode_id": "episode-1",
-        "trace_id": "rollout-1", "execution": {
-            "episode_id": "episode-1", "trace_id": "rollout-1", "origin": "tool_server",
-            "invocation_id": "send-1", "prefix_digest": "dispatch-prefix", "event_count": 1,
-            "phase": "dispatch", "future_payload": {"body": "PRIVATE-ASSESSMENT"},
+        "kind": "execution",
+        "snapshot_id": "snapshot-1",
+        "episode_id": "episode-1",
+        "trace_id": "rollout-1",
+        "execution": {
+            "episode_id": "episode-1",
+            "trace_id": "rollout-1",
+            "origin": "tool_server",
+            "invocation_id": "send-1",
+            "prefix_digest": "dispatch-prefix",
+            "event_count": 1,
+            "phase": "dispatch",
+            "future_payload": {"body": "PRIVATE-ASSESSMENT"},
         },
     }
     batch["run"]["expected"][0]["subject"] = subject
@@ -1125,16 +1147,29 @@ def test_training_execution_results_preserve_coordinates_without_payloads() -> N
     distinct["run"]["expected"][0]["subject"] = distinct_subject
     distinct["assessments"][0]["subject"] = distinct_subject
     native["assessment_batches"] = [batch, later, other, distinct]
-    native["credit_assignments"] = [{
-        "schema_version": 1, "status": "complete", "request": {
-            "invocation_id": "assignment", "attempt_id": "attempt",
-            "source": batch["source"], "rule": {"rule_id": "identity", "revision": "1"},
-        }, "contributions": [{
-            "contribution_id": "credit", "parent_assessment_ids": ["assessment-1"],
-            "recipient": subject, "signal": batch["assessments"][0]["signal"],
-            "channel": "guard", "status": "valid", "value": 0,
-        }],
-    }]
+    native["credit_assignments"] = [
+        {
+            "schema_version": 1,
+            "status": "complete",
+            "request": {
+                "invocation_id": "assignment",
+                "attempt_id": "attempt",
+                "source": batch["source"],
+                "rule": {"rule_id": "identity", "revision": "1"},
+            },
+            "contributions": [
+                {
+                    "contribution_id": "credit",
+                    "parent_assessment_ids": ["assessment-1"],
+                    "recipient": subject,
+                    "signal": batch["assessments"][0]["signal"],
+                    "channel": "guard",
+                    "status": "valid",
+                    "value": 0,
+                }
+            ],
+        }
+    ]
     original = deepcopy(native)
     result = training_verifiers_results(native)
     subjects = [item["assessments"][0]["subject"] for item in result["assessment_results"]]
@@ -1201,18 +1236,28 @@ def test_assessment_export_uses_authoritative_stage(monkeypatch: pytest.MonkeyPa
     tracked = TrackioTrackedRun(cast(Any, sdk_run), "project-a", replace(_spec("run-a"), stage=stage))
     native = _assessment_export_fixture()
     native["tool_execution_events"] = [{"request_json": "PRIVATE-ASSESSMENT-TOOL-RESULT"}]
-    native["assessment_sources"] = [{
-        "schema_version": 2, "snapshot_id": "source-snapshot", "episode_id": "episode",
-        "source_digest": "source-digest", "source_json": "PRIVATE-ASSESSMENT-SOURCE",
-    }]
-    native["assessment_views"] = [{
-        "view_id": "view", "snapshot_id": "source-snapshot", "input_digest": "input-digest",
-        "input_json": "PRIVATE-ASSESSMENT-VIEW",
-    }]
+    native["assessment_sources"] = [
+        {
+            "schema_version": 2,
+            "snapshot_id": "source-snapshot",
+            "episode_id": "episode",
+            "source_digest": "source-digest",
+            "source_json": "PRIVATE-ASSESSMENT-SOURCE",
+        }
+    ]
+    native["assessment_views"] = [
+        {
+            "view_id": "view",
+            "snapshot_id": "source-snapshot",
+            "input_digest": "input-digest",
+            "input_json": "PRIVATE-ASSESSMENT-VIEW",
+        }
+    ]
     for batch in native["assessment_batches"]:
-        batch["views"] = [{"archive_view_ref": {
-            key: value for key, value in view.items() if key != "input_json"
-        }} for view in batch["views"]]
+        batch["views"] = [
+            {"archive_view_ref": {key: value for key, value in view.items() if key != "input_json"}}
+            for view in batch["views"]
+        ]
     attributes = {
         "assessment_batches": deepcopy(native["assessment_batches"]),
         "assessment_sources": deepcopy(native["assessment_sources"]),
@@ -1259,23 +1304,46 @@ async def test_training_assessment_results_survive_trackio_storage(trackio_dir: 
     native = _assessment_export_fixture()
     sdk_raw = base64.b64encode(b"PRIVATE-SDK-ASSESSMENT-NDJSON\n").decode()
     for batch in native["assessment_batches"]:
-        batch["run"]["execution_evidence"].extend([
-            {"kind": "automationbench.summary_semantic_request@1", "payload_json": json.dumps({
-                "request_text": "PRIVATE-SDK-ASSESSMENT-REQUEST", "full_output_ids": ["output-1"],
-            })},
-            {"kind": "automationbench.summary_sdk_worker_events@1", "payload_json": json.dumps({
-                "raw_base64": sdk_raw, "retention": "observed-worker-stdout", "truncated": False,
-            })},
-        ])
+        batch["run"]["execution_evidence"].extend(
+            [
+                {
+                    "kind": "automationbench.summary_semantic_request@1",
+                    "payload_json": json.dumps(
+                        {
+                            "request_text": "PRIVATE-SDK-ASSESSMENT-REQUEST",
+                            "full_output_ids": ["output-1"],
+                        }
+                    ),
+                },
+                {
+                    "kind": "automationbench.summary_sdk_worker_events@1",
+                    "payload_json": json.dumps(
+                        {
+                            "raw_base64": sdk_raw,
+                            "retention": "observed-worker-stdout",
+                            "truncated": False,
+                        }
+                    ),
+                },
+            ]
+        )
     if subject_kind == "execution":
         for batch in native["assessment_batches"]:
             for target in [*batch["run"]["expected"], *batch["assessments"]]:
                 target["subject"] = {
-                    "kind": "execution", "snapshot_id": "snapshot-1", "episode_id": "episode-1",
-                    "trace_id": "rollout-1", "execution": {
-                        "episode_id": "episode-1", "trace_id": "rollout-1", "origin": "tool_server",
-                        "invocation_id": "send-1", "prefix_digest": "dispatch-prefix", "event_count": 1,
-                        "phase": "dispatch", "future_payload": "PRIVATE-ASSESSMENT",
+                    "kind": "execution",
+                    "snapshot_id": "snapshot-1",
+                    "episode_id": "episode-1",
+                    "trace_id": "rollout-1",
+                    "execution": {
+                        "episode_id": "episode-1",
+                        "trace_id": "rollout-1",
+                        "origin": "tool_server",
+                        "invocation_id": "send-1",
+                        "prefix_digest": "dispatch-prefix",
+                        "event_count": 1,
+                        "phase": "dispatch",
+                        "future_payload": "PRIVATE-ASSESSMENT",
                     },
                 }
     tracked.trace(TraceObservation("verifiers", "rollout-1", native))

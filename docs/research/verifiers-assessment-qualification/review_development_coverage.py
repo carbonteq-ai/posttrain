@@ -19,9 +19,7 @@ def sha(raw: bytes) -> str:
 
 
 def build(index_path: Path, coverage_path: Path, cases_path: Path) -> dict:
-    index_raw, coverage_raw, cases_raw = (
-        path.read_bytes() for path in (index_path, coverage_path, cases_path)
-    )
+    index_raw, coverage_raw, cases_raw = (path.read_bytes() for path in (index_path, coverage_path, cases_path))
     index, coverage, cases = (json.loads(raw) for raw in (index_raw, coverage_raw, cases_raw))
     indexed = {entry["task_name"]: entry for entry in index["entries"]}
     if len(indexed) != len(index["entries"]):
@@ -96,14 +94,20 @@ def build(index_path: Path, coverage_path: Path, cases_path: Path) -> dict:
             )
             official = [score["score"] for score in scores if score["name"] == "partial_credit"]
             row["official_outcome_class"] = (
-                "execution_unavailable" if not episode["ok"] else
-                "official_score_unavailable" if len(official) != 1 else
-                "official_full" if official[0] == 1 else
-                "official_zero" if official[0] == 0 else "official_partial"
+                "execution_unavailable"
+                if not episode["ok"]
+                else "official_score_unavailable"
+                if len(official) != 1
+                else "official_full"
+                if official[0] == 1
+                else "official_zero"
+                if official[0] == 0
+                else "official_partial"
             )
             if not episode["ok"]:
                 row["behavioral_evidence_status"] = (
-                    "partial_execution_terminal_assessment_unavailable" if occurrences
+                    "partial_execution_terminal_assessment_unavailable"
+                    if occurrences
                     else "startup_execution_unavailable"
                 )
             else:
@@ -132,9 +136,9 @@ def build(index_path: Path, coverage_path: Path, cases_path: Path) -> dict:
             "expected": len(members),
             "indexed": sum("source_episode_sha256" in row for row in members),
             "review_status_counts": dict(Counter(row["review_status"] for row in members)),
-            "official_outcome_counts": dict(Counter(
-                row.get("official_outcome_class", "source_not_in_review_index") for row in members
-            )),
+            "official_outcome_counts": dict(
+                Counter(row.get("official_outcome_class", "source_not_in_review_index") for row in members)
+            ),
         }
     return {
         "schema_version": 1,
@@ -169,7 +173,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
     result = build(args.index, args.coverage, args.cases)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
-    print(json.dumps({key: result[key] for key in (
-        "expected_development_tasks", "indexed_and_hash_verified", "review_status_counts",
-        "families_with_case_review",
-    )}, indent=2))
+    print(
+        json.dumps(
+            {
+                key: result[key]
+                for key in (
+                    "expected_development_tasks",
+                    "indexed_and_hash_verified",
+                    "review_status_counts",
+                    "families_with_case_review",
+                )
+            },
+            indent=2,
+        )
+    )

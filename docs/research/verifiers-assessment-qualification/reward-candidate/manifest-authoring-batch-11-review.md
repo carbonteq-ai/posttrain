@@ -37,4 +37,3 @@ Qualification should include legal-held Ready posts, similar campaign names, sea
 - Qualification episode references were copied for future replay; episode contents, hidden answers and task-specific scorers were not used as policy.
 
 Accepted manifests: **0**. Whole-task qualification: **0**. Root owns ledger reconciliation and any subsequent promotion.
-

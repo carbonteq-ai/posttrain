@@ -29,7 +29,7 @@ Both blueprints contain explicit public source bindings and acceptance counterex
 
 ## Validation and provenance
 
-Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-09.json`  
+Pack: `/home/hammad/projects/rl/.posttrain/state/verifiers-assessment-qualification/manifest-authoring-105/batch-09.json`
 Exact SHA-256: `5c14be277b065d6c14fcdaf0453364b90dfe1dbd6cfd43712277b1084286f86a`
 
 Pack SHA and ordered identities match the index; all ten public-input hashes pass. Exact-byte and canonical-JSON selection hashes were independently recomputed under their documented schemes. Eight public bindings on the two small-task blueprints match their source values, and all eight independent value mutations change the corresponding digests.
