@@ -1055,9 +1055,13 @@ training:
   # Revision 8: goal-relative turn credit (goal_credit: group-relative with reward @3): each verified
   # manifest goal and harm reaches the turn that produced it, weighted by how few of the group's
   # attempts reached the goal, including turns without an observation-identical sibling.
+  # Revision 9: verified-sign credit (goal_credit_scale 4): a turn that first achieved a goal is
+  # never pushed negative by its attempt's failure, a harmful turn never positive by its success.
+  # On revision 8's 21,762 trained turns: verified-correct turns pushed negative 84.7% -> 0%,
+  # harmful turns net-positive 33.6% -> 0%, goal term 0.048 -> 0.191 (episode term 0.153).
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "8"  # goal-relative turn credit; turn rows; VORTEX curriculum; 6144-token replies in a 24576-token context
+    revision: "9"  # verified-sign turn credit x4; turn rows; VORTEX curriculum; 6144-token replies in a 24576-token context
     loop:
       max_steps: 400
       max_length: 28672
@@ -1076,7 +1080,8 @@ training:
     kl_reference: base
     discount_gamma: 0.95
     step_advantage_weight: 1.0
-    goal_credit: group-relative
+    goal_credit: verified-sign
+    goal_credit_scale: 4.0
     advantage_normalization: mean
     clip_epsilon_low: 0.003
     clip_epsilon_high: 0.004
