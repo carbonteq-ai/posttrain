@@ -913,7 +913,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 24e1fc9211b64eecf958264b93d56dae00df8f4d
+      revision: 1bd7b1fd151a6cf13a668922adf2aa31ad86f4c2  # 24e1fc9 + Verifiers 9d95aeb3 (eval-client connect retry)
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
