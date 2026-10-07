@@ -273,8 +273,13 @@ def resolved_policy_trainer_type(
     population: ResolvedTRLPopulation | ResolvedTRLRun,
     *,
     recovery_runtime_identity: str | None = None,
+    activation_offload_budget_gib: float | None = None,
 ) -> type:
-    """Adapt native GRPOTrainer without replacing its optimizer lifecycle."""
+    """Adapt native GRPOTrainer without replacing its optimizer lifecycle.
+
+    With ``activation_offload_budget_gib``, saved activations beyond that much allocated device
+    memory wait for backward in host memory (backends/activation_offload.py).
+    """
 
     def active_population() -> ResolvedTRLPopulation:
         return population.active() if isinstance(population, ResolvedTRLRun) else population
@@ -455,7 +460,14 @@ def resolved_policy_trainer_type(
             )
             if self.state.global_step != active.global_applied_updates:
                 raise InvalidPolicyUpdate("native TRL run-global counter differs from the active population boundary")
-            return active.loss(model, index, self.accelerator.device, before_current=self._capture_current_rng)
+            if activation_offload_budget_gib is None:
+                return active.loss(model, index, self.accelerator.device, before_current=self._capture_current_rng)
+            from ..activation_offload import offload_overflow
+
+            with offload_overflow(model, int(activation_offload_budget_gib * 2**30)) as offload:
+                loss = active.loss(model, index, self.accelerator.device, before_current=self._capture_current_rng)
+            self._activation_offload_bytes = offload.bytes
+            return loss
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
