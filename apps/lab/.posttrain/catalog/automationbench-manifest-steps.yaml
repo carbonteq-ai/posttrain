@@ -486,6 +486,7 @@ environment:
 
   # luna-v2 with 6144-token replies and 18432 output tokens per episode, at the environments
   # revision whose training toolset captures calls in the form manifest evidence reads.
+  # Environments 7141454: per-turn state keys for SAMPO's anchor fallback.
   # Environments 01cacbf: goal and harm credit as per-turn outcomes (manifest_goal_channel:
   # group_relative). Environments 51ca09c: deterministic simulated worlds (on six r5 groups, singleton
   # anchor turns 56.6% -> 50.0% on replay), ordered joins on projected receipts, re-read
@@ -495,7 +496,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 01cacbfe455d5081268554e29105b0bc304df2ff
+      revision: 7141454f610c4a4a9ded5be7d46dbbc6b27827c8
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -633,6 +634,8 @@ environment:
               manifest_harm_cap: 0.3
               # Goal and harm credit as per-turn outcomes for goal-relative turn credit.
               manifest_goal_channel: group_relative
+              # Per-turn state keys (goals done, world, reads) for anchor fallback.
+              anchor_state_keys: true
             mistake_penalty: {per_mistake: 0.02, cap: 0.1}
         retries: {max_retries: 2}
         agent:
@@ -943,6 +946,21 @@ training:
     turn_harm_key: manifest_harm_debit
     scorer_digest: 1e59ff4ddf03706cd6d4634732d353d73cf56d5a52c0b7d0952aade8f65d23b1
 
+  # @3 plus per-turn environment state keys (turn_state_keys) for SAMPO's anchor fallback
+  # (AutomationBenchTurnRewardConfig scorer version 6, anchor_state_keys).
+  reward/automationbench-manifest-steps@4:
+    selection_type: reward-projection
+    revision: "1"
+    components:
+      - {name: partial_credit, source: scalar}
+    turns_info_key: posttrain_turn_rewards
+    turn_reward_key: turn_reward
+    turn_reward_includes_terminal_outcome: true
+    turn_goal_prefix: "manifest_goal/"
+    turn_harm_key: manifest_harm_debit
+    turn_state_key: turn_state_keys
+    scorer_digest: 7ea3743561f23f0c9f090f70167bcbfcf781e176768c41f45b3ce0056e30272b
+
   # Two resolved SAMPO updates on LFM2.5-1.2B: correctness and gradient-norm checks.
   lfm2.5-1.2b/automationbench-manifest-steps-smoke-v1:
     selection_type: sampo-settings
@@ -1059,9 +1077,12 @@ training:
   # never pushed negative by its attempt's failure, a harmful turn never positive by its success.
   # On revision 8's 21,762 trained turns: verified-correct turns pushed negative 84.7% -> 0%,
   # harmful turns net-positive 33.6% -> 0%, goal term 0.048 -> 0.191 (episode term 0.153).
+  # Revision 10: anchor fallback (reward @4): a turn with no exact-observation sibling is compared
+  # with the group's other such turns at the same environment state (goals done, world, reads).
+  # Replayed: singleton anchors 48.5% -> 25.2%, turns with anchor credit 47% -> 69%.
   lfm2.5-2.6b/automationbench-manifest-steps-sampo-100-g16x8-v1:
     selection_type: sampo-settings
-    revision: "9"  # verified-sign turn credit x4; turn rows; VORTEX curriculum; 6144-token replies in a 24576-token context
+    revision: "10"  # anchor fallback by environment state; verified-sign turn credit x4; turn rows; VORTEX curriculum; 6144-token replies
     loop:
       max_steps: 400
       max_length: 28672
@@ -1082,6 +1103,7 @@ training:
     step_advantage_weight: 1.0
     goal_credit: verified-sign
     goal_credit_scale: 4.0
+    anchor_fallback: environment-state
     advantage_normalization: mean
     clip_epsilon_low: 0.003
     clip_epsilon_high: 0.004
