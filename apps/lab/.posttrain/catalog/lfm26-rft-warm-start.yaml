@@ -14,6 +14,18 @@ dataset:
     format:
       kind: messages
 
+  # v2: up to 32 per task (3,093 examples, 153 tasks), no domain cap; every example carries
+  # metadata.sample_weight (equal total weight per task, capped at 4 per example, mean 1)
+  # and the SFT backend samples in proportion to it.
+  datasets/lfm26-agent-sft@2:
+    revision: "1"
+    kind: supervised
+    source:
+      kind: jsonl
+      path: .posttrain/datasets/lfm26-agent-sft-v2.jsonl
+    format:
+      kind: messages
+
   # Same-task pairs: chosen >= 0.7 partial credit without verified harms, rejected <= 0.2
   # (harmful attempts first); shared system and user prompt; tool results are masked out
   # of the preference loss.
@@ -41,6 +53,20 @@ training:
       warmup_ratio: 0.05
       lr_scheduler_type: linear
       checkpoint_steps: 50
+
+  # Two weighted passes over the v2 set: 775 steps x 8 = 6,200 draws of 3,093 examples.
+  lfm2.5-2.6b/agent-sft-v2:
+    selection_type: sft-settings
+    revision: "1"
+    loop:
+      max_steps: 775
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.0001
+      warmup_ratio: 0.05
+      lr_scheduler_type: linear
+      checkpoint_steps: 100
 
   training/lfm2.5-2.6b-trl-lora-r8-ws@1:
     selection_type: training-binding

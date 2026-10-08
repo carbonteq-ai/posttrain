@@ -87,6 +87,7 @@ def main() -> None:
     parser.add_argument("--sft", action="store_true")
     parser.add_argument("--dpo", action="store_true")
     parser.add_argument("--pairs-per-episode", type=int, default=2)
+    parser.add_argument("--max-weight", type=float, default=4.0, help="cap on an SFT example's task weight")
     args = parser.parse_args()
     records = [json.loads(line) for line in gzip.open(args.source, "rt", encoding="utf-8")]
     best = [record for record in records if record["side"] == "best" and record.get("harms", 0) == 0]
@@ -101,6 +102,16 @@ def main() -> None:
     }
 
     if args.sft:
+        # Equal total weight per task: a task with many examples weighs each one less. The
+        # weights average 1, so the overall loss scale is unchanged.
+        per_task = defaultdict(int)
+        for record in best:
+            per_task[record["task_name"]] += 1
+        mean_per_task = len(best) / max(len(per_task), 1)
+        # Cap each example's weight so a task with one or two examples is not drawn so often
+        # that the model memorizes it; renormalize so the weights still average 1.
+        raw = {task: min(mean_per_task / count, args.max_weight) for task, count in per_task.items()}
+        scale = len(best) / sum(raw[record["task_name"]] for record in best)
         with (args.out / "sft.jsonl").open("w", encoding="utf-8") as stream:
             for record in best:
                 messages = trajectory(record["nodes"])
@@ -118,6 +129,7 @@ def main() -> None:
                                 "run": record["run"],
                                 "step": record["step"],
                                 "reward": record["reward"],
+                                "sample_weight": round(raw[record["task_name"]] * scale, 6),
                             },
                         },
                         ensure_ascii=False,

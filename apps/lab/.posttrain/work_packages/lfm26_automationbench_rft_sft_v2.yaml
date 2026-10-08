@@ -1,0 +1,46 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-rft-sft-r8-v2
+stage: train
+description: >-
+  RFT warm start: LoRA rank-8 SFT of LFM2.5-2.6B on its own best AutomationBench training
+  episodes, v2: up to 32 per task (3,093 examples, 153 tasks) with per-task weighted sampling.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-rft-sft-r8-v2@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.sft
+      definition: train/trl-sft@1
+  expected_artifacts:
+    - trained adapter
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/lfm2.5-2.6b@bf16
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/lfm26-agent-sft@2
+  settings:
+    type: ref
+    family: training
+    id: lfm2.5-2.6b/agent-sft-v2
+  training:
+    type: ref
+    family: training
+    id: training/lfm2.5-2.6b-trl-lora-r8-ws@1
+enabled_optional_jobs: []
+metadata:
+  question: Does SFT on the model's own best episodes raise held-out partial credit and goals before RL?
+  labels:
+    - rft
+    - sft

@@ -106,7 +106,10 @@ def run_sft(
         workspace=output_dir.parent,
     )()
 
-    ObservedSFTTrainer = _observed_sft_trainer_type(SFTTrainer, context)
+    weights = sample_weights(dataset_snapshot)
+    if weights is not None:
+        context.metrics({"train/data/weighted_sampling": 1, "train/data/sample_weight_max": max(weights)})
+    ObservedSFTTrainer = _observed_sft_trainer_type(SFTTrainer, context, weights)
     with context.phase("runtime_initialization", {"backend": "trl"}):
         trainer = ObservedSFTTrainer(
             model=model,
@@ -155,9 +158,35 @@ def run_sft(
             raise
 
 
-def _observed_sft_trainer_type(parent: type[Any], context: RunContext) -> type[Any]:
+def sample_weights(dataset: SupervisedDataset) -> list[float] | None:
+    """Per-example sampling weights from ``metadata.sample_weight``, or None when absent.
+
+    A dataset that balances its sources (for example equal total weight per task, with more
+    examples of common tasks each weighted less) sets the weight on every example."""
+
+    values = [example.metadata.get("sample_weight") for example in dataset.examples]
+    if all(value is None for value in values):
+        return None
+    if any(isinstance(value, bool) or not isinstance(value, int | float) or value <= 0 for value in values):
+        raise ValueError("every SFT example needs a positive numeric metadata.sample_weight when any has one")
+    return [float(value) for value in values]  # pyright: ignore[reportArgumentType]
+
+
+def _observed_sft_trainer_type(parent: type[Any], context: RunContext, weights: list[float] | None = None) -> type[Any]:
     class ObservedSFTTrainer(parent):
         """Separate validation host evidence from the enclosing update loop."""
+
+        def _get_train_sampler(self, train_dataset: Any = None) -> Any:
+            if weights is None:
+                return super()._get_train_sampler(train_dataset)
+            import torch
+
+            # Examples are drawn in proportion to their weight, so each source contributes its
+            # weight share of the loss in expectation; seeded for a reproducible order.
+            generator = torch.Generator().manual_seed(int(self.args.seed))
+            return torch.utils.data.WeightedRandomSampler(
+                weights, num_samples=len(weights), replacement=True, generator=generator
+            )
 
         def evaluate(self, *args: Any, **kwargs: Any) -> Any:
             with context.phase("evaluation", {"backend": "trl"}):
