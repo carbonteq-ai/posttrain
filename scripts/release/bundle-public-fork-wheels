@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Copy the maintained-fork wheels a release depends on into its public wheelhouse.
+
+Some locked dependencies are CarbonTeq forks served by the internal package index
+(for example carbonteq-trackio and the TRL fork). Each fork also publishes the exact
+same wheels on a public GitHub Release tagged ``carbonteq-v<version>``. This script
+reads those packages and their wheel hashes from ``uv.lock``, downloads every locked
+pure-Python wheel from the fork's public release, verifies it against the lock hash,
+and writes it into the wheelhouse, so the wheelhouse plus public PyPI is a complete
+install source. Platform wheels (the 250 MB CUDA build of causal-conv1d, needed only by
+GPU training extras) are listed but not bundled; users fetch them from the release.
+
+usage: bundle-public-fork-wheels UV_LOCK WHEELHOUSE_DIR
+"""
+
+from __future__ import annotations
+
+import hashlib
+import sys
+import tomllib
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+# Locked package name -> public GitHub repository that releases its wheels.
+FORK_REPOSITORIES = {
+    "carbonteq-trackio": "carbonteq-ai/trackio",
+    "carbonteq-renderers": "carbonteq-ai/renderers",
+    "trl": "carbonteq-ai/trl",
+    "causal-conv1d": "carbonteq-ai/causal-conv1d",
+}
+INTERNAL_INDEX = "pypi.lan"
+
+
+def internal_packages(lock: dict) -> list[dict]:
+    return [
+        package
+        for package in lock.get("package", [])
+        if INTERNAL_INDEX in package.get("source", {}).get("registry", "")
+    ]
+
+
+def bundle(lock_path: Path, wheelhouse: Path) -> list[str]:
+    lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    bundled: list[str] = []
+    for package in internal_packages(lock):
+        name = package["name"]
+        repository = FORK_REPOSITORIES.get(name)
+        if repository is None:
+            raise SystemExit(f"{name} comes from the internal index but has no public fork release mapping")
+        tag = f"carbonteq-v{package['version']}"
+        wheels = package.get("wheels", [])
+        if not wheels:
+            raise SystemExit(f"{name} {package['version']} has no locked wheels")
+        for wheel in wheels:
+            filename = urllib.parse.unquote(wheel["url"].rsplit("/", 1)[-1])
+            if not filename.endswith("-none-any.whl"):
+                print(
+                    f"not bundled (platform wheel, fetch from https://github.com/{repository}/releases/tag/{tag}): {filename}"
+                )
+                continue
+            algorithm, _, expected = wheel["hash"].partition(":")
+            if algorithm != "sha256" or not expected:
+                raise SystemExit(f"{filename}: lock hash is not sha256")
+            url = (
+                f"https://github.com/{repository}/releases/download/"
+                f"{urllib.parse.quote(tag)}/{urllib.parse.quote(filename)}"
+            )
+            with urllib.request.urlopen(url, timeout=300) as response:
+                data = response.read()
+            observed = hashlib.sha256(data).hexdigest()
+            if observed != expected:
+                raise SystemExit(f"{filename}: public release bytes {observed} differ from uv.lock {expected}")
+            (wheelhouse / filename).write_bytes(data)
+            bundled.append(filename)
+    return bundled
+
+
+def main() -> None:
+    if len(sys.argv) != 3:
+        raise SystemExit(__doc__)
+    lock_path, wheelhouse = Path(sys.argv[1]), Path(sys.argv[2])
+    if not wheelhouse.is_dir():
+        raise SystemExit(f"wheelhouse directory does not exist: {wheelhouse}")
+    for filename in bundle(lock_path, wheelhouse):
+        print(f"bundled public fork wheel: {filename}")
+
+
+if __name__ == "__main__":
+    main()

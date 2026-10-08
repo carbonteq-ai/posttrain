@@ -4,7 +4,7 @@ This is the first-day walkthrough for a **project developer**: someone using
 Posttrain to prepare data, train, evaluate, and serve models — not someone
 working on the framework itself (that path is [contributing.md](./contributing.md)).
 
-By the end you will have: the internal services trusted, the framework
+By the end you will have: your services trusted, the framework
 installed, this machine configured once for every project on it, a runnable
 project scaffolded from a starter template, one job executed (locally or on a
 remote GPU through dstack), and that job's trained model handed to a follow-up
@@ -19,22 +19,23 @@ If a term is unfamiliar — work package, catalog, binding, admission, evidence
 
 - Python 3.13 and `uv`
 - Docker with `buildx`
-- Network access to the internal index, the OCI registry, and the tracking
-  service
+- An OCI registry for job images and a tracking server (Trackio), plus
+  optionally a private package index and a dstack server for remote GPUs
 - An NVIDIA GPU if you intend to run training locally
 
-The services this guide points at — the Python index at `pypi.lan`, the OCI
-registry at `registry.lan`, the tracking server at `trackio.lan`, and the
-dstack server — are operated from the `ai-infra` repository, not from this
-one. If a name does not resolve or a service is down, that repository owns it;
-its `docs/operations/` runbooks cover the index, worker enrollment, the image
-builder, and workstation trust. This guide assumes they are already running.
+The commands use the hostnames of the maintainers' reference deployment as
+examples — a Python index at `pypi.lan`, an OCI registry at `registry.lan`, a
+tracking server at `trackio.lan`, and a dstack server. Replace them with your
+own endpoints; Posttrain does not provision these services, and this guide
+assumes they are already running.
 
 If something misbehaves along the way, check
 [Things that will bite you](#things-that-will-bite-you) at the end — it lists
 the known first-week traps.
 
 ## 1. Trust the internal certificate authority
+
+Skip this step if your services use publicly trusted certificates.
 
 This comes first because nothing else works without it: the package index,
 registry, and tracking server all present certificates from a private CA, so
@@ -76,9 +77,8 @@ with `getent hosts pypi.lan` before assuming the service is down.
 ## 2. Install the framework
 
 Follow the [installation guide](./install.md) — it is the single source of
-truth for the install commands, covering both the internal index
-(`pypi.lan`, the standard path on the CarbonTeq network) and the GitHub
-release wheelhouse, plus the required release constraints file.
+truth for the install commands, covering the GitHub release wheelhouse, an
+optional private package index, and the required release constraints file.
 
 After this step you should have a `.venv` whose `posttrain` command runs, for
 example installed as `posttrain[observatory,trackio,trl]` — add the `dstack`

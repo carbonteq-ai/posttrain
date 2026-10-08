@@ -1255,6 +1255,19 @@ owner = "posttrain-evaluation"
 replacement_condition = "Held-out reference for runs on task mix automationbench-manifest-luna-v2; replaced when that mix or its budgets change."
 
 [[gates]]
+id = "lfm26-luna2-heldout-64k20t-t05"
+work_package = ".posttrain/work_packages/lfm26_automationbench_luna2_heldout_eval_64k20t_t05.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "luna-v2-20-heldout-task-five-repetition-evaluation-64k-budgets-temperature-0.5"
+experiment_family = "lfm26-luna2-heldout-64k20t-t05"
+hypothesis = "luna-v2's held-out tasks under the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) at temperature 0.5 measure whether checkpoints trained at shorter budgets still solve tasks that need more turns, with manifest goal and harm findings beside task success and no episodes dropped to connection timeouts."
+owner = "posttrain-evaluation"
+replacement_condition = "Held-out reference at extended budgets for runs on task mix automationbench-manifest-luna-v2; replaced when that mix or its budgets change."
+
+[[gates]]
 id = "lfm26-sampo-turns-continue40-fixed-tools"
 work_package = ".posttrain/work_packages/lfm26_automationbench_sampo_turns_continue40_fixed_tools_local_v1.yaml"
 job_id = "sampo"

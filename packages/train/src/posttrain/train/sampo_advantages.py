@@ -287,7 +287,8 @@ def compute_sampo_advantages(
                     else:
                         total = base
                     goal_advantages[rollout_index][turn_index] = total - base
-                    verified_turns[rollout_index][turn_index] = bool(turn.goal_credits)
+                    # A harm forces the sign negative, so a harmed turn is not one the rule protected.
+                    verified_turns[rollout_index][turn_index] = bool(turn.goal_credits) and turn.harm_debit == 0
                     sign_protected[rollout_index][turn_index] = (total > 0) != (base > 0) and total != 0.0
     elif any(turn.goal_credits or turn.harm_debit for rollout in rollouts for turn in rollout.turns):
         raise ValueError("SAMPO turns carry goal or harm credit but goal_credit is off")

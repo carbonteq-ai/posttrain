@@ -9,8 +9,10 @@ import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from itertools import count, islice
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, TypeVar, cast
+from unittest import mock
 
 import pytest
 from posttrain.catalog import open_catalog
@@ -625,7 +627,17 @@ def test_native_bridge_projects_multiturn_masks_rewards_and_trace_artifact(tmp_p
         )
     )
     artifacts = bridge.finalize()
-    evidence = bridge.evidence()
+    # The replay streams the trace file; reading a ~100 GB run file whole OOM-killed a 2.6B run.
+    trace_path = bridge.trace_path
+    original_read_text = Path.read_text
+
+    def refuse_whole_trace_file(self, *args, **kwargs):
+        if self == trace_path:
+            raise AssertionError("evidence() must stream the trace file, not read it whole")
+        return original_read_text(self, *args, **kwargs)
+
+    with mock.patch.object(Path, "read_text", refuse_whole_trace_file):
+        evidence = bridge.evidence()
 
     assert bridge.dataset.examples[0].prompt == "Arbitrary environment prompt"
     assert len(rollouts) == 2

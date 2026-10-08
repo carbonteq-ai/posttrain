@@ -45,3 +45,11 @@ def test_a_cancelled_runs_republication_yields_to_the_committed_periodic_view():
     other = _link("checkpoint-00000040-recovery", "sha256:e", {"checkpoint_step": 40, "interrupted": True})
     with pytest.raises(Exception, match="expected 1"):
         _select([republished, other], 40)
+
+
+def test_without_a_step_the_terminal_output_is_selected_over_checkpoint_views():
+    terminal = _link("adapter", "sha256:t", {"global_step": 400})
+    views = [_link(f"checkpoint-{step:08d}-model", f"sha256:{step}", {"checkpoint_step": step}) for step in (100, 400)]
+    assert _select([*views, terminal], None) is terminal
+    with pytest.raises(Exception, match="2 matching checkpoint model outputs"):
+        _select(views, None)

@@ -1,8 +1,12 @@
 # Posttrain
 
-Posttrain is CarbonTeq's framework for taking a base model through screening,
-training, and qualification — with every decision versioned, every run
-reproducible, and every result traceable to exactly what produced it.
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![Release](https://img.shields.io/github/v/release/carbonteq-ai/posttrain)](https://github.com/carbonteq-ai/posttrain/releases)
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
+
+Posttrain is an open-source framework for taking a base model through
+screening, training, and qualification — with every decision versioned, every
+run reproducible, and every result traceable to exactly what produced it.
 
 ## Why it exists
 
@@ -73,21 +77,22 @@ seat, evidence, screen, qualification — is defined in the
 
 ## Quickstart
 
-Posttrain currently ships to the team as a versioned GitHub Release
-wheelhouse. Python 3.13, [`uv`](https://docs.astral.sh/uv/), and the GitHub
-CLI are required. On the internal network you can install from `pypi.lan`
-instead — both paths, plus CA trust and machine configuration, are covered in
-the [installation guide](./docs/install.md).
+Each [GitHub Release](https://github.com/carbonteq-ai/posttrain/releases)
+attaches a wheelhouse: every Posttrain package plus the wheels of the
+maintained forks it pins, so it installs together with public PyPI and nothing
+else. You need Python 3.13 and [`uv`](https://docs.astral.sh/uv/). Machine
+configuration, GPU extras, and mirroring a release into your own package index
+are covered in the [installation guide](./docs/install.md).
 
-Download and install one exact release:
+Download and install one exact release (replace `0.4.16` with the release you
+want):
 
 ```bash
-gh release download <release-tag> \
-  --repo carbonteq-ai/posttrain \
-  --pattern 'posttrain-wheelhouse-*.tar.gz'
+VERSION=0.4.16
+curl -LO "https://github.com/carbonteq-ai/posttrain/releases/download/v${VERSION}/posttrain-wheelhouse-${VERSION}.tar.gz"
 
 mkdir posttrain-wheelhouse
-tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
+tar -xzf "posttrain-wheelhouse-${VERSION}.tar.gz" -C posttrain-wheelhouse
 
 uv venv --python 3.13
 uv pip install \
@@ -98,7 +103,7 @@ uv pip install \
 ```
 
 Initialize and install an SFT starter. Point uv at the same wheelhouse so the
-generated project can resolve the unpublished team release:
+generated project resolves Posttrain from it:
 
 ```bash
 POSTTRAIN="$(pwd)/.venv/bin/posttrain"
@@ -120,7 +125,8 @@ cd my-model-project
 `posttrain init` writes the project package and `.posttrain/` configuration,
 creates the project-local `.venv`, and installs the selected extras. There is
 no separate Posttrain sync command. The wheelhouse constraints file pins the
-CarbonTeq forks to immutable Git commits.
+maintained forks of TRL, Verifiers, and vLLM to immutable Git commits; see
+[Maintained forks](./docs/tooling/forks.md) for what each fork changes and why.
 
 This exact sequence is exercised in CI by
 [`tests/consumer/test_wheel_project.py`](./tests/consumer/test_wheel_project.py);
@@ -364,7 +370,7 @@ Install only the packages a project needs from the same release wheelhouse:
 | `posttrain-lab` | Framework qualification scenarios and backend release gates |
 
 These are the packages meant for direct installation. The workspace contains
-further internal packages (contracts, catalog, execution providers, packing);
+further supporting packages (contracts, catalog, execution providers, packing);
 they arrive as dependencies and are not installed by name.
 
 Backend-specific extras are opt-in. For example:
@@ -475,7 +481,7 @@ That installs the framework, applications, and development tools without the
 large GPU backends. Select one workspace profile when working on training:
 
 ```bash
-# Transformers + the pinned CarbonTeq TRL fork: SFT, DPO, and trainer tests
+# Transformers + the pinned TRL fork: SFT, DPO, and trainer tests
 uv sync --all-packages --extra gpu-train --locked --python 3.13
 
 # TRL + vLLM + Verifiers + AutomationBench: GRPO, DAPO, SAMPO, distillation
@@ -546,3 +552,21 @@ The [glossary](./docs/glossary.md) defines every term of art in one place.
 For the project-author journey and configuration ownership, see
 [Developer experience](./docs/developer-experience.md). The full docs map is
 at [docs/README.md](./docs/README.md).
+
+## License
+
+Posttrain is licensed under the [Apache License 2.0](./LICENSE); see
+[NOTICE](./NOTICE) for attributions.
+
+---
+
+<p>
+  <a href="https://carbonteq.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/brand/carbonteq-logo-on-dark.svg">
+      <img src="./docs/assets/brand/carbonteq-logo-on-light.svg" alt="CarbonTeq" height="18">
+    </picture>
+  </a>
+  <br>
+  <sub>Built and maintained by <a href="https://carbonteq.com">CarbonTeq</a>.</sub>
+</p>

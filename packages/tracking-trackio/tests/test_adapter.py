@@ -188,7 +188,7 @@ def test_trackio_lifecycle_admin_uses_the_supplied_machine_ca_bundle(
 
     TrackioLifecycleAdmin("https://trackio.example", ca_bundle=bundle)
 
-    assert captured["httpx_kwargs"] == {"timeout": 30.0, "verify": str(bundle)}
+    assert captured["httpx_kwargs"] == {"timeout": (30.0, 600.0, 30.0, 30.0), "verify": str(bundle)}
 
 
 def test_trace_fact_writer_uses_exact_run_and_does_not_open_or_finish_it(

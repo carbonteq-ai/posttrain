@@ -228,6 +228,24 @@ jobs:
           uv run --no-sync posttrain-release receipt-check .release/python-release-receipt.json \
             --distribution-root .release/distributions
 
+      - name: Prove a public install from the wheelhouse and PyPI alone
+        run: |
+          # A community user has neither the internal index nor its CA; the
+          # wheelhouse (with bundled fork wheels) plus public PyPI must suffice.
+          public_venv=.release/public-consumer-venv
+          env -u UV_SYSTEM_CERTS -u UV_EXTRA_INDEX_URL -u UV_INDEX -u UV_INDEX_URL \
+            UV_NO_CONFIG=1 uv venv "${public_venv}" --python 3.13
+          env -u UV_SYSTEM_CERTS -u UV_EXTRA_INDEX_URL -u UV_INDEX -u UV_INDEX_URL \
+            UV_NO_CONFIG=1 uv pip install \
+            --no-cache \
+            --python "${public_venv}/bin/python" \
+            --index-url https://pypi.org/simple \
+            --constraint .release/wheelhouse/github-constraints.txt \
+            --find-links .release/wheelhouse \
+            "posttrain==${{ steps.version.outputs.version }}" \
+            "posttrain-observatory==${{ steps.version.outputs.version }}"
+          "${public_venv}/bin/posttrain" --version
+
       - name: Publish the immutable RC only to the development index
         run: |
           if uv run --no-sync posttrain-release index-check .release/python-release-receipt.json \
