@@ -2091,7 +2091,7 @@ requires-dist = [
     { name = "transferqueue", specifier = "==0.1.8" },
     { name = "transformers", specifier = "==5.14.1" },
     { name = "uvicorn", specifier = ">=0.52,<0.53" },
-    { name = "verifiers", git = "https://github.com/carbonteq-ai/verifiers.git?rev=b358d3553a36678860b93539ceb3077323a8435d" },
+    { name = "verifiers", git = "https://github.com/carbonteq-ai/verifiers.git?rev=bc70a7deaf64c8f8e0b41e39c00ac2d1ea1d7e0b" },
     { name = "verl", git = "https://github.com/carbonteq-ai/verl.git?rev=8e513f3bf3bfccb4c413846b5eb184e0b42ea9d8" },
     { name = "vllm", git = "https://github.com/carbonteq-ai/vllm.git?rev=f09e4479123d348cee87d217c695a22f9b2daacc" },
     { name = "wandb", specifier = ">=0.28,<0.29" },
@@ -3211,8 +3211,8 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.3.2.dev102"
-source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=b358d3553a36678860b93539ceb3077323a8435d#b358d3553a36678860b93539ceb3077323a8435d" }
+version = "0.3.2.dev109"
+source = { git = "https://github.com/carbonteq-ai/verifiers.git?rev=bc70a7deaf64c8f8e0b41e39c00ac2d1ea1d7e0b#bc70a7deaf64c8f8e0b41e39c00ac2d1ea1d7e0b" }
 dependencies = [
     { name = "aiohttp" },
     { name = "anthropic" },

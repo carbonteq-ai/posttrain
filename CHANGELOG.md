@@ -9,6 +9,54 @@ Series overviews: [v0.4 release notes](docs/releases/v0.4.md) and
 
 ## Unreleased
 
+## 0.4.16 - 2026-10-08
+
+A release that installs outside CarbonTeq's network, AutomationBench
+evaluations that take 9-13 minutes instead of about 23 and score goals and
+harms correctly, and Verifiers `0.3.2.dev109` with environments
+`carbonteq-2026.10.08`.
+
+### Added
+
+- The release wheelhouse bundles the pure-Python wheels of the maintained forks
+  served only by the internal index (Trackio, renderers, TRL), downloaded from
+  their public GitHub Releases and verified against `uv.lock`. The wheelhouse
+  plus public PyPI is a complete install source; the release candidate proves
+  it with a clean install that sees only `https://pypi.org/simple`.
+- A 64K luna-v2 held-out evaluation work package
+  (`lfm26_automationbench_luna2_heldout_eval_64k20t_t05`: 20 turns, 8,192-token
+  replies, 32,768 tokens per episode) and its qualification gate.
+
+### Changed
+
+- Evaluation jobs route vLLM, Triton, TorchInductor, FlashInfer and the CUDA
+  driver's compute cache to the compile-cache mount. A warm start measured
+  24.5 s instead of 133 s (engine init 13.5 s instead of 111 s).
+- Evaluations publish `traces.jsonl.gz` (deterministic gzip) instead of
+  `traces.jsonl`; readers accept either. A 1.18 GB AutomationBench trace file
+  uploads as about 100 MB.
+- Evaluation trace synchronization runs in a worker thread so parsing large
+  episodes no longer stalls rollouts.
+- Verifiers `0.3.2.dev109`: eval-client connections retry before any response
+  (no attempts lost in six 100-episode evaluations) and assessment archives
+  reference pooled sources and views compactly and store lifecycle batches as
+  deltas (a 100-episode trace file drops from 902 MB to 140 MB; every episode
+  stays under Trackio's 10 MB field limit).
+- Environments `carbonteq-2026.10.08` (`automationbench-v1` 0.5.1): eleven
+  manifest checks that a correct episode could not meet now credit work the
+  benchmark accepts.
+- The README and install guide describe the public release route first; a
+  private index is an optional mirror.
+
+### Fixed
+
+- Trace evidence replay streams the trace file and keeps only per-step
+  summaries; reading a whole 100 GB training trace exhausted host memory.
+- `--model-from-run` without a step selects the run's terminal model when its
+  checkpoint views share the final step.
+- A purge whose Trackio delete finished after the client timed out resumes on
+  the next preview instead of blocking; purge requests wait up to 10 minutes.
+
 ## 0.4.15 - 2026-10-07
 
 SAMPO turn credit that the environment's verified outcomes can decide, a

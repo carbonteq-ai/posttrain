@@ -913,7 +913,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: 66e79e0749780f342d33fc0c4b5e9a07577c7a58  # 3f0a9e4 (manifest check fixes on 17e0cd0) + Verifiers b358d355 (connection and pre-response transport retry)
+      revision: d430dd87c8d6a37c0520acc3624d74f2de31659e  # carbonteq-2026.10.08: manifest check fixes + Verifiers 0.3.2.dev109
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
@@ -1385,7 +1385,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: ce6586933e9862e10c14662172e251c370c9e718a8d88c3f19a21d8663b38b04
+      dependency_lock_sha256: 89ee0419e17c3fd0f94bd670ecbe389d627cc709b201545faebfb6d344c50159
 
   # The workstation binding with colocated async vLLM rollouts and native rollout
   # workers: qualifies resolved TRL policy updates with vLLM sampler correction.
@@ -1405,7 +1405,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: ce6586933e9862e10c14662172e251c370c9e718a8d88c3f19a21d8663b38b04
+      dependency_lock_sha256: 89ee0419e17c3fd0f94bd670ecbe389d627cc709b201545faebfb6d344c50159
 
   training/lfm2.5-1.2b-trl-lora-manifest-local-vllm@1:
     selection_type: training-binding
@@ -1423,7 +1423,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: ce6586933e9862e10c14662172e251c370c9e718a8d88c3f19a21d8663b38b04
+      dependency_lock_sha256: 89ee0419e17c3fd0f94bd670ecbe389d627cc709b201545faebfb6d344c50159
 
   # The VORTEX local check's binding: one prompt x 4 attempts per collection.
   training/lfm2.5-1.2b-trl-lora-manifest-vortex-local@1:
@@ -1442,7 +1442,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: ce6586933e9862e10c14662172e251c370c9e718a8d88c3f19a21d8663b38b04
+      dependency_lock_sha256: 89ee0419e17c3fd0f94bd670ecbe389d627cc709b201545faebfb6d344c50159
 
   training/lfm2.5-1.2b-trl-lora-manifest-local@1:
     selection_type: training-binding
@@ -1459,7 +1459,7 @@ training:
       training_precision: bf16
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: ce6586933e9862e10c14662172e251c370c9e718a8d88c3f19a21d8663b38b04
+      dependency_lock_sha256: 89ee0419e17c3fd0f94bd670ecbe389d627cc709b201545faebfb6d344c50159
 
   # cont100's fp16 rank-4 workstation binding for 128-episode updates with 12 rollout
   # workers x 15 episodes (180 slots for the largest (16 + 4) x 8 = 160-episode round).
@@ -1481,7 +1481,7 @@ training:
       logits_float32: true
       dependency_lock: trl-fork@current
       source_revision: 09312dd1d96603587d1a24c3b714836cf67400f1
-      dependency_lock_sha256: ce6586933e9862e10c14662172e251c370c9e718a8d88c3f19a21d8663b38b04
+      dependency_lock_sha256: 89ee0419e17c3fd0f94bd670ecbe389d627cc709b201545faebfb6d344c50159
 
 inference:
   inference/lfm2.5-1.2b-vllm-manifest-ws@1:

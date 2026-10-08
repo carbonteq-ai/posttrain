@@ -1,4 +1,4 @@
 # Control-only packages for the veRL capsule kind.
 # Worker training deps stay in /opt/posttrain-verl; control still needs
 # Verifiers to preflight environment bindings before backend launch.
-verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@b358d3553a36678860b93539ceb3077323a8435d
+verifiers @ git+https://github.com/carbonteq-ai/verifiers.git@bc70a7deaf64c8f8e0b41e39c00ac2d1ea1d7e0b
