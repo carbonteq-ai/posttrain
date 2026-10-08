@@ -196,3 +196,49 @@ def test_lfm_full_rerender_accepts_sampled_turns_with_leading_newlines() -> None
     for end in (3, 4, 5):
         rendered = renderer.render(full_render_messages(messages[:end]), tools=[tool], add_generation_prompt=True)
         assert rendered.token_ids
+
+
+def test_lfm_preference_masks_cover_assistant_turns_not_tool_results() -> None:
+    tokenizer = _load_tokenizer(LFM_25_12B_THINKING)
+
+    def episode(answer: str, observation: str) -> tuple[dict, ...]:
+        return (
+            {
+                "role": "assistant",
+                "content": f"{answer}_CALL",
+                "tool_calls": [
+                    {"type": "function", "id": "a", "function": {"name": "lookup", "arguments": '{"k":"x"}'}}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "a", "content": observation},
+            {"role": "assistant", "content": f"{answer}_FINAL"},
+        )
+
+    prompt = ({"role": "system", "content": "SYSTEM_SENTINEL"}, {"role": "user", "content": "USER_SENTINEL"})
+    dataset = PreferenceDataset(
+        "lfm-preference-mask",
+        "d" * 40,
+        (PreferenceExample("case", prompt, episode("GOOD", "GOOD_TOOL"), episode("BAD", "BAD_TOOL")),),
+    )
+    sample = render_preferences(tokenizer, LFM_25_12B_THINKING, dataset, LFM25_RENDERER, max_length=1024)[0]
+    for ids, mask, answer in (
+        (sample.chosen_ids, sample.chosen_mask, "GOOD"),
+        (sample.rejected_ids, sample.rejected_mask, "BAD"),
+    ):
+        assert len(ids) == len(mask)
+        trained = tokenizer.decode([token for token, keep in zip(ids, mask, strict=True) if keep])
+        masked = tokenizer.decode([token for token, keep in zip(ids, mask, strict=True) if not keep])
+        assert f"{answer}_CALL" in trained and f"{answer}_FINAL" in trained
+        assert f"{answer}_TOOL" in masked and f"{answer}_TOOL" not in trained
+
+
+def test_masked_completion_rebuilds_trl_rows_with_truncation() -> None:
+    torch = pytest.importorskip("torch")
+    from posttrain.train.backends.trl.dpo import masked_completion
+
+    examples = [{"prompt_ids": [1, 2], "chosen_mask": [1, 0, 1], "rejected_mask": [0, 1]}]
+    padded = torch.ones((2, 6), dtype=torch.long)  # TRL marks every completion token
+    rebuilt = masked_completion(padded, examples, max_length=None, truncation_mode="keep_start")
+    assert rebuilt.tolist() == [[0, 0, 1, 0, 1, 0], [0, 0, 0, 1, 0, 0]]
+    truncated = masked_completion(padded[:, :4], examples, max_length=4, truncation_mode="keep_start")
+    assert truncated.tolist() == [[0, 0, 1, 0], [0, 0, 0, 1]]

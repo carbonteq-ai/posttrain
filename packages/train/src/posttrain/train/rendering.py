@@ -27,6 +27,10 @@ class RenderedPreferenceExample:
     prompt_ids: tuple[int, ...]
     chosen_ids: tuple[int, ...]
     rejected_ids: tuple[int, ...]
+    # 1 for completion tokens the policy produced (assistant turns), 0 for tool results and
+    # other environment text inside a multi-turn completion.
+    chosen_mask: tuple[int, ...] = ()
+    rejected_mask: tuple[int, ...] = ()
 
 
 # Renderer config per model family in the pinned ``carbonteq-renderers`` fork;
@@ -215,27 +219,51 @@ def render_preferences(
     *,
     max_length: int,
 ) -> tuple[RenderedPreferenceExample, ...]:
+    try:
+        from renderers import build_training_sample  # pyright: ignore[reportMissingImports]
+    except ImportError as error:
+        raise RuntimeError("install posttrain-train with the trl extra") from error
+
     active_renderer = create_renderer(tokenizer, model, renderer)
+
+    def completion(
+        example_id: str, prompt: list[Any], messages: list[Any], tools: list[Any] | None, prompt_ids: tuple[int, ...]
+    ) -> tuple[tuple[int, ...], tuple[int, ...]]:
+        # Only the completion's assistant messages are policy output; tool results inside a
+        # multi-turn completion are environment text and carry no preference loss.
+        trainable = {id(message) for message in messages if message.get("role") == "assistant"}
+        sample = build_training_sample(
+            active_renderer,
+            [*prompt, *messages],
+            role_to_mask=lambda message: id(message) in trainable,
+            tools=tools,
+            ensure_final_stop=True,
+        )
+        ids, mask = tuple(sample.token_ids), tuple(int(bool(value)) for value in sample.loss_mask)
+        if ids[: len(prompt_ids)] != prompt_ids:
+            raise ValueError(f"preference example {example_id!r} violates renderer prompt-prefix equality")
+        return ids[len(prompt_ids) :], mask[len(prompt_ids) :]
+
     rendered: list[RenderedPreferenceExample] = []
     for example in dataset.examples:
-        prompt_messages = example.prompt_records()
-        chosen_messages = example.chosen_records()
-        rejected_messages = example.rejected_records()
+        prompt_messages = cast(list[Any], example.prompt_records())
         tools = cast(list[Any], example.tool_records()) or None
         prompt_ids = tuple(active_renderer.render_ids(prompt_messages, tools=tools, add_generation_prompt=True))
-        chosen_full = tuple(active_renderer.render_ids([*prompt_messages, *chosen_messages], tools=tools))
-        rejected_full = tuple(active_renderer.render_ids([*prompt_messages, *rejected_messages], tools=tools))
-        if chosen_full[: len(prompt_ids)] != prompt_ids or rejected_full[: len(prompt_ids)] != prompt_ids:
-            raise ValueError(f"preference example {example.id!r} violates renderer prompt-prefix equality")
-        chosen_ids = chosen_full[len(prompt_ids) :]
-        rejected_ids = rejected_full[len(prompt_ids) :]
-        if not chosen_ids or not rejected_ids:
+        chosen_ids, chosen_mask = completion(
+            example.id, prompt_messages, cast(list[Any], example.chosen_records()), tools, prompt_ids
+        )
+        rejected_ids, rejected_mask = completion(
+            example.id, prompt_messages, cast(list[Any], example.rejected_records()), tools, prompt_ids
+        )
+        if not any(chosen_mask) or not any(rejected_mask):
             raise ValueError(f"preference example {example.id!r} rendered an empty completion")
         if len(prompt_ids) + max(len(chosen_ids), len(rejected_ids)) > max_length:
             raise ValueError(
                 f"preference example {example.id!r} exceeds max_length; curate or raise the settings limit"
             )
-        rendered.append(RenderedPreferenceExample(example.id, prompt_ids, chosen_ids, rejected_ids))
+        rendered.append(
+            RenderedPreferenceExample(example.id, prompt_ids, chosen_ids, rejected_ids, chosen_mask, rejected_mask)
+        )
     return tuple(rendered)
 
 

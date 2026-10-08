@@ -19,6 +19,7 @@ from .common import (
     emit_runtime_versions,
     finish_training,
     framework_imports,
+    load_frozen_adapter_reference,
     load_tokenizer,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
@@ -26,6 +27,27 @@ from .common import (
     trainer_lifecycle,
 )
 from .precision_runtime import require_default_precision
+
+
+def masked_completion(
+    completion_mask: Any, examples: list[dict[str, Any]], max_length: int | None, truncation_mode: str
+) -> Any:
+    """Rebuild TRL's padded completion mask (chosen rows, then rejected) from per-token masks.
+
+    Rows follow TRL's layout: prompt tokens 0, completion tokens from the example's mask,
+    truncated like the input ids and right-padded with 0."""
+
+    import torch
+
+    masks = [[0] * len(example["prompt_ids"]) + list(example["chosen_mask"]) for example in examples]
+    masks += [[0] * len(example["prompt_ids"]) + list(example["rejected_mask"]) for example in examples]
+    if max_length is not None:
+        window = slice(None, max_length) if truncation_mode == "keep_start" else slice(-max_length, None)
+        masks = [mask[window] for mask in masks]
+    rebuilt = torch.zeros_like(completion_mask)
+    for row, mask in enumerate(masks):
+        rebuilt[row, : len(mask)] = torch.tensor(mask, dtype=rebuilt.dtype)
+    return rebuilt
 
 
 def run_dpo(
@@ -37,7 +59,10 @@ def run_dpo(
     require_default_precision(request.training.backend_options, "DPO")
     try:
         from trl.trainer.dpo_config import DPOConfig  # pyright: ignore[reportMissingImports]
-        from trl.trainer.dpo_trainer import DPOTrainer  # pyright: ignore[reportMissingImports]
+        from trl.trainer.dpo_trainer import (  # pyright: ignore[reportMissingImports]
+            DataCollatorForPreference,
+            DPOTrainer,
+        )
     except ImportError as error:
         raise RuntimeError("install posttrain-train with the trl extra") from error
 
@@ -46,6 +71,8 @@ def run_dpo(
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.model, imports)
         model = load_trainable_model(request.model, request.training.update, request.settings.loop, imports)
+        # Continuing an adapter (DPO after SFT): the reference is that adapter's policy, frozen.
+        reference = load_frozen_adapter_reference(request.model, imports)
     with context.phase("data_preparation", {"backend": "trl"}):
         samples = render_preferences(
             tokenizer,
@@ -67,6 +94,8 @@ def run_dpo(
                     "prompt_ids": list(sample.prompt_ids),
                     "chosen_ids": list(sample.chosen_ids),
                     "rejected_ids": list(sample.rejected_ids),
+                    "chosen_mask": list(sample.chosen_mask),
+                    "rejected_mask": list(sample.rejected_mask),
                 }
                 for sample in samples
             ]
@@ -93,8 +122,25 @@ def run_dpo(
         workspace=output_dir.parent,
     )()
 
+    class MaskedPreferenceCollator(DataCollatorForPreference):
+        """TRL's preference collator with the renderer's per-token completion masks.
+
+        TRL trains every completion token; in a multi-turn completion only the assistant
+        tokens are policy output, so tool results are masked out of the preference loss."""
+
+        def torch_call(self, examples: list[dict[str, Any]]) -> dict[str, Any]:
+            output = super().torch_call(examples)
+            output["completion_mask"] = masked_completion(
+                output["completion_mask"], examples, self.max_length, self.truncation_mode
+            )
+            return output
+
     class PretokenizedDPOTrainer(DPOTrainer):
         """Version-pinned adapter for renderer-produced TRL collator columns."""
+
+        def _set_signature_columns_if_needed(self) -> None:
+            super()._set_signature_columns_if_needed()
+            self._signature_columns = [*self._signature_columns, "chosen_mask", "rejected_mask"]
 
         def _prepare_dataset(self, dataset: Any, processing_class: Any, args: Any, dataset_name: str) -> Any:
             required = {"prompt_ids", "chosen_ids", "rejected_ids"}
@@ -103,10 +149,18 @@ def run_dpo(
             return super()._prepare_dataset(dataset, processing_class, args, dataset_name)
 
     with context.phase("runtime_initialization", {"backend": "trl"}):
+        config = DPOConfig(**arguments)
+        tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
         trainer = PretokenizedDPOTrainer(
             model=model,
-            ref_model=None,
-            args=DPOConfig(**arguments),
+            ref_model=reference,
+            args=config,
+            data_collator=MaskedPreferenceCollator(
+                pad_token_id=tokenizer.pad_token_id,
+                max_length=config.max_length,
+                truncation_mode=config.truncation_mode,
+                pad_to_multiple_of=config.pad_to_multiple_of,
+            ),
             train_dataset=dataset,
             processing_class=tokenizer,
             callbacks=[callback, checkpoint_callback],

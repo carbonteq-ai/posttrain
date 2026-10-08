@@ -359,6 +359,34 @@ def load_trainable_model(
     return imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=True)
 
 
+def load_frozen_adapter_reference(model: ModelVariant, imports: dict[str, Any]) -> Any | None:
+    """The adapter variant merged into its base and frozen, or None for a foundation model.
+
+    When a preference update continues a trained adapter (for example DPO after SFT), the
+    reference policy must be that adapter's model, not the base model TRL would otherwise
+    use by disabling the adapter."""
+
+    if model.form not in {"adapter", "peft-adapter"}:
+        return None
+    if not isinstance(model.artifact, LocalArtifactRef):
+        raise ValueError("the host must materialize a remote adapter artifact before training")
+    if not model.artifact.path.is_dir():
+        raise FileNotFoundError(model.artifact.path)
+    base = trainable_model_factory(model, imports).from_pretrained(
+        model.base.repo_id,
+        revision=model.base.revision,
+        device_map={"": 0},
+        dtype=imports["torch"].bfloat16,
+        attn_implementation="sdpa",
+        trust_remote_code=model.provenance.get("trust_remote_code") is True,
+    )
+    reference = imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=False).merge_and_unload()
+    reference.eval()
+    for parameter in reference.parameters():
+        parameter.requires_grad_(False)
+    return reference
+
+
 def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpdatePlan) -> None:
     total = sum(parameter.numel() for parameter in model.parameters())
     trainable = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
