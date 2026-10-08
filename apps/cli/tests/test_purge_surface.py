@@ -890,3 +890,91 @@ def test_stranded_running_tracking_is_purgeable_only_after_provider_cleanup() ->
     assert not _reconciliation_allows_purge({**stranded, "provider_record": {"state": "running"}}, cleaned=True)
     assert not _reconciliation_allows_purge({**stranded, "tracking_provider_run_id": None}, cleaned=True)
     assert not _reconciliation_allows_purge({**stranded, "tracking_status": "succeeded"}, cleaned=True)
+
+
+def _timed_out_tracking_store(root: Path, run_id: str, *, attempted: bool) -> PurgeStore:
+    store = PurgeStore(root.resolve())
+    plan = store.save_plan(
+        PurgePlan.build(
+            mode="run",
+            project_id="fixture",
+            run_ids=(run_id,),
+            root_run_id=run_id,
+            tracking_actions=(
+                PurgeAction(
+                    action_id=f"tracking:{run_id}",
+                    plane="tracking",
+                    kind="tracking.delete_run",
+                    target={"provider": "trackio", "project": "fixture", "provider_run_id": "trackio-1"},
+                ),
+            ),
+            reason=PurgeReason(category="superseded-evaluation"),
+        )
+    )
+    if attempted:
+        purge_id = PurgeStore.purge_id_for_digest(plan.digest)
+        store.append_journal(purge_id, action_id=f"tracking:{run_id}", status="started")
+        store.append_journal(purge_id, action_id=f"tracking:{run_id}", status="failed", detail="read timed out")
+    return store
+
+
+@pytest.mark.parametrize("attempted", [True, False])
+def test_tracking_run_gone_after_own_timed_out_delete_settles_the_plane(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    attempted: bool,
+) -> None:
+    run_id = "superseded-eval"
+    store = _timed_out_tracking_store(tmp_path / "machine", run_id, attempted=attempted)
+
+    class Admin:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def plan_run_purge(self, *, project: str, provider_run_ids: tuple[str, ...]):
+            # The server finished the delete after the client's read timed out.
+            return SimpleNamespace(
+                artifacts=(),
+                blockers=(f"run {provider_run_ids[0]!r} does not exist in Trackio project {project!r}",),
+                exists=False,
+            )
+
+    monkeypatch.setattr(
+        purge_surface,
+        "importlib",
+        SimpleNamespace(import_module=lambda _name: SimpleNamespace(TrackioLifecycleAdmin=Admin)),
+    )
+    monkeypatch.setattr(
+        purge_surface,
+        "project_tracking_environment",
+        lambda _layout: {"POSTTRAIN_TRACKIO_SERVER_URL": "https://trackio.test", "TRACKIO_WRITE_TOKEN": "fixture"},
+    )
+    monkeypatch.setattr(purge_surface, "_machine_trust_bundle", lambda: None)
+    monkeypatch.setattr(purge_surface, "_plan_stores", lambda _layout: (store,))
+    candidates = {
+        run_id: PurgeRunCandidate(
+            run_id=run_id,
+            project_id="fixture",
+            provider="dstack",
+            provider_id="provider-1",
+            state="succeeded",
+            reconciled=True,
+            evidence_provider="trackio",
+            evidence_project="fixture",
+            tracking_provider_run_id="trackio-1",
+            completed_planes=("provider",),
+            lineage_complete=False,
+        )
+    }
+
+    purge_surface._populate_trackio_lineage(SimpleNamespace(project_id="fixture"), candidates)
+
+    candidate = candidates[run_id]
+    if attempted:
+        assert candidate.completed_planes == ("provider", "tracking")
+        assert candidate.lineage_complete is True and candidate.lineage_blockers == ()
+    else:
+        # A run that is missing without our own delete attempt is still a blocker.
+        assert "tracking" not in candidate.completed_planes
+        assert candidate.lineage_complete is False
+        assert "does not exist" in candidate.lineage_blockers[0]
