@@ -56,6 +56,9 @@ harms correctly, and Verifiers `0.3.2.dev109` with environments
   checkpoint views share the final step.
 - A purge whose Trackio delete finished after the client timed out resumes on
   the next preview instead of blocking; purge requests wait up to 10 minutes.
+- `train/rl/verified_turn_fraction` counts only turns whose verified goal set
+  their sign; a turn that also caused a harm is pushed negative and is no longer
+  reported as protected.
 
 ## 0.4.15 - 2026-10-07
 
