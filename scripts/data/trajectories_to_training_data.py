@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import itertools
 import json
 import re
@@ -140,10 +141,15 @@ def main() -> None:
                 # Harmful rejected episodes first: they carry the clearest "do not" signal.
                 rejected_pool = sorted(sides["worst"], key=lambda record: (-record.get("harms", 0), record["reward"]))
                 uses: dict[str, int] = defaultdict(int)
-                for chosen, rejected in zip(  # noqa: B905 - pairs stop at the shorter side by design
-                    itertools.chain.from_iterable(itertools.repeat(sides["best"], args.pairs_per_episode)),
-                    itertools.chain.from_iterable(itertools.repeat(rejected_pool, args.pairs_per_episode)),
-                ):
+                # Distinct (chosen, rejected) combinations, diagonal first so every episode is
+                # used before any is reused, each at most --pairs-per-episode times.
+                best_side = sides["best"]
+                combinations = sorted(
+                    itertools.product(range(len(best_side)), range(len(rejected_pool))),
+                    key=lambda pair: ((pair[1] - pair[0]) % len(rejected_pool), pair[0]),
+                )
+                for chosen_index, rejected_index in combinations:
+                    chosen, rejected = best_side[chosen_index], rejected_pool[rejected_index]
                     if uses[chosen["id"]] >= args.pairs_per_episode or uses[rejected["id"]] >= args.pairs_per_episode:
                         continue
                     chosen_messages, rejected_messages = trajectory(chosen["nodes"]), trajectory(rejected["nodes"])
@@ -155,7 +161,9 @@ def main() -> None:
                     stream.write(
                         json.dumps(
                             {
-                                "id": example_id(chosen, "dpo") + "--" + rejected["id"].lower()[:24],
+                                "id": example_id(chosen, "dpo")
+                                + "--"
+                                + hashlib.sha256(rejected["id"].encode()).hexdigest()[:16],
                                 "prompt": prompt,
                                 "chosen": chosen_messages[len(prompt) :],
                                 "rejected": rejected_messages[len(prompt) :],

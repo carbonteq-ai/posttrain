@@ -14,6 +14,18 @@ dataset:
     format:
       kind: messages
 
+  # Same-task pairs: chosen >= 0.7 partial credit without verified harms, rejected <= 0.2
+  # (harmful attempts first); shared system and user prompt; tool results are masked out
+  # of the preference loss.
+  datasets/lfm26-agent-dpo@1:
+    revision: "1"
+    kind: preference
+    source:
+      kind: jsonl
+      path: .posttrain/datasets/lfm26-agent-dpo-v1.jsonl
+    format:
+      kind: trl
+
 training:
   # 753 examples (153 tasks), about two passes: 190 steps x 8 examples. Rendered lengths:
   # median 10.6K, p95 18.8K, max 27.8K tokens, so nothing is truncated at 28672.
@@ -53,3 +65,21 @@ training:
     backend_options:
       use_liger_kernel: false
       dependency_lock: trl-fork@current
+
+  # A narrow pass on the SFT adapter (one pass over the pairs). The job continues the SFT
+  # adapter (--model-from-run), so its rank stays 8 and the frozen SFT policy is the
+  # reference.
+  lfm2.5-2.6b/agent-dpo-v1:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 140
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00002
+      warmup_ratio: 0.05
+      lr_scheduler_type: linear
+      checkpoint_steps: 50
+    beta: 0.1
+    loss_kernel: torch

@@ -1,0 +1,46 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-rft-dpo-r8-v1
+stage: train
+description: >-
+  Narrow DPO pass on the RFT SFT adapter (run with --model-from-run <sft run>): same-task
+  best-vs-worst AutomationBench attempts, tool results masked, SFT policy as reference.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-rft-dpo-r8@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.dpo
+      definition: train/trl-dpo@1
+  expected_artifacts:
+    - trained adapter
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/lfm2.5-2.6b@bf16
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/lfm26-agent-dpo@1
+  settings:
+    type: ref
+    family: training
+    id: lfm2.5-2.6b/agent-dpo-v1
+  training:
+    type: ref
+    family: training
+    id: training/lfm2.5-2.6b-trl-lora-r8-ws@1
+enabled_optional_jobs: []
+metadata:
+  question: Does a narrow DPO pass on best-vs-worst attempts reduce harmful actions and raise goals over the SFT model?
+  labels:
+    - rft
+    - dpo
