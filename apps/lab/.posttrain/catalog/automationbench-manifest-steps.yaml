@@ -913,7 +913,7 @@ environment:
     source:
       package: automationbench-v1
       repository: https://github.com/carbonteq-ai/verifiers-environments
-      revision: f27980a5e70161f2e6de561dd082f7fd5a0bee57  # 24e1fc9 + Verifiers b358d355 (connection and pre-response transport retry)
+      revision: 66e79e0749780f342d33fc0c4b5e9a07577c7a58  # 3f0a9e4 (manifest check fixes on 17e0cd0) + Verifiers b358d355 (connection and pre-response transport retry)
       subdirectory: environments/automationbench_v1
     activation:
       kind: verifiers-config
