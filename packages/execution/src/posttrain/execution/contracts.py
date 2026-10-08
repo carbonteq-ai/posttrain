@@ -255,11 +255,33 @@ class ExecutionRequest:
             },
         }
         return {
+            **self.compile_cache_environment(),
             EXECUTION_LAUNCH_ENVIRONMENT: json.dumps(
                 payload,
                 separators=(",", ":"),
                 sort_keys=True,
-            )
+            ),
+        }
+
+    def compile_cache_environment(self) -> dict[str, str]:
+        """Point every kernel and graph compiler at the persistent compile-cache mount.
+
+        Without these, vLLM's torch.compile output, Triton and FlashInfer kernels, and the
+        CUDA driver's compute cache land in the container's home directory and are rebuilt
+        on every start (about 80 s of CUDA graph capture on the 2.6B eval server).
+        """
+
+        mounts = [mount for mount in self.mounts if mount.purpose == "compile-cache"]
+        if not mounts:
+            return {}
+        root = mounts[0].container_path
+        return {
+            "VLLM_CACHE_ROOT": str(root / "vllm"),
+            "TRITON_CACHE_DIR": str(root / "triton"),
+            "TORCHINDUCTOR_CACHE_DIR": str(root / "torchinductor"),
+            "FLASHINFER_WORKSPACE_BASE": str(root / "flashinfer"),
+            "CUDA_CACHE_PATH": str(root / "nv"),
+            "CUDA_CACHE_MAXSIZE": str(4 * 1024**3),
         }
 
 
