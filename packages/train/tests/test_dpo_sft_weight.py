@@ -35,3 +35,12 @@ def test_dpo_settings_default_to_a_reference_forward_every_step() -> None:
 
 def test_dpo_settings_can_precompute_reference_scores() -> None:
     assert _decode(precompute_reference=True).precompute_reference is True
+
+
+def test_dpo_settings_select_length_normalized_preference_loss() -> None:
+    assert _decode(preference_loss="sigmoid_norm", beta=5.0).preference_loss == "sigmoid_norm"
+
+
+def test_dpo_settings_reject_liger_with_a_supervised_term() -> None:
+    with pytest.raises(ValueError, match="liger"):
+        DPOSettings("tests/dpo", TrainingLoop(max_steps=1), loss_kernel="liger", sft_weight=1.0)

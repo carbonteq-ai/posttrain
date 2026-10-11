@@ -106,9 +106,12 @@ def run_dpo(
         {
             "beta": request.settings.beta,
             **(
-                {"loss_type": ["sigmoid", "sft"], "loss_weights": [1.0, request.settings.sft_weight]}
+                {
+                    "loss_type": [request.settings.preference_loss, "sft"],
+                    "loss_weights": [1.0, request.settings.sft_weight],
+                }
                 if request.settings.sft_weight
-                else {"loss_type": ["sigmoid"]}
+                else {"loss_type": [request.settings.preference_loss]}
             ),
             "use_liger_kernel": request.settings.loss_kernel == "liger",
             "precompute_ref_log_probs": request.settings.precompute_reference,

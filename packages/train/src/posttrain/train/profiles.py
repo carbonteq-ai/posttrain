@@ -99,6 +99,10 @@ class DPOSettings:
     # Score every pair with the frozen reference once before training (one forward pass per
     # pair) instead of a reference forward at every step; the reference then leaves the GPU.
     precompute_reference: bool = False
+    # sigmoid: DPO on summed log-ratios; sigmoid_norm: divided by completion tokens (length-
+    # normalized DPO, Tulu 3), which keeps long rejected trajectories from dominating the
+    # margin and puts the sft term on the same per-token scale; apo_zero: anchored (APO).
+    preference_loss: Literal["sigmoid", "sigmoid_norm", "apo_zero"] = "sigmoid"
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
@@ -106,6 +110,10 @@ class DPOSettings:
             raise ValueError("DPO beta must be positive")
         if self.sft_weight < 0:
             raise ValueError("DPO sft_weight must not be negative")
+        if self.loss_kernel == "liger" and (self.sft_weight or self.preference_loss != "sigmoid"):
+            # TRL's fused Liger loss takes only beta and the first loss type: it would drop the
+            # sft term and ignore the preference variant without saying so.
+            raise ValueError("the liger DPO loss kernel supports only plain sigmoid DPO without sft_weight")
 
 
 @dataclass(frozen=True, slots=True)

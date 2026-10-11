@@ -219,6 +219,13 @@ class DPOSettingsSchema(TrainCatalogSchema):
         ge=0,
         description="Weight of a supervised loss on the chosen completion added to the preference loss (RPO).",
     )
+    preference_loss: Literal["sigmoid", "sigmoid_norm", "apo_zero"] = Field(
+        default="sigmoid",
+        description=(
+            "Preference term: sigmoid (summed log-ratios, DPO), sigmoid_norm (log-ratios divided by completion "
+            "tokens, length-normalized DPO; needs a much larger beta), or apo_zero (anchored)."
+        ),
+    )
     precompute_reference: bool = Field(
         default=False,
         description="Score every pair with the frozen reference once before training instead of at every step.",
@@ -500,6 +507,7 @@ def decode_training_selection(
             loss_kernel=payload.loss_kernel,
             sft_weight=payload.sft_weight,
             precompute_reference=payload.precompute_reference,
+            preference_loss=payload.preference_loss,
             revision=payload.revision,
         )
     if isinstance(payload, GRPOSettingsSchema):

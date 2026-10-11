@@ -1083,6 +1083,7 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
                     "loss_kernel": value.loss_kernel,
                     "sft_weight": value.sft_weight,
                     "precompute_reference": value.precompute_reference,
+                    "preference_loss": value.preference_loss,
                 }
             )
         if isinstance(value, GRPOSettings):

@@ -194,3 +194,26 @@ training:
     loss_kernel: torch
     sft_weight: 1.0
     precompute_reference: true
+
+  # DPO v3 (researched recipe): length-normalized preference loss (sigmoid_norm, Tulu 3's
+  # length-normalized DPO, beta 5) so long rejected trajectories do not dominate the margin
+  # and the sft term (weight 1) acts on the same per-token scale; LoRA learning rate 5e-6
+  # (published LoRA DPO anchors 5e-6 to 1e-5; v1/v2 used 2e-5); 10% warmup; reference
+  # log-probabilities precomputed; checkpoint after the first pass (step 48) for evaluation.
+  lfm2.5-2.6b/agent-dpo-v3:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 95
+      max_length: 22016
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.000005
+      warmup_ratio: 0.1
+      lr_scheduler_type: linear
+      checkpoint_steps: 48
+    beta: 5.0
+    loss_kernel: torch
+    sft_weight: 1.0
+    preference_loss: sigmoid_norm
+    precompute_reference: true
