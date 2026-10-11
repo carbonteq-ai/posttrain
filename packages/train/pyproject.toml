@@ -22,7 +22,7 @@ trl = [
     "torch>=2.13,<2.14",
     "torchvision>=0.28,<0.29",
     "transformers>=5.14,<5.15",
-    "trl==1.12.0.post14",
+    "trl==1.12.0.post15",
     "peft>=0.19,<0.20",
     "datasets>=4.6.1,<4.7",
     "accelerate>=1.14,<1.15",
@@ -63,11 +63,11 @@ trl = { index = "carbonteq-dev" }
 carbonteq-renderers = { index = "carbonteq-dev" }
 
 [tool.posttrain.trl]
-version = "1.12.0.post14"
-release-tag = "carbonteq-v1.12.0.post14"
-source-revision = "09312dd1d96603587d1a24c3b714836cf67400f1"
-wheel-sha256 = "ef77a1f07154d3958d9f32eb90d2ce01e16048ff5d7e33bbf5be9e215666dc40"
-sdist-sha256 = "ed6a99c71f950af7147367ec582fda65f7cf22933460c86b73b7aadeabbac2dd"
+version = "1.12.0.post15"
+release-tag = "carbonteq-v1.12.0.post15"
+source-revision = "290c03d8e1553db509b0d033907f60fc1cb47b82"
+wheel-sha256 = "89ca61803a5e86c5225427402dc5d2879f26104d66c58f6ae9c9b00ff24026dd"
+sdist-sha256 = "9d6f5c8bac359544da251f0bceb26088d81e686e34209dea17fc1610fd5a96cc"
 
 [tool.posttrain.renderers]
 version = "0.1.12.post1.dev3"

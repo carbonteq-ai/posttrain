@@ -21,7 +21,7 @@ from typing import Any, cast
 import pytest
 
 torch = pytest.importorskip("torch")
-pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post14")
+pytest.importorskip("trl.trainer.grpo_trainer", reason="requires CarbonTeq TRL 1.12.0.post15")
 core_algos = pytest.importorskip("verl.trainer.ppo.core_algos", reason="requires the CarbonTeq veRL fork")
 if "sampo_token_credit" not in getattr(core_algos, "POLICY_LOSS_REGISTRY", {}):
     pytest.skip("installed veRL has no qualified sampo_token_credit loss", allow_module_level=True)
@@ -355,7 +355,7 @@ def test_sampo_batch_gives_identical_advantages_evidence_loss_and_gradient(tmp_p
 
     # --- loss ------------------------------------------------------------
     batch = _logprobs(mask)
-    trl_request = _request(settings, "trl@1.12.0.post14")
+    trl_request = _request(settings, "trl@1.12.0.post15")
     arguments = _online_rl_arguments(trl_request, tmp_path / "trl", {"enable_thinking": False})
     arguments.update(bf16=False, fp16=False, use_cpu=True, report_to=[])
     trl_config = GRPOConfig(**arguments)

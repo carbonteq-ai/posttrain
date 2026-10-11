@@ -1,6 +1,20 @@
 # TRL
 
-Selected: `1.12.0.post14`, published as
+Selected (RFT branch `codex/rft-warm-start`): `1.12.0.post15`, published as
+[carbonteq-v1.12.0.post15](https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post15)
+at immutable source `290c03d8e1553db509b0d033907f60fc1cb47b82`. It is post14 plus one
+commit: the DPO `sft` loss term (used alone, as RPO with `sigmoid`, or in MPO) is the mean
+chosen-token negative log-likelihood taken from the already gathered per-token
+log-probabilities instead of a cross-entropy over a copied full-vocabulary logits tensor.
+Same loss and gradient; an LFM2.5-2.6B DPO run with ~27K-token pairs and
+`["sigmoid", "sft"]` OOMed on post14 ("Tried to allocate 10.88 GiB") and fits on post15.
+Retained wheel SHA256 `89ca61803a5e86c5225427402dc5d2879f26104d66c58f6ae9c9b00ff24026dd`;
+sdist SHA256 `9d6f5c8bac359544da251f0bceb26088d81e686e34209dea17fc1610fd5a96cc`.
+Published to `carbonteq/dev` by retained-asset publisher run `38177338727`. Release gate:
+`tests/test_dpo_sft_loss.py` and `tests/test_dpo_trainer.py -k "sft or multi"` (11 passed);
+the fork's full suite was not run for this release.
+
+Previously selected: `1.12.0.post14`, published as
 [carbonteq-v1.12.0.post14](https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post14)
 at immutable source `09312dd1d96603587d1a24c3b714836cf67400f1`, based on
 maintained source d97a2cf619f94c7076a720116d75f85dfd62382b. It is post13 plus one

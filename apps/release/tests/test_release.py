@@ -722,7 +722,7 @@ def test_fork_ledger_cross_checks_direct_runtime_environment_and_service_boundar
     entries = {entry.id: entry for entry in load_fork_ledger(repository_root)}
 
     assert entries["carbonteq-trackio"].version == "0.31.5.post14.dev35"
-    assert entries["trl"].revision == "09312dd1d96603587d1a24c3b714836cf67400f1"
+    assert entries["trl"].revision == "290c03d8e1553db509b0d033907f60fc1cb47b82"
     assert entries["verl"].release_tag == "carbonteq-v0.9.0.post9"
     assert entries["causal-conv1d"].revision == "b7bec200ce1391f69fac132bf7f8ae007446d46d"
     assert entries["causal-conv1d"].artifacts == {
@@ -1278,8 +1278,8 @@ def test_required_fork_index_check_uses_every_python_fork_hash(monkeypatch: pyte
     assert {item["filename"] for item in artifacts} == {
         "carbonteq_trackio-0.31.5.post14.dev35-py3-none-any.whl",
         "carbonteq_trackio-0.31.5.post14.dev35.tar.gz",
-        "trl-1.12.0.post14-py3-none-any.whl",
-        "trl-1.12.0.post14.tar.gz",
+        "trl-1.12.0.post15-py3-none-any.whl",
+        "trl-1.12.0.post15.tar.gz",
         "carbonteq_renderers-0.1.12.post1.dev3-py3-none-any.whl",
         "carbonteq_renderers-0.1.12.post1.dev3.tar.gz",
         # Wheel-only fork release: the retained platform wheel, no sdist.
