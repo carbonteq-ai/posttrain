@@ -27,3 +27,11 @@ def test_dpo_settings_carry_a_supervised_weight_on_the_chosen_side() -> None:
 def test_dpo_settings_reject_a_negative_supervised_weight() -> None:
     with pytest.raises(ValueError, match="sft_weight"):
         DPOSettings("tests/dpo", TrainingLoop(max_steps=1), sft_weight=-0.1)
+
+
+def test_dpo_settings_default_to_a_reference_forward_every_step() -> None:
+    assert _decode().precompute_reference is False
+
+
+def test_dpo_settings_can_precompute_reference_scores() -> None:
+    assert _decode(precompute_reference=True).precompute_reference is True

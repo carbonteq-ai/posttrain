@@ -219,6 +219,10 @@ class DPOSettingsSchema(TrainCatalogSchema):
         ge=0,
         description="Weight of a supervised loss on the chosen completion added to the preference loss (RPO).",
     )
+    precompute_reference: bool = Field(
+        default=False,
+        description="Score every pair with the frozen reference once before training instead of at every step.",
+    )
 
 
 class DynamicGroupSamplingSchema(TrainCatalogSchema):
@@ -495,6 +499,7 @@ def decode_training_selection(
             beta=payload.beta,
             loss_kernel=payload.loss_kernel,
             sft_weight=payload.sft_weight,
+            precompute_reference=payload.precompute_reference,
             revision=payload.revision,
         )
     if isinstance(payload, GRPOSettingsSchema):

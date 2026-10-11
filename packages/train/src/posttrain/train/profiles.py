@@ -96,6 +96,9 @@ class DPOSettings:
     # Weight of a supervised loss on the chosen completion (RPO); it keeps the chosen
     # likelihood from falling while the margin grows. Zero is plain DPO.
     sft_weight: float = 0.0
+    # Score every pair with the frozen reference once before training (one forward pass per
+    # pair) instead of a reference forward at every step; the reference then leaves the GPU.
+    precompute_reference: bool = False
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)

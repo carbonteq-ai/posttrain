@@ -1077,7 +1077,14 @@ def _selection_details(value: Selection) -> dict[str, JsonValue]:
         # Recorded so readers (training rules, Observatory) see the schedule; older runs omit it.
         details["lr_scheduler_type"] = loop.lr_scheduler_type
         if isinstance(value, DPOSettings):
-            details.update({"beta": value.beta, "loss_kernel": value.loss_kernel, "sft_weight": value.sft_weight})
+            details.update(
+                {
+                    "beta": value.beta,
+                    "loss_kernel": value.loss_kernel,
+                    "sft_weight": value.sft_weight,
+                    "precompute_reference": value.precompute_reference,
+                }
+            )
         if isinstance(value, GRPOSettings):
             details.update(
                 {

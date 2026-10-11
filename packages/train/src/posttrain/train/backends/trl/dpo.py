@@ -111,7 +111,8 @@ def run_dpo(
                 else {"loss_type": ["sigmoid"]}
             ),
             "use_liger_kernel": request.settings.loss_kernel == "liger",
-            "precompute_ref_log_probs": False,
+            "precompute_ref_log_probs": request.settings.precompute_reference,
+            "precompute_ref_batch_size": 1,
             "padding_free": False,
         }
     )
@@ -169,6 +170,11 @@ def run_dpo(
             processing_class=tokenizer,
             callbacks=[callback, checkpoint_callback],
         )
+        if request.settings.precompute_reference and reference is not None:
+            # Reference log-probabilities are now dataset columns; free the frozen copy's memory.
+            trainer.ref_model = None
+            del reference
+            imports["torch"].cuda.empty_cache()
     resume = str(request.resume_from.path) if request.resume_from is not None else None
     with trainer_lifecycle(trainer):
         try:
