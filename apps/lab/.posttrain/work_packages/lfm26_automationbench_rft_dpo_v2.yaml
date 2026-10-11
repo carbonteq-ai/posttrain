@@ -31,11 +31,11 @@ bindings:
   dataset:
     type: ref
     family: dataset
-    id: datasets/lfm26-agent-dpo@2
+    id: datasets/lfm26-agent-dpo@3
   settings:
     type: ref
     family: training
-    id: lfm2.5-2.6b/agent-dpo-v2
+    id: lfm2.5-2.6b/agent-dpo-v2-capped
   training:
     type: ref
     family: training

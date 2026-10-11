@@ -55,6 +55,19 @@ dataset:
     format:
       kind: trl
 
+  # v2 pairs capped at 22,000 rendered tokens (380 of 413 pairs, 38 tasks; drops 20
+  # out-of-room, 4 tool-error, 3 harmful, 3 wrong-outcome, 2 empty-results, 1 near-miss):
+  # the longest pairs ran the 96 GB card out of memory in backward even with the post15
+  # sft term.
+  datasets/lfm26-agent-dpo@3:
+    revision: "1"
+    kind: preference
+    source:
+      kind: jsonl
+      path: .posttrain/datasets/lfm26-agent-dpo-v3.jsonl
+    format:
+      kind: trl
+
 training:
   # 753 examples (153 tasks), about two passes: 190 steps x 8 examples. Rendered lengths:
   # median 10.6K, p95 18.8K, max 27.8K tokens, so nothing is truncated at 28672.
@@ -136,6 +149,23 @@ training:
     loop:
       max_steps: 103
       max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00002
+      warmup_ratio: 0.05
+      lr_scheduler_type: linear
+      checkpoint_steps: 50
+    beta: 0.1
+    loss_kernel: torch
+    sft_weight: 1.0
+
+  # DPO v2 on the length-capped pairs: two passes (380 x 2 / 8 = 95 steps), max length 22,016.
+  lfm2.5-2.6b/agent-dpo-v2-capped:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 95
+      max_length: 22016
       per_device_batch_size: 1
       gradient_accumulation_steps: 8
       learning_rate: 0.00002
