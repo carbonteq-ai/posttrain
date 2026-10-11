@@ -175,3 +175,22 @@ training:
     beta: 0.1
     loss_kernel: torch
     sft_weight: 1.0
+
+  # Same as agent-dpo-v2-capped, with reference log-probabilities computed once before
+  # training (no reference forward per step; the frozen reference leaves the GPU).
+  lfm2.5-2.6b/agent-dpo-v2-fast:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 95
+      max_length: 22016
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 8
+      learning_rate: 0.00002
+      warmup_ratio: 0.05
+      lr_scheduler_type: linear
+      checkpoint_steps: 50
+    beta: 0.1
+    loss_kernel: torch
+    sft_weight: 1.0
+    precompute_reference: true

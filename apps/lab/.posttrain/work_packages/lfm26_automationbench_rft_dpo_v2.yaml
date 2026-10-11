@@ -35,7 +35,7 @@ bindings:
   settings:
     type: ref
     family: training
-    id: lfm2.5-2.6b/agent-dpo-v2-capped
+    id: lfm2.5-2.6b/agent-dpo-v2-fast
   training:
     type: ref
     family: training
