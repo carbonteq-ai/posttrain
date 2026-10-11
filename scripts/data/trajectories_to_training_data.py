@@ -11,6 +11,10 @@ verified harm count).
 - ``dpo.jsonl``: per task, best episodes (no harms) paired with worst episodes of the same
   task. ``prompt`` is the shared system and user messages; ``chosen`` and ``rejected`` are
   the rest of each trajectory. Each best and each worst episode is used at most twice.
+  Records from a ``--selection`` harvest carry a failure ``category``: then each task's
+  rejected episodes are taken per category (up to ``--per-category``, each used once) and
+  each is paired with the least-used chosen episode of the same task (from any run)
+  that shares its prompt and tool list, each chosen used at most ``--max-chosen-reuse`` times, so every failure kind is contrasted with a perfect run.
 
 usage: trajectories_to_training_data.py IN.jsonl.gz --out DIR [--sft] [--dpo]
 """
@@ -80,6 +84,80 @@ def example_id(record: dict, prefix: str) -> str:
     return re.sub(r"[^a-z0-9._/-]", "-", f"{prefix}/{record['task_name']}/{record['id']}".lower())
 
 
+def preference(chosen: dict, rejected: dict, prompt: list[dict], chosen_messages, rejected_messages) -> dict:
+    return {
+        "id": example_id(chosen, "dpo") + "--" + hashlib.sha256(rejected["id"].encode()).hexdigest()[:16],
+        "prompt": prompt,
+        "chosen": chosen_messages[len(prompt) :],
+        "rejected": rejected_messages[len(prompt) :],
+        "tools": tools(chosen),
+        "metadata": {
+            "task_name": chosen["task_name"],
+            "category": rejected.get("category"),
+            "chosen_reward": chosen["reward"],
+            "rejected_reward": rejected["reward"],
+            "rejected_harms": rejected.get("harms", 0),
+        },
+    }
+
+
+def contrast_pairs(best: list[dict], worst: list[dict], path: Path, per_category: int, max_reuse: int) -> dict:
+    """One pair per rejected episode: up to ``per_category`` per task and failure category."""
+
+    chosen_by_task: dict[str, list[dict]] = defaultdict(list)
+    for record in best:
+        chosen_by_task[record["task_name"]].append(record)
+    rejected_by_slot: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for record in worst:
+        rejected_by_slot[(record["task_name"], record["category"])].append(record)
+    messages = {record["id"]: trajectory(record["nodes"]) for record in [*best, *worst]}
+    uses: dict[str, int] = defaultdict(int)
+    by_category: dict[str, int] = defaultdict(int)
+    unpaired = 0
+    with path.open("w", encoding="utf-8") as stream:
+        for (task, category), pool in sorted(rejected_by_slot.items()):
+            # Near misses: the closest first; harmful: the most harms first; else the lowest credit.
+            if category == "near-miss":
+                pool.sort(key=lambda record: -record["reward"])
+            elif category == "harmful":
+                pool.sort(key=lambda record: (-record.get("harms", 0), record["reward"]))
+            else:
+                pool.sort(key=lambda record: record["reward"])
+            made = 0
+            for rejected in pool:
+                if made >= per_category:
+                    break
+                rejected_messages = messages[rejected["id"]]
+                for chosen in sorted(
+                    chosen_by_task.get(task, []), key=lambda record: (uses[record["id"]], record["id"])
+                ):
+                    if uses[chosen["id"]] >= max_reuse:
+                        continue
+                    chosen_messages = messages[chosen["id"]]
+                    prompt = [message for message in chosen_messages if message["role"] in {"system", "user"}][:2]
+                    if rejected_messages[: len(prompt)] == prompt and tools(rejected) == tools(chosen):
+                        break
+                else:
+                    unpaired += 1
+                    continue
+                uses[chosen["id"]] += 1
+                made += 1
+                by_category[category] += 1
+                stream.write(
+                    json.dumps(
+                        preference(chosen, rejected, prompt, chosen_messages, rejected_messages), ensure_ascii=False
+                    )
+                    + "\n"
+                )
+    return {
+        "dpo_pairs": sum(by_category.values()),
+        "dpo_pairs_by_category": dict(sorted(by_category.items())),
+        "dpo_tasks": len({task for task, _ in rejected_by_slot if task in chosen_by_task}),
+        "max_chosen_reuse": max(uses.values(), default=0),
+        "rejected_unpaired": unpaired,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("source", type=Path)
@@ -87,6 +165,10 @@ def main() -> None:
     parser.add_argument("--sft", action="store_true")
     parser.add_argument("--dpo", action="store_true")
     parser.add_argument("--pairs-per-episode", type=int, default=2)
+    parser.add_argument("--per-category", type=int, default=4, help="rejected episodes per task and category")
+    parser.add_argument(
+        "--max-chosen-reuse", type=int, default=4, help="pairs per chosen episode, so one success is not memorized"
+    )
     parser.add_argument("--max-weight", type=float, default=4.0, help="cap on an SFT example's task weight")
     args = parser.parse_args()
     records = [json.loads(line) for line in gzip.open(args.source, "rt", encoding="utf-8")]
@@ -139,7 +221,9 @@ def main() -> None:
         summary["sft_examples"] = len(best)
         summary["sft_tasks"] = len({record["task_name"] for record in best})
 
-    if args.dpo:
+    if args.dpo and any("category" in record for record in records):
+        summary.update(contrast_pairs(best, worst, args.out / "dpo.jsonl", args.per_category, args.max_chosen_reuse))
+    elif args.dpo:
         by_task: dict[str, dict[str, list[dict]]] = defaultdict(lambda: {"best": [], "worst": []})
         for record in best:
             by_task[record["task_name"]]["best"].append(record)

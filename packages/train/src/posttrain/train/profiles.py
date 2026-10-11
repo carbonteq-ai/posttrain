@@ -93,11 +93,16 @@ class DPOSettings:
     beta: float = 0.1
     loss_kernel: Literal["liger", "torch"] = "torch"
     revision: str = "1"
+    # Weight of a supervised loss on the chosen completion (RPO); it keeps the chosen
+    # likelihood from falling while the margin grows. Zero is plain DPO.
+    sft_weight: float = 0.0
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
         if self.beta <= 0:
             raise ValueError("DPO beta must be positive")
+        if self.sft_weight < 0:
+            raise ValueError("DPO sft_weight must not be negative")
 
 
 @dataclass(frozen=True, slots=True)

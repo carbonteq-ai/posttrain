@@ -19,7 +19,12 @@ run, step and reward.
 Diversity: picks within a task rotate across runs (the best of each run first), and a
 trajectory with the same sequence of tool calls as one already kept is dropped.
 
+With ``--selection`` (the TSV from ``select_dpo_contrasts.py``) it skips ranking and
+fetches exactly the listed episodes, keeping each one's side and failure category; only
+rejected episodes repeating another's tool calls are dropped.
+
 usage: harvest_agent_trajectories.py --out DIR [--runs-like PATTERN ...] [--per-task 8]
+       harvest_agent_trajectories.py --out DIR --selection SELECTION.tsv
 """
 
 from __future__ import annotations
@@ -141,6 +146,40 @@ def compact(payload: dict, row: tuple) -> dict:
     }
 
 
+def harvest_selection(connection: pymysql.connections.Connection, args: argparse.Namespace) -> None:
+    lines = args.selection.read_text().splitlines()[1:]
+    wanted = {trace_id: (side, category) for trace_id, _task, side, category in (line.split("\t") for line in lines)}
+    ids = list(wanted)
+    args.out.mkdir(parents=True, exist_ok=True)
+    written: dict[str, int] = {}
+    signatures: set[tuple[str, str, str]] = set()
+    duplicates = 0
+    with gzip.open(args.out / "trajectories.jsonl.gz", "wt", encoding="utf-8") as stream, connection.cursor() as cursor:
+        for start in range(0, len(ids), 50):
+            cursor.execute(
+                "SELECT trace_id, run_name, fact_task_id, fact_task_reward, fact_rollout_step,"
+                " fact_model_output_tokens, payload FROM traces WHERE project_id = %s AND trace_id IN %s",
+                (args.project, tuple(ids[start : start + 50])),
+            )
+            for *row, raw in cursor.fetchall():
+                side, category = wanted[row[0]]
+                payload = json.loads(raw)
+                record = compact(payload, (*row, side))
+                record["task_name"] = ((payload.get("task") or {}).get("data") or {}).get("task_name") or row[2]
+                record["category"] = category
+                signature = (record["task_name"], category, tool_signature(record))
+                # Perfect runs with the same tool calls still differ in their reasoning: keep them.
+                if side == "worst" and signature in signatures:
+                    duplicates += 1
+                    continue
+                signatures.add(signature)
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+                written[category] = written.get(category, 0) + 1
+    summary = {"selected": len(ids), "written": written, "duplicates_dropped": duplicates}
+    (args.out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    print(json.dumps(summary))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, required=True)
@@ -156,6 +195,7 @@ def main() -> None:
         metavar="DOMAIN=N",
         help="lower per-task limit for one task domain, e.g. simple=3, so easy tasks do not dominate",
     )
+    parser.add_argument("--selection", type=Path, help="fetch exactly these episodes (select_dpo_contrasts.py)")
     parser.add_argument("--best-min", type=float, default=0.9)
     parser.add_argument("--worst-max", type=float, default=0.3)
     args = parser.parse_args()
@@ -176,6 +216,9 @@ def main() -> None:
         **{f"run{index}": pattern for index, pattern in enumerate(patterns)},
     }
     connection = connect()
+    if args.selection:
+        harvest_selection(connection, args)
+        return
     with connection.cursor() as cursor:
         cursor.execute(SELECT_SQL.format(runs=runs), params)
         rows = [row for row in cursor.fetchall() if row[2] not in excluded]

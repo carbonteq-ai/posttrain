@@ -14,18 +14,33 @@ The frozen product baseline is unchanged: this adds data scripts, catalog entrie
 - [x] (2026-10-08 10:30Z) Datasets (`scripts/data/trajectories_to_training_data.py`): SFT 753 examples over 153 tasks (>= 0.8 partial credit, no verified harms, at most 8 per task, 3 per simple task, deduplicated by tool-call sequence, rotated across runs); DPO 1,118 same-task pairs over 133 tasks (chosen >= 0.7 without harms, rejected <= 0.2, harmful rejected first, each episode in at most two pairs). 40 held-out evaluation tasks excluded; 0 leaks.
 - [x] (2026-10-08 10:40Z) SFT run `lfm26-rft-sft-r8-20261008-r1` submitted on the workstation (LoRA rank 8, 190 steps x 8 examples, LR 1e-4 linear, 28,672 tokens).
 - [x] (2026-10-08 11:10Z) DPO backend: tool results masked out of the preference loss; a continued adapter's frozen policy is the DPO reference (commit `86bcda57`).
-- [ ] Render-check DPO pairs at 32,768 tokens; register `datasets/lfm26-agent-dpo@1`.
-- [ ] Evaluate the SFT adapter on the 64K luna-v2 held-out suite.
-- [ ] DPO from the SFT adapter (`lfm26_automationbench_rft_dpo`, `--model-from-run lfm26-rft-sft-r8-20261008-r1`), then evaluate.
+- [x] (2026-10-08) Render-check DPO pairs at 32,768 tokens; register `datasets/lfm26-agent-dpo@1`.
+- [x] (2026-10-08) SFT v1 eval (`luna2-heldout-64k20t-t05-rft-sft-r8-20261008-e2`): success 0.10, partial credit 0.473, harms 0.72 per episode.
+- [x] (2026-10-08) DPO v1 from the SFT adapter, eval: success 0.08, partial credit 0.487, harms 0.99 per episode (harms rose).
+- [x] (2026-10-11) SFT v2 (32 per task, weighted by task) relaunched as `lfm26-rft-sft-r8-v2-20261011-r2`; eval chained.
+- [x] (2026-10-11) Contrast DPO data: `scripts/data/episode_signals.py` (per-episode failure signals and setup fingerprint from Doris, 138,773 episodes), `scripts/data/select_dpo_contrasts.py` (perfect vs categorized failure, same task and setup), harvester `--selection`, converter category pairing. Two datasets: `lfm26-agent-dpo-contrast-noharm@1` (408 pairs, 37 tasks) and `-minharm@1` (915 pairs, 87 tasks); all fit 32,768 tokens.
+- [x] (2026-10-11) DPO `sft_weight` setting (supervised loss on the chosen side, TRL `loss_type ["sigmoid", "sft"]`).
+- [ ] Contrast DPO runs (noharm, minharm) from the better SFT adapter, then evaluate each.
 
 ## Surprises & Discoveries
 
 - Observation: some older runs record a hashed task id in `fact_task_id`; held-out exclusion by name missed them until the harvester read the name from the payload.
 - Observation: training traces in Trackio keep results only (no assessment batches); harms are read from `info.posttrain_turn_rewards` turn components (`manifest_harms`), so harm filtering applies to manifest-era runs only.
 - Observation: rendered SFT examples are long because the tool schemas sit in the system prompt (median 10.6K tokens, p95 18.8K, max 27.8K); the conversation itself is median about 2.5K tokens.
+- Observation: only 3,203 of 10,088 perfect episodes carry manifest turn evidence, so for most "perfect" episodes the absence of harm was never assessed.
+- Observation: without a setup match, about 30% of rejected episodes had no chosen partner with an identical system prompt and tool list (different environment versions).
 - Observation: TRL's DPO collator trains every completion token, including tool results, and with a PEFT model and no `ref_model` uses the base model as reference.
 
 ## Decision Log
+
+- Decision: contrast DPO pairs a perfect episode (passed, full credit, no tool mistakes, no harm, not cut off) with a failure of the same task, given one category in the order harmful, out-of-room, tool-error, empty-results, near-miss, wrong-outcome; up to 4 per task and category. Gave-up-early and plain failure were left out (few, or overlapping the others).
+  Date/Author: 2026-10-11, user (categories, including out-of-room as base behaviour) and Claude (order, caps).
+- Decision: two experiments differing only in the chosen side: "noharm" requires manifest turn evidence (harm absence verified), "minharm" accepts any perfect episode.
+  Date/Author: 2026-10-11, user.
+- Decision: a pair may come from any run or rollout group but must share the setup (system prompt and tool list); each perfect episode is used in at most 4 pairs (hard tasks with one success otherwise reused it up to 20 times); perfect episodes with identical tool calls are kept, since their reasoning differs.
+  Date/Author: 2026-10-11, user (any group) and Claude (setup match, reuse cap).
+- Decision: contrast DPO adds a supervised loss on the chosen side (weight 1, as in RPO) and runs two passes, because v1's plain DPO raised harms (likelihood displacement).
+  Date/Author: 2026-10-11, Claude.
 
 - Decision: LoRA rank 8 for SFT and DPO (requested); DPO continues the SFT adapter rather than stacking a new one.
   Date/Author: 2026-10-08, user and Claude.

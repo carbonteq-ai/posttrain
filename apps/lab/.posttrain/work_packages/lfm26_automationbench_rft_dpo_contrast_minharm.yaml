@@ -1,0 +1,48 @@
+project_id: posttrain-lab
+work_package_id: train/lfm2.5-2.6b/automationbench-rft-dpo-contrast-minharm-r8
+stage: train
+description: >-
+  Contrast DPO on the RFT SFT adapter (run with --model-from-run <sft run>): perfect (harms not always assessed)
+  episodes against same-task, same-setup failures by category (harmful, out-of-room,
+  tool-error, empty-results, near-miss, wrong-outcome), tool results masked, supervised
+  loss on the chosen side, SFT policy as reference.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-rft-dpo-contrast-minharm-r8@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.dpo
+      definition: train/trl-dpo@1
+  expected_artifacts:
+    - trained adapter
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/lfm2.5-2.6b@bf16
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/lfm26-agent-dpo-contrast-minharm@1
+  settings:
+    type: ref
+    family: training
+    id: lfm2.5-2.6b/agent-dpo-contrast-minharm
+  training:
+    type: ref
+    family: training
+    id: training/lfm2.5-2.6b-trl-lora-r8-ws@1
+enabled_optional_jobs: []
+metadata:
+  question: Do perfect-vs-categorized-failure pairs (minharm) raise goals without raising harms over the SFT model?
+  labels:
+    - rft
+    - dpo

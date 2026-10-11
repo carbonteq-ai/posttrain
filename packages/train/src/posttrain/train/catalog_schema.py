@@ -214,6 +214,11 @@ class DPOSettingsSchema(TrainCatalogSchema):
     loop: TrainingLoopSchema
     beta: float = Field(default=0.1, gt=0)
     loss_kernel: Literal["liger", "torch"] = "torch"
+    sft_weight: float = Field(
+        default=0.0,
+        ge=0,
+        description="Weight of a supervised loss on the chosen completion added to the preference loss (RPO).",
+    )
 
 
 class DynamicGroupSamplingSchema(TrainCatalogSchema):
@@ -489,6 +494,7 @@ def decode_training_selection(
             TrainingLoop(**payload.loop.model_dump()),
             beta=payload.beta,
             loss_kernel=payload.loss_kernel,
+            sft_weight=payload.sft_weight,
             revision=payload.revision,
         )
     if isinstance(payload, GRPOSettingsSchema):
