@@ -38,28 +38,20 @@ dataset:
     format:
       kind: trl
 
-  # Contrast pairs (scripts/data/select_dpo_contrasts.py): a perfect episode (passed, full
-  # credit, no tool mistakes, no harm, not cut off) against a failure of the same task and
-  # setup (system prompt and tools), from any run, up to 4 per task and failure category:
-  # harmful, out-of-room, tool-error, empty-results, near-miss, wrong-outcome. Each perfect
-  # episode is used in at most 4 pairs. "noharm": the perfect side carries manifest turn
-  # evidence, so the absence of harm was verified (408 pairs, 37 tasks). "minharm": any
-  # perfect episode, including ones whose harms were never assessed (915 pairs, 87 tasks).
-  datasets/lfm26-agent-dpo-contrast-noharm@1:
+  # v2 contrast pairs (scripts/data/select_dpo_contrasts.py): a perfect episode (passed,
+  # full credit, no tool mistakes, no harm, not cut off) against a failure of the same task
+  # and setup (system prompt and tools), from any run, up to 4 per task and failure
+  # category (harmful, out-of-room, tool-error, empty-results, near-miss, wrong-outcome);
+  # each perfect episode in at most 4 pairs. Harm status is known on both sides: guarded
+  # tasks use harms re-scored offline with the current manifests (scripts/data/harm_rescore,
+  # exact replays only); tasks whose manifest defines no guard cannot be harmful; tasks
+  # without a manifest are excluded. 413 pairs, 38 tasks.
+  datasets/lfm26-agent-dpo@2:
     revision: "1"
     kind: preference
     source:
       kind: jsonl
-      path: .posttrain/datasets/lfm26-agent-dpo-contrast-noharm-v1.jsonl
-    format:
-      kind: trl
-
-  datasets/lfm26-agent-dpo-contrast-minharm@1:
-    revision: "1"
-    kind: preference
-    source:
-      kind: jsonl
-      path: .posttrain/datasets/lfm26-agent-dpo-contrast-minharm-v1.jsonl
+      path: .posttrain/datasets/lfm26-agent-dpo-v2.jsonl
     format:
       kind: trl
 
@@ -135,30 +127,14 @@ training:
     beta: 0.1
     loss_kernel: torch
 
-  # Contrast DPO: two passes over the pairs (408 x 2 / 8 = 102 steps; 915 x 2 / 8 = 229),
-  # with a supervised loss on the chosen side (RPO, weight 1) so the chosen likelihood does
-  # not fall while the margin grows; v1's plain DPO raised harms that way.
-  lfm2.5-2.6b/agent-dpo-contrast-noharm:
+  # DPO v2: two passes over the contrast pairs (413 x 2 / 8 = 103 steps), with a supervised
+  # loss on the chosen side (RPO, weight 1) so the chosen likelihood does not fall while the
+  # margin grows; v1's plain DPO raised harms that way.
+  lfm2.5-2.6b/agent-dpo-v2:
     selection_type: dpo-settings
     revision: "1"
     loop:
-      max_steps: 102
-      max_length: 32768
-      per_device_batch_size: 1
-      gradient_accumulation_steps: 8
-      learning_rate: 0.00002
-      warmup_ratio: 0.05
-      lr_scheduler_type: linear
-      checkpoint_steps: 50
-    beta: 0.1
-    loss_kernel: torch
-    sft_weight: 1.0
-
-  lfm2.5-2.6b/agent-dpo-contrast-minharm:
-    selection_type: dpo-settings
-    revision: "1"
-    loop:
-      max_steps: 229
+      max_steps: 103
       max_length: 32768
       per_device_batch_size: 1
       gradient_accumulation_steps: 8

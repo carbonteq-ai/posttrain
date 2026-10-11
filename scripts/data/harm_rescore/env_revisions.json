@@ -1,0 +1,67 @@
+{
+ "automationbench-lfm26-sampo-turns-v1": {
+  "revision": "3a486b0ab173ece56f480f135c4cadfbf0135b57",
+  "rl_commit": "4feaaf69ee",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-sampo-turns-v2": {
+  "revision": "0afb73d7bd36403cbfb02fa2179f974817ce2344",
+  "rl_commit": "34a0e1d25a",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-sampo-turns-v3": {
+  "revision": "61448b5d941b791280ab3be5eb7d72cb35200f8e",
+  "rl_commit": "c3ae803dba",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-sampo-turns-v3-c180-t08": {
+  "revision": "0bad6187f40e23666150234ade99efd35ac567a0",
+  "rl_commit": "75aa466337",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-sampo-turns-v3-c180-t08-16t": {
+  "revision": "0bad6187f40e23666150234ade99efd35ac567a0",
+  "rl_commit": "eab22c6686",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-sampo-turns-v3-c180-t08-6k14t": {
+  "revision": "0bad6187f40e23666150234ade99efd35ac567a0",
+  "rl_commit": "5111cc02e6",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-train-mix-v2": {
+  "revision": "12ff5e1abfab369b8dec4df3ce83c5984f55ad34",
+  "rl_commit": "a600cafa4a",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-train-mix-v3": {
+  "revision": "1181585ea66c6f89432864a476b5110794afc9fe",
+  "rl_commit": "e9287d411c",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-train-mix-v4": {
+  "revision": "a6d779fc1fdfde23f86e297125b3381b140cec2f",
+  "rl_commit": "cb2db7698b",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-train-mix-v5": {
+  "revision": "9bbd3116e6b5a444d6cf103dce18b1866ae32787",
+  "rl_commit": "57e3797c53",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-lfm26-train-mix-v7": {
+  "revision": "5264ec153a543c62688efaa1ffe28aedb247d5bb",
+  "rl_commit": "afcb0cac96",
+  "path": "apps/lab/.posttrain/catalog/lfm26-automationbench-comparison.yaml"
+ },
+ "automationbench-manifest-steps-luna2-6k16t-v1": {
+  "revision": "d76698238518f5e2ae7d210e417afebfa2ada00e",
+  "rl_commit": "43f1e25b5a",
+  "path": "apps/lab/.posttrain/catalog/automationbench-manifest-steps.yaml"
+ },
+ "automationbench-manifest-steps-mixv2-4k16t-v1": {
+  "revision": "05cdc84cd6a067b7cbb2ed90d4b0ade53cd7a166",
+  "rl_commit": "313d4d85d0",
+  "path": "apps/lab/.posttrain/catalog/automationbench-manifest-steps.yaml"
+ }
+}

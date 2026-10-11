@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """Choose DPO episodes: perfect runs against runs that failed in a named way, per task.
 
-Input is the TSV from ``episode_signals.py``. A perfect episode passed the task with full
-partial credit, made no tool mistakes, recorded no harm, and was not truncated or
-errored. ``--chosen harm-checked`` additionally requires manifest turn evidence, so "no
-harm" was actually verified; ``--chosen any-perfect`` also accepts perfect episodes whose
-harms were never assessed.
+Input is the TSV from ``episode_signals.py``. Only episodes whose harm status is known
+are used, on both sides:
+
+- ``--harm-results``: harm counts re-scored offline with the current manifests (JSON
+  lines with ``id``, ``task``, ``harms`` and ``guarded``). Recorded harm flags are not
+  trusted (some environment revisions under-counted), so in a guarded task only
+  re-scored episodes are used;
+- ``--unguarded-tasks``: tasks whose reviewed manifest defines no guard, so no action in
+  them can be harmful.
+
+Episodes of any other task (no manifest) are never used. A perfect episode passed the task with full partial credit, made no tool
+mistakes, recorded no harm, and was not truncated or errored.
 
 Each failed episode gets one category, the most specific that applies, in this order:
 
@@ -26,7 +33,7 @@ are oversampled (``--oversample``) so later deduplication can still fill each sl
 Output TSV columns: trace_id, task, side (best = chosen, worst = rejected), category.
 
 usage: select_dpo_contrasts.py SIGNALS.tsv --out SELECTION.tsv --exclude-tasks HELDOUT.txt
-       [--chosen harm-checked|any-perfect] [--categories ABCDEF] [--per-category 4] [--pairs-per-chosen 2]
+       [--categories ABCDEF] [--per-category 4] [--pairs-per-chosen 2]
 """
 
 from __future__ import annotations
@@ -112,7 +119,8 @@ def main() -> None:
     parser.add_argument("signals", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--exclude-tasks", type=Path, required=True)
-    parser.add_argument("--chosen", choices=("harm-checked", "any-perfect"), default="harm-checked")
+    parser.add_argument("--harm-results", type=Path, action="append", default=[])
+    parser.add_argument("--unguarded-tasks", type=Path, help="tasks whose manifest defines no guard, one per line")
     parser.add_argument("--categories", default="ABCDEF")
     parser.add_argument("--per-category", type=int, default=4, help="rejected episodes per task and category")
     parser.add_argument("--pairs-per-chosen", type=int, default=2)
@@ -121,19 +129,36 @@ def main() -> None:
     args = parser.parse_args()
     rng = random.Random(args.seed)
     excluded = {line.strip() for line in args.exclude_tasks.read_text().splitlines() if line.strip()}
+    rescored: dict[str, int] = {}
+    for path in args.harm_results:
+        for line in path.read_text().splitlines():
+            result = json.loads(line)
+            # Only exact replays (no tool-result or final-world mismatch) whose every guard ran.
+            exact = result.get("fidelity") == [0, 0] and not result.get("abstained")
+            if result.get("guarded") and result.get("harms") is not None and exact:
+                if not result.get("unavailable_effects"):
+                    rescored[result["id"]] = int(result["harms"])
+    unguarded = set()
+    if args.unguarded_tasks:
+        unguarded = {line.strip() for line in args.unguarded_tasks.read_text().splitlines() if line.strip()}
     by_task: dict[str, list[dict]] = defaultdict(list)
     with args.signals.open(encoding="utf-8") as stream:
         for row in csv.DictReader(stream, delimiter="\t"):
-            if row["task"] and row["task"] not in excluded and not flag(row, "has_error"):
-                by_task[row["task"]].append(row)
+            if not row["task"] or row["task"] in excluded or flag(row, "has_error"):
+                continue
+            if row["trace_id"] in rescored:
+                row["harmful"] = "1" if rescored[row["trace_id"]] > 0 else "0"
+            elif row["task"] in unguarded:
+                row["harmful"] = "0"
+            else:
+                continue  # harm status unknown
+            by_task[row["task"]].append(row)
 
     selection: list[tuple[str, str, str, str]] = []
     counts: Counter[str] = Counter()
     tasks_per_category: dict[str, set[str]] = defaultdict(set)
     for task, rows in sorted(by_task.items()):
-        chosen_pool = [
-            row for row in rows if perfect(row) and (args.chosen == "any-perfect" or flag(row, "has_manifest"))
-        ]
+        chosen_pool = [row for row in rows if perfect(row)]
         if not chosen_pool:
             continue
         setups = {row["setup"] for row in chosen_pool}
@@ -166,7 +191,6 @@ def main() -> None:
     print(
         json.dumps(
             {
-                "chosen_rule": args.chosen,
                 "tasks": len({task for _, task, _, _ in selection}),
                 "episodes": dict(counts),
                 "tasks_per_category": {CATEGORY_NAMES[k]: len(v) for k, v in sorted(tasks_per_category.items())},

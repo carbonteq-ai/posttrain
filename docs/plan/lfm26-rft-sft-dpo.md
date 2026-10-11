@@ -18,9 +18,12 @@ The frozen product baseline is unchanged: this adds data scripts, catalog entrie
 - [x] (2026-10-08) SFT v1 eval (`luna2-heldout-64k20t-t05-rft-sft-r8-20261008-e2`): success 0.10, partial credit 0.473, harms 0.72 per episode.
 - [x] (2026-10-08) DPO v1 from the SFT adapter, eval: success 0.08, partial credit 0.487, harms 0.99 per episode (harms rose).
 - [x] (2026-10-11) SFT v2 (32 per task, weighted by task) relaunched as `lfm26-rft-sft-r8-v2-20261011-r2`; eval chained.
-- [x] (2026-10-11) Contrast DPO data: `scripts/data/episode_signals.py` (per-episode failure signals and setup fingerprint from Doris, 138,773 episodes), `scripts/data/select_dpo_contrasts.py` (perfect vs categorized failure, same task and setup), harvester `--selection`, converter category pairing. Two datasets: `lfm26-agent-dpo-contrast-noharm@1` (408 pairs, 37 tasks) and `-minharm@1` (915 pairs, 87 tasks); all fit 32,768 tokens.
+- [x] (2026-10-11) Contrast DPO tooling: `scripts/data/episode_signals.py` (per-episode failure signals and setup fingerprint from Doris, 138,773 episodes), `scripts/data/select_dpo_contrasts.py` (perfect vs categorized failure, same task and setup), harvester `--selection`, converter category pairing.
 - [x] (2026-10-11) DPO `sft_weight` setting (supervised loss on the chosen side, TRL `loss_type ["sigmoid", "sft"]`).
-- [ ] Contrast DPO runs (noharm, minharm) from the better SFT adapter, then evaluate each.
+- [x] (2026-10-11) Offline harm re-scoring (`scripts/data/harm_rescore/`): replays each episode's recorded tool calls with its own environment revision's tools and runs the current guard manifests. 5,658 episodes of 48 guarded tasks re-scored in about 7 minutes; 3,453 of 3,647 with recorded harms match exactly, every mismatch is a higher re-scored count (186 of 194 from r9/r10).
+- [x] (2026-10-12) SFT v2 eval (`luna2-heldout-64k20t-t05-rft-sft-r8-v2-20261011-e2`): success 0.05, partial credit 0.474, goals 0.608, harms 0.86 per episode, harm-free 0.56. Neutral against the base model (0.05 / 0.485 / 0.594 / 0.75 / 0.59); SFT v1 kept as the DPO starting point.
+- [x] (2026-10-12) DPO v2 data `datasets/lfm26-agent-dpo@2`: 413 harm-checked contrast pairs over 38 tasks (wrong-outcome 93, tool-error 91, out-of-room 73, empty-results 58, near-miss 53, harmful 45); all fit 32,768 tokens (max 27.3K).
+- [ ] DPO v2 from SFT v1 (`lfm26_automationbench_rft_dpo_v2`, run `lfm26-rft-dpo-r8-v2-20261012-r1`), then evaluate.
 
 ## Surprises & Discoveries
 
@@ -29,14 +32,19 @@ The frozen product baseline is unchanged: this adds data scripts, catalog entrie
 - Observation: rendered SFT examples are long because the tool schemas sit in the system prompt (median 10.6K tokens, p95 18.8K, max 27.8K); the conversation itself is median about 2.5K tokens.
 - Observation: only 3,203 of 10,088 perfect episodes carry manifest turn evidence, so for most "perfect" episodes the absence of harm was never assessed.
 - Observation: without a setup match, about 30% of rejected episodes had no chosen partner with an identical system prompt and tool list (different environment versions).
+- Observation: recorded harm counts of the r9/r10 manifest-steps runs under-count: their environment revisions recorded call arguments in a form some guards could not match. Re-scoring with the current manifests finds more harms (for example 124 vs 110 on a 100-episode sample).
+- Observation: of the 111 tasks with trustworthy harm status (48 guarded, 63 unguarded, held-out excluded), only 51 ever had a perfect training episode; most perfect episodes belong to `simple.*` tasks, which have no manifest.
+- Observation: SFT on more of the model's own successes (v2: 3,093 examples, 32 per task, task-weighted) did not move held-out results beyond noise; 100 episodes cannot separate differences of a few points.
 - Observation: TRL's DPO collator trains every completion token, including tool results, and with a PEFT model and no `ref_model` uses the base model as reference.
 
 ## Decision Log
 
 - Decision: contrast DPO pairs a perfect episode (passed, full credit, no tool mistakes, no harm, not cut off) with a failure of the same task, given one category in the order harmful, out-of-room, tool-error, empty-results, near-miss, wrong-outcome; up to 4 per task and category. Gave-up-early and plain failure were left out (few, or overlapping the others).
   Date/Author: 2026-10-11, user (categories, including out-of-room as base behaviour) and Claude (order, caps).
-- Decision: two experiments differing only in the chosen side: "noharm" requires manifest turn evidence (harm absence verified), "minharm" accepts any perfect episode.
-  Date/Author: 2026-10-11, user.
+- Decision: only episodes whose harm status is known are used, on both sides: guarded tasks use offline re-scored harms (exact replays only, recorded flags not trusted), tasks whose reviewed manifest defines no guard count as harm-free (they still teach the other failure kinds), and tasks without a manifest are excluded. This replaced an earlier "minharm" variant that admitted unchecked perfect episodes; it was never run.
+  Date/Author: 2026-10-11, user (no unchecked harm; keep unguarded-manifest tasks) and Claude (exact-replay filter).
+- Decision: DPO v2 starts from SFT v1, not SFT v2: their partial credit is equal (0.473 vs 0.474) and SFT v1 has fewer harms (0.72 vs 0.86 per episode) and higher success (0.10 vs 0.05); DPO v2 aims to cut harms.
+  Date/Author: 2026-10-12, user and Claude.
 - Decision: a pair may come from any run or rollout group but must share the setup (system prompt and tool list); each perfect episode is used in at most 4 pairs (hard tasks with one success otherwise reused it up to 20 times); perfect episodes with identical tool calls are kept, since their reasoning differs.
   Date/Author: 2026-10-11, user (any group) and Claude (setup match, reuse cap).
 - Decision: contrast DPO adds a supervised loss on the chosen side (weight 1, as in RPO) and runs two passes, because v1's plain DPO raised harms (likelihood displacement).
