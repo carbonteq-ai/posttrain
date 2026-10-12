@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: eval/lfm2.5-2.6b/automationbench-heldout100-64k20t-t05
 stage: qualify
-description: 100 never-trained held-out tasks with reviewed manifests (automationbench-heldout100-v1) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) at temperature 0.5 with Liquid's top-k 50 and repetition penalty 1.1, five attempts per task, concurrency 32, with manifest goal and harm findings recorded.
+description: 100 never-trained held-out tasks with reviewed manifests (automationbench-heldout100-v2, balanced by domain and difficulty) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) at temperature 0.5 with Liquid's top-k 50 and repetition penalty 1.1, five attempts per task, concurrency 32, with manifest goal and harm findings recorded.
 recipe:
   type: inline
   id: recipes/lfm2.5-2.6b-automationbench-luna2-heldout100-64k20t-t05@1
