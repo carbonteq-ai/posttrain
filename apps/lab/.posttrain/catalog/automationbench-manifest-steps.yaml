@@ -1201,7 +1201,7 @@ environment:
     sampling: {max_tokens: 8192, temperature: 0.5, top_p: 1.0, top_k: 50, repetition_penalty: 1.1}
     num_tasks: 62
     num_rollouts: 5
-    max_concurrent: 32
+    max_concurrent: 64
     parameters:
       domains: [simple, sales, marketing, operations, support, finance, hr]
       task_mix_id: automationbench-heldout62-v1
@@ -1321,7 +1321,7 @@ environment:
     sampling: {max_tokens: 8192, temperature: 1.0, top_p: 0.95, top_k: 20}
     num_tasks: 62
     num_rollouts: 5
-    max_concurrent: 32
+    max_concurrent: 64
     parameters:
       domains: [simple, sales, marketing, operations, support, finance, hr]
       task_mix_id: automationbench-heldout62-v1

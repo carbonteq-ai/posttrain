@@ -1,7 +1,7 @@
 project_id: posttrain-lab
 work_package_id: eval/qwen3.5-4b/automationbench-heldout62-64k20t
 stage: qualify
-description: 62 held-out tasks never trained by any model, Luna >= 0.7, matched to the training pool (automationbench-heldout62-v1) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) with Qwen's thinking-mode sampling (temperature 1.0, top_p 0.95, top_k 20), five attempts per task, concurrency 32, with manifest goal and harm findings recorded.
+description: 62 held-out tasks never trained by any model, Luna >= 0.7, matched to the training pool (automationbench-heldout62-v1) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) with Qwen's thinking-mode sampling (temperature 1.0, top_p 0.95, top_k 20), five attempts per task, concurrency 64, with manifest goal and harm findings recorded.
 recipe:
   type: inline
   id: recipes/qwen3.5-4b-automationbench-heldout62-64k20t@1
