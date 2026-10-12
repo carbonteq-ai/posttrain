@@ -26,7 +26,19 @@ The frozen product baseline is unchanged: this adds data scripts, catalog entrie
 - [x] (2026-10-12) DPO v2 attempts: r1 OOM at step 1 (TRL's `sft` term copied the full-vocabulary chosen logits; fixed in TRL 1.12.0.post15, adopted with republished `supervised`/`online-rl-trl-py312` images); r2 OOM at step 16 on the longest pairs (pairs capped at 22,000 tokens: `datasets/lfm26-agent-dpo@3`, 380 pairs, 38 tasks); r3 cancelled in favour of the researched recipe.
 - [x] (2026-10-12) DPO v3 `lfm26-rft-dpo-r8-v3-20261012-r1` from SFT v1 (`agent-dpo-v3`: `sigmoid_norm` beta 5 + sft weight 1, LR 5e-6, 10% warmup, reference precomputed, 95 steps): trained end to end in 47 minutes (about 22 s per step after an 8-minute reference pass), loss flat at about 0.85, reward accuracy 53% -> 61%.
 - [x] (2026-10-12) DPO v3 evals (100 episodes): final success 0.07, partial credit 0.456, goals 0.546 (1.68 met per episode), harms 0.79, harm-free 0.56; step 48 success 0.07, partial credit 0.491, goals 0.548 (1.65), harms 1.00, harm-free 0.52. Within noise of SFT v1 (0.10 / 0.473 / 0.542 / 0.72 / 0.62); final harms well below DPO v1's 0.99.
-- [ ] Ten-attempt held-out evals (`lfm26_automationbench_luna2_heldout_eval_64k20t_t05_x10`, 200 episodes each) of base, SFT v1, DPO v3 final and step 48, DPO v1, SFT v2 and SAMPO cont100, then task-resampled confidence intervals.
+- [x] (2026-10-12) Ten-attempt held-out evals (`lfm26_automationbench_luna2_heldout_eval_64k20t_t05_x10`, eval worktree commit `ba8413bd`, 200 episodes each, 0 dropped) and a paired bootstrap over tasks and attempts (5,000 draws, 95% intervals):
+
+  | Model | Success | Partial credit | Goal rate | Harms / episode | Harm-free |
+  |---|---|---|---|---|---|
+  | Base | 0.055 | 0.487 | 0.568 | 1.28 | 0.53 |
+  | SFT v1 | 0.065 | 0.470 | 0.554 | 0.75 | 0.61 |
+  | SFT v2 | 0.090 | 0.480 | 0.535 | 1.02 | 0.57 |
+  | DPO v1 | 0.070 | 0.475 | 0.540 | 0.89 | 0.58 |
+  | DPO v3 step 48 | 0.070 | 0.467 | 0.550 | 1.03 | 0.59 |
+  | DPO v3 final | 0.110 | 0.485 | 0.540 | 0.74 | 0.59 |
+  | SAMPO cont100 | 0.080 | 0.515 | 0.595 | 0.82 | 0.57 |
+
+  Differences whose interval excludes zero: DPO v3 final has fewer harms than base (-0.54, [-1.20, -0.06]); SAMPO cont100 has higher partial credit than SFT v1 (+0.045, [+0.001, +0.094]). DPO v3's success gain over base (+0.055, [0.000, +0.135]) is borderline. Every other pairwise difference, including every SFT/DPO model against SFT v1, is within noise.
 
 ## Surprises & Discoveries
 
@@ -38,6 +50,7 @@ The frozen product baseline is unchanged: this adds data scripts, catalog entrie
 - Observation: recorded harm counts of the r9/r10 manifest-steps runs under-count: their environment revisions recorded call arguments in a form some guards could not match. Re-scoring with the current manifests finds more harms (for example 124 vs 110 on a 100-episode sample).
 - Observation: of the 111 tasks with trustworthy harm status (48 guarded, 63 unguarded, held-out excluded), only 51 ever had a perfect training episode; most perfect episodes belong to `simple.*` tasks, which have no manifest.
 - Observation: SFT on more of the model's own successes (v2: 3,093 examples, 32 per task, task-weighted) did not move held-out results beyond noise; 100 episodes cannot separate differences of a few points.
+- Observation: five-attempt and ten-attempt evals of the same model can differ widely (base harms per episode 0.75 vs 1.28; DPO v3 success 0.07 vs 0.11), which is sampling noise on 20 tasks, not model change.
 - Observation: at step 0 the frozen merged reference and the policy adapter disagree slightly (bf16 rounding accumulated over thousands of tokens), so logged DPO rewards and reward accuracy start offset from zero; the loss is unaffected in expectation, and the offset was left as is.
 - Observation: TRL's DPO collator trains every completion token, including tool results, and with a PEFT model and no `ref_model` uses the base model as reference.
 
@@ -65,7 +78,7 @@ The frozen product baseline is unchanged: this adds data scripts, catalog entrie
 
 ## Outcomes & Retrospective
 
-Interim (2026-10-12): no SFT or DPO variant beats the base model beyond 100-episode noise on partial credit or goals. Plain DPO (v1, 2e-5, summed loss, loosely labelled pairs) raised harms (0.72 -> 0.99); the researched recipe on harm-checked contrast pairs (v3) did not (0.79) but also did not improve success, partial credit or goal rate, consistent with its nearly flat training loss. The step-48 checkpoint had higher partial credit (0.491) but more harms (1.00) than the final model. Ten-attempt evals are running to separate real differences from sampling noise.
+Interim (2026-10-12): no SFT or DPO variant beats the base model beyond 100-episode noise on partial credit or goals. Plain DPO (v1, 2e-5, summed loss, loosely labelled pairs) raised harms (0.72 -> 0.99); the researched recipe on harm-checked contrast pairs (v3) did not (0.79) but also did not improve success, partial credit or goal rate, consistent with its nearly flat training loss. The step-48 checkpoint had higher partial credit (0.491) but more harms (1.00) than the final model. The ten-attempt evals confirm it: no SFT or DPO model separates from SFT v1 on any metric; DPO v3 is the only one with an interval-backed harm reduction against the base model, and SAMPO cont100 remains the only model with a partial-credit gain. With 20 held-out tasks, between-task variation dominates the intervals (partial credit spans about +-0.10 for every model), so more attempts per task narrow them little; separating gains of a few points needs more held-out tasks.
 
 ## Context and Orientation
 
