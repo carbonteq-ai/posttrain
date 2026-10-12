@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: eval/qwen3.5-4b/automationbench-heldout100-64k20t
+stage: qualify
+description: 100 never-trained held-out tasks with reviewed manifests (automationbench-heldout100-v1) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) with Qwen's thinking-mode sampling (temperature 1.0, top_p 0.95, top_k 20), five attempts per task, concurrency 60, with manifest goal and harm findings recorded.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-4b-automationbench-heldout100-64k20t@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/qwen3.5-4b@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/qwen3.5-4b-vllm-automationbench-eval-64k-local@1}
+  target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
+  evaluation_plan: {type: ref, family: evaluation, id: automationbench-manifest-heldout100-64k20t-qwen}
+  environment: {type: ref, family: environment, id: automationbench-manifest-heldout100-eval-64k20t-qwen-v1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: automationbench-manifest-heldout100-64k20t-t05
+  evaluation_population: heldout100
+  repetitions_per_task: "5"
+  policy_call_output_budget: "8192"
+  episode_output_budget: "32768"
+  max_turns: "20"
+  labels: [qualification, evaluation, automationbench, qwen3.5, heldout, matched, context64k, tool-fidelity]

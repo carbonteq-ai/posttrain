@@ -1092,6 +1092,321 @@ environment:
       max_turns: 20
       max_output_tokens: 32768
 
+  # 100 never-trained held-out tasks (heldout50 + 50 more), 5 attempts each (500 episodes).
+  automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: a0c7378b179e2b267382b8125192876502d82f89  # 794 reviewed manifests (round 2) on carbonteq-2026.10.08 + turn mapping
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-heldout100-v1 (scripts/qualification/fixtures/automationbench_heldout100_v1.json):
+          # never trained on; evaluation only.
+          task_names:
+            - finance.annual_budget_prep
+            - finance.bank_fee_analysis
+            - finance.budget_variance_analysis
+            - finance.credit_limit_review
+            - finance.expense_anomaly_detection
+            - finance.expense_reclassification
+            - finance.invoice_email_extract
+            - finance.monthend_journal_entries
+            - finance.payment_reconciliation
+            - finance.po_email_logging
+            - finance.qb_sales_receipt_batch
+            - finance.revenue_recognition
+            - finance.vendor_insurance_verification
+            - finance.wave_freelance_invoice
+            - hr.benefits_enrollment_review
+            - hr.candidate_pipeline_report
+            - hr.comp_adjustment_batch
+            - hr.compliance_training_enforcement
+            - hr.grievance_routing
+            - hr.handbook_acknowledgment
+            - hr.jira_it_onboarding
+            - hr.jira_security_access_review
+            - hr.job_posting_distribution
+            - hr.safety_incident_reporting
+            - hr.salary_adjustment_processing
+            - hr.standup_absence_tracking
+            - hr.survey_distribution
+            - hr.tuition_reimbursement
+            - marketing.campaign_launch_checklist
+            - marketing.competitive_response_plan
+            - marketing.content_localization
+            - marketing.featured_snippet
+            - marketing.guest_post_outreach
+            - marketing.instagram_approved_asset_publish
+            - marketing.newsletter_sponsor_invoicing
+            - marketing.product_launch_channel_plan
+            - marketing.seo_brief_prioritization
+            - marketing.social_comment_response_queue
+            - marketing.social_contest
+            - marketing.topic_cluster
+            - marketing.video_repurpose
+            - marketing.webinar_cancellation_workflow
+            - operations.buffer_engagement_optimization
+            - operations.contractor_badge_expiration
+            - operations.docusign_lease_renewal
+            - operations.docusign_prospect_nda
+            - operations.energy_consumption_anomaly
+            - operations.equipment_calibration_scheduling
+            - operations.hubspot_lead_qualification
+            - operations.hubspot_payment_failure
+            - operations.invoice_shipping_trigger
+            - operations.loading_dock_scheduling
+            - operations.safety_incident_investigation_routing
+            - operations.temporary_worker_placement
+            - operations.trello_basecamp_slack_compliance_followup
+            - operations.twilio_production_incident
+            - sales.calendly_no_show_followup
+            - sales.create_important_draft
+            - sales.dependency_chain
+            - sales.docusign_contract_send
+            - sales.linkedin_event_promotion
+            - sales.linkedin_job_change
+            - sales.linkedin_sales_prospecting
+            - sales.meeting_action_items
+            - sales.milestone_celebration
+            - sales.overdue_followup_flag
+            - sales.sheets_multi_channel_campaign_router
+            - sales.slack_channel_for_new_account
+            - sales.soft_matching
+            - sales.zoom_attendance_pipeline
+            - simple.asana_checkout_bug_from_email
+            - simple.asana_vendor_contracts_urgent
+            - simple.demo_request_zoom_email
+            - simple.email_hubspot_deal_slack
+            - simple.email_jira_story_reply
+            - simple.email_sf_contact_fax_update
+            - simple.escalation_zendesk_slack
+            - simple.gmail_reply_meeting_request
+            - simple.hs_create_deal_with_contact
+            - simple.launch_announcement_email
+            - simple.slack_ceo_announcement
+            - simple.sprint_retro_jira_slack
+            - simple.trello_urgent_support_card
+            - simple.zoom_board_meeting_password
+            - simple.zoom_client_demo
+            - simple.zoom_customer_training
+            - support.freshdesk_journey_mapping
+            - support.freshdesk_warranty_adjudication
+            - support.freshdesk_zoho_migration
+            - support.gorgias_fraud_detection
+            - support.helpcrunch_trial_nurture
+            - support.helpscout_knowledge_gap_analysis
+            - support.helpscout_reamaze_migration
+            - support.intercom_feature_request
+            - support.reamaze_campaign_tracking
+            - support.reamaze_feedback_sentiment
+            - support.reamaze_multilanguage
+            - support.zendesk_hubspot_churn_risk
+            - support.zendesk_maintenance_notify
+            - support.zoho_desk_capacity_planning
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 20
+            capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 3, include: [ProviderError]}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling: {max_tokens: 8192, temperature: 0.5, top_p: 1.0, top_k: 50, repetition_penalty: 1.1}
+    num_tasks: 100
+    num_rollouts: 5
+    max_concurrent: 60
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: automationbench-heldout100-v1
+      task_mix_sha256: 8051a53890ac1a3e9e8c6d81bbea67f3248e85cb3b8cdb00f8a6bdc00378ed3a
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+
+  # Same 100 held-out tasks and budgets for Qwen3.5-4B, with Qwen's recommended thinking-mode
+  # sampling (temperature 1.0, top_p 0.95, top_k 20) instead of Liquid's LFM settings.
+  automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
+    category: agentic-tool-use
+    source:
+      package: automationbench-v1
+      repository: https://github.com/carbonteq-ai/verifiers-environments
+      revision: a0c7378b179e2b267382b8125192876502d82f89  # 794 reviewed manifests (round 2) on carbonteq-2026.10.08 + turn mapping
+      subdirectory: environments/automationbench_v1
+    activation:
+      kind: verifiers-config
+      config:
+        taskset:
+          id: automationbench-v1
+          domains: [simple, sales, marketing, operations, support, finance, hr]
+          # automationbench-heldout100-v1 (scripts/qualification/fixtures/automationbench_heldout100_v1.json):
+          # never trained on; evaluation only.
+          task_names:
+            - finance.annual_budget_prep
+            - finance.bank_fee_analysis
+            - finance.budget_variance_analysis
+            - finance.credit_limit_review
+            - finance.expense_anomaly_detection
+            - finance.expense_reclassification
+            - finance.invoice_email_extract
+            - finance.monthend_journal_entries
+            - finance.payment_reconciliation
+            - finance.po_email_logging
+            - finance.qb_sales_receipt_batch
+            - finance.revenue_recognition
+            - finance.vendor_insurance_verification
+            - finance.wave_freelance_invoice
+            - hr.benefits_enrollment_review
+            - hr.candidate_pipeline_report
+            - hr.comp_adjustment_batch
+            - hr.compliance_training_enforcement
+            - hr.grievance_routing
+            - hr.handbook_acknowledgment
+            - hr.jira_it_onboarding
+            - hr.jira_security_access_review
+            - hr.job_posting_distribution
+            - hr.safety_incident_reporting
+            - hr.salary_adjustment_processing
+            - hr.standup_absence_tracking
+            - hr.survey_distribution
+            - hr.tuition_reimbursement
+            - marketing.campaign_launch_checklist
+            - marketing.competitive_response_plan
+            - marketing.content_localization
+            - marketing.featured_snippet
+            - marketing.guest_post_outreach
+            - marketing.instagram_approved_asset_publish
+            - marketing.newsletter_sponsor_invoicing
+            - marketing.product_launch_channel_plan
+            - marketing.seo_brief_prioritization
+            - marketing.social_comment_response_queue
+            - marketing.social_contest
+            - marketing.topic_cluster
+            - marketing.video_repurpose
+            - marketing.webinar_cancellation_workflow
+            - operations.buffer_engagement_optimization
+            - operations.contractor_badge_expiration
+            - operations.docusign_lease_renewal
+            - operations.docusign_prospect_nda
+            - operations.energy_consumption_anomaly
+            - operations.equipment_calibration_scheduling
+            - operations.hubspot_lead_qualification
+            - operations.hubspot_payment_failure
+            - operations.invoice_shipping_trigger
+            - operations.loading_dock_scheduling
+            - operations.safety_incident_investigation_routing
+            - operations.temporary_worker_placement
+            - operations.trello_basecamp_slack_compliance_followup
+            - operations.twilio_production_incident
+            - sales.calendly_no_show_followup
+            - sales.create_important_draft
+            - sales.dependency_chain
+            - sales.docusign_contract_send
+            - sales.linkedin_event_promotion
+            - sales.linkedin_job_change
+            - sales.linkedin_sales_prospecting
+            - sales.meeting_action_items
+            - sales.milestone_celebration
+            - sales.overdue_followup_flag
+            - sales.sheets_multi_channel_campaign_router
+            - sales.slack_channel_for_new_account
+            - sales.soft_matching
+            - sales.zoom_attendance_pipeline
+            - simple.asana_checkout_bug_from_email
+            - simple.asana_vendor_contracts_urgent
+            - simple.demo_request_zoom_email
+            - simple.email_hubspot_deal_slack
+            - simple.email_jira_story_reply
+            - simple.email_sf_contact_fax_update
+            - simple.escalation_zendesk_slack
+            - simple.gmail_reply_meeting_request
+            - simple.hs_create_deal_with_contact
+            - simple.launch_announcement_email
+            - simple.slack_ceo_announcement
+            - simple.sprint_retro_jira_slack
+            - simple.trello_urgent_support_card
+            - simple.zoom_board_meeting_password
+            - simple.zoom_client_demo
+            - simple.zoom_customer_training
+            - support.freshdesk_journey_mapping
+            - support.freshdesk_warranty_adjudication
+            - support.freshdesk_zoho_migration
+            - support.gorgias_fraud_detection
+            - support.helpcrunch_trial_nurture
+            - support.helpscout_knowledge_gap_analysis
+            - support.helpscout_reamaze_migration
+            - support.intercom_feature_request
+            - support.reamaze_campaign_tracking
+            - support.reamaze_feedback_sentiment
+            - support.reamaze_multilanguage
+            - support.zendesk_hubspot_churn_risk
+            - support.zendesk_maintenance_notify
+            - support.zoho_desk_capacity_planning
+          task:
+            toolset: limited_zapier
+            search_top_k: 20
+            turn_budget: 20
+            capture_actions: true
+            # Tool servers fork from a warm preloaded interpreter. Stated explicitly:
+            # Verifiers fixes this default at import time, so the serialized task
+            # config otherwise depends on whether VF_FORK_SERVER was set first.
+            tools:
+              runtime:
+                type: subprocess
+                fork_server: true
+                preload: [anyio, httpx, mcp, mcp.client.streamable_http, openai, tenacity, pydantic, automationbench_v1.limited_tools]
+            manifest_assessments: true
+            turn_rewards:
+              tool_failure_penalty: 0.02
+              manifest_goal_share: 0.5
+              manifest_harm_penalty: 0.1
+              manifest_harm_cap: 0.3
+            mistake_penalty: {per_mistake: 0.02, cap: 0.1}
+        retries: {max_retries: 3, include: [ProviderError]}
+        agent:
+          harness: {id: "null"}
+          runtime: {type: subprocess}
+          timeout: {setup: 120, rollout: 1800, finalize: 60, scoring: 900}
+          max_turns: 20
+          max_output_tokens: 32768
+    sampling: {max_tokens: 8192, temperature: 1.0, top_p: 0.95, top_k: 20}
+    num_tasks: 100
+    num_rollouts: 5
+    max_concurrent: 60
+    parameters:
+      domains: [simple, sales, marketing, operations, support, finance, hr]
+      task_mix_id: automationbench-heldout100-v1
+      task_mix_sha256: 8051a53890ac1a3e9e8c6d81bbea67f3248e85cb3b8cdb00f8a6bdc00378ed3a
+      sampling_seed: 20261005
+      toolset: limited_zapier
+      max_turns: 20
+      max_output_tokens: 32768
+
 training:
   # SAMPO step rewards: the live per-turn partial-credit progress (version-2 rule,
   # 0.02 per tool mistake) plus manifest step credit (goal share 0.5, harm 0.1 capped at
@@ -1867,5 +2182,41 @@ evaluation:
         kind: full
     measurement:
       automationbench-manifest-heldout50-eval-64k20t-t05-v1:
+        estimator: task_mean
+        missing: strict
+
+  automationbench-manifest-heldout100-64k20t-t05:
+    revision: "1"
+    kind: general
+    environments: [automationbench-manifest-heldout100-eval-64k20t-t05-v1]
+    success:
+      automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+        kind: full
+    measurement:
+      automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+        estimator: task_mean
+        missing: strict
+
+  automationbench-manifest-heldout100-64k20t-qwen:
+    revision: "1"
+    kind: general
+    environments: [automationbench-manifest-heldout100-eval-64k20t-qwen-v1]
+    success:
+      automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
+        id: task-completed-correctly
+        label: Task completed correctly
+        source: {namespace: metric, name: task_completed_correctly}
+        predicate: {operator: eq, value: 1}
+    selection:
+      automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
+        kind: full
+    measurement:
+      automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
         estimator: task_mean
         missing: strict
