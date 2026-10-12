@@ -1092,8 +1092,8 @@ environment:
       max_turns: 20
       max_output_tokens: 32768
 
-  # 100 never-trained held-out tasks (heldout50 + 50 more), 5 attempts each (500 episodes).
-  automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+  # 62 held-out tasks never trained by any model (Luna >= 0.7), 5 attempts each (310 episodes).
+  automationbench-manifest-heldout62-eval-64k20t-t05-v1:
     category: agentic-tool-use
     source:
       package: automationbench-v1
@@ -1106,108 +1106,70 @@ environment:
         taskset:
           id: automationbench-v1
           domains: [simple, sales, marketing, operations, support, finance, hr]
-          # automationbench-heldout100-v2 (scripts/qualification/fixtures/automationbench_heldout100_v2.json):
-          # never trained on, balanced by domain and Luna difficulty; evaluation only.
+          # automationbench-heldout62-v1 (scripts/qualification/fixtures/automationbench_heldout62_v1.json):
+          # never trained by any model, Luna >= 0.7, domain/difficulty-matched to the training pool; evaluation only.
           task_names:
-            - finance.annual_budget_prep
-            - finance.depreciation_schedule
-            - finance.expense_split_allocation
-            - finance.intercompany_balance_recon
-            - finance.intercompany_invoice
-            - finance.invoice_dispute
-            - finance.invoice_email_extract
-            - finance.invoice_file_organization
-            - finance.revenue_recognition
-            - finance.vendor_early_pay_discount
+            - finance.budget_variance_analysis
+            - finance.monday_project_billing
+            - finance.prepaid_amortization
+            - finance.sales_tax_remittance
             - finance.vendor_insurance_verification
-            - finance.wave_freelance_invoice
-            - finance.xero_bill_entry
             - finance.xero_expense_claim_review
-            - hr.benefits_enrollment_review
-            - hr.calendly_manager_office_hours
-            - hr.comp_adjustment_batch
-            - hr.comp_review_preparation
-            - hr.handbook_acknowledgment
-            - hr.intern_program_coordination
-            - hr.job_posting_distribution
-            - hr.job_posting_refresh
-            - hr.offboarding_automation
-            - hr.offer_letter_generation
-            - hr.referral_bonus_processing
+            - hr.bamboohr_promotion_update
+            - hr.equipment_provisioning
             - hr.salary_adjustment_processing
-            - hr.survey_distribution
-            - hr.trello_internal_transfers
-            - marketing.ad_performance_review
-            - marketing.blog_refresh_queue
-            - marketing.competitive_response_plan
-            - marketing.content_gap_analysis
-            - marketing.guest_post_outreach
-            - marketing.influencer_contract_tracking
-            - marketing.instagram_approved_asset_publish
-            - marketing.lifecycle_stage
-            - marketing.partner_commission_calculation
-            - marketing.patent_monitoring
-            - marketing.social_benchmark
-            - marketing.topic_cluster
-            - marketing.video_repurpose
-            - marketing.webinar_cancellation_workflow
-            - operations.asana_slack_sheets_audit
-            - operations.confluence_gmail_policy_notice
+            - hr.tuition_reimbursement
+            - hr.workforce_planning_forecast
+            - marketing.landing_page_optimization
+            - marketing.podcast_episode_promotion
+            - marketing.social_comment_response_queue
+            - marketing.social_contest
+            - marketing.social_crisis_response
             - operations.contractor_badge_expiration
-            - operations.cross_training_assignment
-            - operations.equipment_calibration_scheduling
-            - operations.generator_load_testing_schedule
+            - operations.equipment_lease_processing
+            - operations.google_ads_budget_alert
             - operations.holiday_coverage_planning
-            - operations.jira_confluence_incident
-            - operations.notion_slack_playbook
-            - operations.overdue_inspection_summary
-            - operations.sensor_monitoring_alert
+            - operations.role_based_access_audit
+            - operations.temporary_worker_placement
+            - operations.trello_basecamp_slack_compliance_followup
             - operations.twilio_production_incident
-            - operations.zoom_board_meeting
-            - operations.zoom_change_advisory
-            - sales.calendly_lead_scoring
-            - sales.calendly_no_show_followup
-            - sales.calendly_sequential_meetings
-            - sales.cold_email_personalization
+            - sales.create_important_draft
             - sales.dependency_chain
-            - sales.historical_win_loss_recap
-            - sales.linkedin_connection_outreach
-            - sales.linkedin_job_change
-            - sales.linkedin_sales_prospecting
-            - sales.negative_selection
-            - sales.sheets_reconciliation
-            - sales.slack_channel_for_new_account
-            - sales.soft_matching
-            - sales.zoom_meeting_followup
-            - simple.api_key_jira_slack
-            - simple.buffer_company_award
-            - simple.buffer_customer_success_story
-            - simple.buffer_facebook_blog_post
-            - simple.buffer_trade_show
-            - simple.demo_request_zoom_email
-            - simple.email_jira_story_reply
-            - simple.gcal_weekly_standup
-            - simple.gmail_invoice_email
-            - simple.gmail_reply_meeting_request
-            - simple.partner_hubspot_asana
-            - simple.sheets_read_then_slack_dm
-            - simple.subscriber_welcome_email
-            - simple.trello_urgent_support_card
-            - simple.zendesk_wrong_order_ticket
+            - sales.milestone_celebration
+            - simple.airtable_update_deal
+            - simple.asana_checkout_bug_from_email
+            - simple.email_sf_contact_city_update
+            - simple.email_sf_contact_fax_update
+            - simple.email_sf_create_contact_from_lead
+            - simple.escalation_zendesk_slack
+            - simple.gcal_customer_success_checkin
+            - simple.gmail_contract_renewal_reminder
+            - simple.gmail_demo_followup
+            - simple.hs_create_deal_with_contact
+            - simple.hs_update_contact_title
+            - simple.hs_update_deal_amount
+            - simple.invoice_airtable_slack
+            - simple.jira_accessibility_audit
+            - simple.jira_data_sync_bug_from_email
+            - simple.partnership_hubspot_zoom
+            - simple.sf_create_followup_task
+            - simple.sf_lead_employees_update
+            - simple.sf_lead_status_qualified
+            - simple.sf_opp_close_date_update
+            - simple.sf_opp_probability_update
+            - simple.sheets_project_tracker
+            - simple.sheets_update_status_report
+            - simple.slack_weekly_metrics
+            - simple.sprint_retro_jira_slack
+            - simple.zendesk_login_ticket
+            - simple.zoom_board_meeting_password
             - simple.zoom_client_demo
-            - support.freshdesk_journey_mapping
-            - support.helpcrunch_trial_nurture
-            - support.helpscout_auto_categorization
-            - support.helpscout_health_sync
-            - support.helpscout_jira_bugs
-            - support.helpscout_knowledge_gap_analysis
-            - support.reamaze_feedback_sentiment
-            - support.zendesk_automated_responses
-            - support.zendesk_customer_sentiment
-            - support.zendesk_data_quality
+            - simple.zoom_customer_training
+            - simple.zoom_team_retro
+            - support.helpscout_response_audit
+            - support.hiver_cross_team_handoff
             - support.zendesk_maintenance_notify
-            - support.zoho_calendar_callbacks
-            - support.zoho_desk_warranty_processing
+            - support.zoho_freshdesk_escalation
             - support.zoho_risk_scoring
           task:
             toolset: limited_zapier
@@ -1237,21 +1199,21 @@ environment:
           max_turns: 20
           max_output_tokens: 32768
     sampling: {max_tokens: 8192, temperature: 0.5, top_p: 1.0, top_k: 50, repetition_penalty: 1.1}
-    num_tasks: 100
+    num_tasks: 62
     num_rollouts: 5
     max_concurrent: 32
     parameters:
       domains: [simple, sales, marketing, operations, support, finance, hr]
-      task_mix_id: automationbench-heldout100-v2
-      task_mix_sha256: 86bfb832c67badcb38cb6c61ec8b43140ff5b9a3081856f90c1aaf6f0fd192e2
+      task_mix_id: automationbench-heldout62-v1
+      task_mix_sha256: ed81cf1fe88f68bb8420bb46c5fdf3afde24660c7043812da680bb1c7bc9196f
       sampling_seed: 20261005
       toolset: limited_zapier
       max_turns: 20
       max_output_tokens: 32768
 
-  # Same 100 held-out tasks and budgets for Qwen3.5-4B, with Qwen's recommended thinking-mode
+  # Same 62 held-out tasks and budgets for Qwen3.5-4B, with Qwen's recommended thinking-mode
   # sampling (temperature 1.0, top_p 0.95, top_k 20) instead of Liquid's LFM settings.
-  automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
+  automationbench-manifest-heldout62-eval-64k20t-qwen-v1:
     category: agentic-tool-use
     source:
       package: automationbench-v1
@@ -1264,108 +1226,70 @@ environment:
         taskset:
           id: automationbench-v1
           domains: [simple, sales, marketing, operations, support, finance, hr]
-          # automationbench-heldout100-v2 (scripts/qualification/fixtures/automationbench_heldout100_v2.json):
-          # never trained on, balanced by domain and Luna difficulty; evaluation only.
+          # automationbench-heldout62-v1 (scripts/qualification/fixtures/automationbench_heldout62_v1.json):
+          # never trained by any model, Luna >= 0.7, domain/difficulty-matched to the training pool; evaluation only.
           task_names:
-            - finance.annual_budget_prep
-            - finance.depreciation_schedule
-            - finance.expense_split_allocation
-            - finance.intercompany_balance_recon
-            - finance.intercompany_invoice
-            - finance.invoice_dispute
-            - finance.invoice_email_extract
-            - finance.invoice_file_organization
-            - finance.revenue_recognition
-            - finance.vendor_early_pay_discount
+            - finance.budget_variance_analysis
+            - finance.monday_project_billing
+            - finance.prepaid_amortization
+            - finance.sales_tax_remittance
             - finance.vendor_insurance_verification
-            - finance.wave_freelance_invoice
-            - finance.xero_bill_entry
             - finance.xero_expense_claim_review
-            - hr.benefits_enrollment_review
-            - hr.calendly_manager_office_hours
-            - hr.comp_adjustment_batch
-            - hr.comp_review_preparation
-            - hr.handbook_acknowledgment
-            - hr.intern_program_coordination
-            - hr.job_posting_distribution
-            - hr.job_posting_refresh
-            - hr.offboarding_automation
-            - hr.offer_letter_generation
-            - hr.referral_bonus_processing
+            - hr.bamboohr_promotion_update
+            - hr.equipment_provisioning
             - hr.salary_adjustment_processing
-            - hr.survey_distribution
-            - hr.trello_internal_transfers
-            - marketing.ad_performance_review
-            - marketing.blog_refresh_queue
-            - marketing.competitive_response_plan
-            - marketing.content_gap_analysis
-            - marketing.guest_post_outreach
-            - marketing.influencer_contract_tracking
-            - marketing.instagram_approved_asset_publish
-            - marketing.lifecycle_stage
-            - marketing.partner_commission_calculation
-            - marketing.patent_monitoring
-            - marketing.social_benchmark
-            - marketing.topic_cluster
-            - marketing.video_repurpose
-            - marketing.webinar_cancellation_workflow
-            - operations.asana_slack_sheets_audit
-            - operations.confluence_gmail_policy_notice
+            - hr.tuition_reimbursement
+            - hr.workforce_planning_forecast
+            - marketing.landing_page_optimization
+            - marketing.podcast_episode_promotion
+            - marketing.social_comment_response_queue
+            - marketing.social_contest
+            - marketing.social_crisis_response
             - operations.contractor_badge_expiration
-            - operations.cross_training_assignment
-            - operations.equipment_calibration_scheduling
-            - operations.generator_load_testing_schedule
+            - operations.equipment_lease_processing
+            - operations.google_ads_budget_alert
             - operations.holiday_coverage_planning
-            - operations.jira_confluence_incident
-            - operations.notion_slack_playbook
-            - operations.overdue_inspection_summary
-            - operations.sensor_monitoring_alert
+            - operations.role_based_access_audit
+            - operations.temporary_worker_placement
+            - operations.trello_basecamp_slack_compliance_followup
             - operations.twilio_production_incident
-            - operations.zoom_board_meeting
-            - operations.zoom_change_advisory
-            - sales.calendly_lead_scoring
-            - sales.calendly_no_show_followup
-            - sales.calendly_sequential_meetings
-            - sales.cold_email_personalization
+            - sales.create_important_draft
             - sales.dependency_chain
-            - sales.historical_win_loss_recap
-            - sales.linkedin_connection_outreach
-            - sales.linkedin_job_change
-            - sales.linkedin_sales_prospecting
-            - sales.negative_selection
-            - sales.sheets_reconciliation
-            - sales.slack_channel_for_new_account
-            - sales.soft_matching
-            - sales.zoom_meeting_followup
-            - simple.api_key_jira_slack
-            - simple.buffer_company_award
-            - simple.buffer_customer_success_story
-            - simple.buffer_facebook_blog_post
-            - simple.buffer_trade_show
-            - simple.demo_request_zoom_email
-            - simple.email_jira_story_reply
-            - simple.gcal_weekly_standup
-            - simple.gmail_invoice_email
-            - simple.gmail_reply_meeting_request
-            - simple.partner_hubspot_asana
-            - simple.sheets_read_then_slack_dm
-            - simple.subscriber_welcome_email
-            - simple.trello_urgent_support_card
-            - simple.zendesk_wrong_order_ticket
+            - sales.milestone_celebration
+            - simple.airtable_update_deal
+            - simple.asana_checkout_bug_from_email
+            - simple.email_sf_contact_city_update
+            - simple.email_sf_contact_fax_update
+            - simple.email_sf_create_contact_from_lead
+            - simple.escalation_zendesk_slack
+            - simple.gcal_customer_success_checkin
+            - simple.gmail_contract_renewal_reminder
+            - simple.gmail_demo_followup
+            - simple.hs_create_deal_with_contact
+            - simple.hs_update_contact_title
+            - simple.hs_update_deal_amount
+            - simple.invoice_airtable_slack
+            - simple.jira_accessibility_audit
+            - simple.jira_data_sync_bug_from_email
+            - simple.partnership_hubspot_zoom
+            - simple.sf_create_followup_task
+            - simple.sf_lead_employees_update
+            - simple.sf_lead_status_qualified
+            - simple.sf_opp_close_date_update
+            - simple.sf_opp_probability_update
+            - simple.sheets_project_tracker
+            - simple.sheets_update_status_report
+            - simple.slack_weekly_metrics
+            - simple.sprint_retro_jira_slack
+            - simple.zendesk_login_ticket
+            - simple.zoom_board_meeting_password
             - simple.zoom_client_demo
-            - support.freshdesk_journey_mapping
-            - support.helpcrunch_trial_nurture
-            - support.helpscout_auto_categorization
-            - support.helpscout_health_sync
-            - support.helpscout_jira_bugs
-            - support.helpscout_knowledge_gap_analysis
-            - support.reamaze_feedback_sentiment
-            - support.zendesk_automated_responses
-            - support.zendesk_customer_sentiment
-            - support.zendesk_data_quality
+            - simple.zoom_customer_training
+            - simple.zoom_team_retro
+            - support.helpscout_response_audit
+            - support.hiver_cross_team_handoff
             - support.zendesk_maintenance_notify
-            - support.zoho_calendar_callbacks
-            - support.zoho_desk_warranty_processing
+            - support.zoho_freshdesk_escalation
             - support.zoho_risk_scoring
           task:
             toolset: limited_zapier
@@ -1395,13 +1319,13 @@ environment:
           max_turns: 20
           max_output_tokens: 32768
     sampling: {max_tokens: 8192, temperature: 1.0, top_p: 0.95, top_k: 20}
-    num_tasks: 100
+    num_tasks: 62
     num_rollouts: 5
     max_concurrent: 32
     parameters:
       domains: [simple, sales, marketing, operations, support, finance, hr]
-      task_mix_id: automationbench-heldout100-v2
-      task_mix_sha256: 86bfb832c67badcb38cb6c61ec8b43140ff5b9a3081856f90c1aaf6f0fd192e2
+      task_mix_id: automationbench-heldout62-v1
+      task_mix_sha256: ed81cf1fe88f68bb8420bb46c5fdf3afde24660c7043812da680bb1c7bc9196f
       sampling_seed: 20261005
       toolset: limited_zapier
       max_turns: 20
@@ -2185,38 +2109,38 @@ evaluation:
         estimator: task_mean
         missing: strict
 
-  automationbench-manifest-heldout100-64k20t-t05:
+  automationbench-manifest-heldout62-64k20t-t05:
     revision: "1"
     kind: general
-    environments: [automationbench-manifest-heldout100-eval-64k20t-t05-v1]
+    environments: [automationbench-manifest-heldout62-eval-64k20t-t05-v1]
     success:
-      automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+      automationbench-manifest-heldout62-eval-64k20t-t05-v1:
         id: task-completed-correctly
         label: Task completed correctly
         source: {namespace: metric, name: task_completed_correctly}
         predicate: {operator: eq, value: 1}
     selection:
-      automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+      automationbench-manifest-heldout62-eval-64k20t-t05-v1:
         kind: full
     measurement:
-      automationbench-manifest-heldout100-eval-64k20t-t05-v1:
+      automationbench-manifest-heldout62-eval-64k20t-t05-v1:
         estimator: task_mean
         missing: strict
 
-  automationbench-manifest-heldout100-64k20t-qwen:
+  automationbench-manifest-heldout62-64k20t-qwen:
     revision: "1"
     kind: general
-    environments: [automationbench-manifest-heldout100-eval-64k20t-qwen-v1]
+    environments: [automationbench-manifest-heldout62-eval-64k20t-qwen-v1]
     success:
-      automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
+      automationbench-manifest-heldout62-eval-64k20t-qwen-v1:
         id: task-completed-correctly
         label: Task completed correctly
         source: {namespace: metric, name: task_completed_correctly}
         predicate: {operator: eq, value: 1}
     selection:
-      automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
+      automationbench-manifest-heldout62-eval-64k20t-qwen-v1:
         kind: full
     measurement:
-      automationbench-manifest-heldout100-eval-64k20t-qwen-v1:
+      automationbench-manifest-heldout62-eval-64k20t-qwen-v1:
         estimator: task_mean
         missing: strict

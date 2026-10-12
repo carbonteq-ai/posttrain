@@ -1,10 +1,10 @@
 project_id: posttrain-lab
-work_package_id: eval/lfm2.5-2.6b/automationbench-heldout100-64k20t-t05
+work_package_id: eval/lfm2.5-2.6b/automationbench-heldout62-64k20t-t05
 stage: qualify
-description: 100 never-trained held-out tasks with reviewed manifests (automationbench-heldout100-v2, balanced by domain and difficulty) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) at temperature 0.5 with Liquid's top-k 50 and repetition penalty 1.1, five attempts per task, concurrency 32, with manifest goal and harm findings recorded.
+description: 62 held-out tasks never trained by any model, Luna >= 0.7, matched to the training pool (automationbench-heldout62-v1) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) at temperature 0.5 with Liquid's top-k 50 and repetition penalty 1.1, five attempts per task, concurrency 32, with manifest goal and harm findings recorded.
 recipe:
   type: inline
-  id: recipes/lfm2.5-2.6b-automationbench-luna2-heldout100-64k20t-t05@1
+  id: recipes/lfm2.5-2.6b-automationbench-luna2-heldout62-64k20t-t05@1
   revision: "1"
   stage: qualify
   seats:
@@ -22,12 +22,12 @@ bindings:
   model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
   evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-liquid-local-c32@1}
   target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
-  evaluation_plan: {type: ref, family: evaluation, id: automationbench-manifest-heldout100-64k20t-t05}
-  environment: {type: ref, family: environment, id: automationbench-manifest-heldout100-eval-64k20t-t05-v1}
+  evaluation_plan: {type: ref, family: evaluation, id: automationbench-manifest-heldout62-64k20t-t05}
+  environment: {type: ref, family: environment, id: automationbench-manifest-heldout62-eval-64k20t-t05-v1}
 enabled_optional_jobs: []
 metadata:
-  comparison_family: automationbench-manifest-heldout100-64k20t-t05
-  evaluation_population: heldout100
+  comparison_family: automationbench-manifest-heldout62-64k20t-t05
+  evaluation_population: heldout62
   repetitions_per_task: "5"
   policy_call_output_budget: "8192"
   episode_output_budget: "32768"
