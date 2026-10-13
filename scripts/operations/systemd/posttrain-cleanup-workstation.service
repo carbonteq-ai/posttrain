@@ -1,0 +1,12 @@
+[Unit]
+Description=Posttrain workstation cleanup (unused checkouts, images and caches; a week of build cache, models and scratch)
+Documentation=file://%h/projects/rl/docs/operations/cleanup-playbook.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/rl
+# The environment's Python directly: `uv run` would hold the uv cache lock the prune needs.
+ExecStart=%h/projects/rl/.venv/bin/python scripts/operations/cleanup_workstation.py --apply
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Nice=19
+IOSchedulingClass=idle
