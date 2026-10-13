@@ -10,14 +10,14 @@ source checkout.
 
 Use the attached wheelhouse when installing on a remote or offline machine. It
 contains the exact distributions qualified by the release workflow and the
-constraints that pin maintained fork dependencies.
+constraints that pin maintained fork dependencies, plus the pure-Python fork
+wheels themselves, so it installs with public PyPI alone.
 
 ```bash
-gh release download <release-tag> \
-  --repo carbonteq-ai/posttrain \
-  --pattern 'posttrain-wheelhouse-*.tar.gz'
+VERSION=<version>
+curl -LO "https://github.com/carbonteq-ai/posttrain/releases/download/v${VERSION}/posttrain-wheelhouse-${VERSION}.tar.gz"
 mkdir posttrain-wheelhouse
-tar -xzf posttrain-wheelhouse-*.tar.gz -C posttrain-wheelhouse
+tar -xzf "posttrain-wheelhouse-${VERSION}.tar.gz" -C posttrain-wheelhouse
 
 uv venv --python 3.13 .venv
 uv pip install --python .venv/bin/python \
@@ -26,13 +26,13 @@ uv pip install --python .venv/bin/python \
   posttrain posttrain-observatory
 ```
 
-On the CarbonTeq network, the stable internal index is the equivalent
-installation source. Use the matching `github-constraints.txt` from the
-release; do not mix constraints from another release.
+If your organization mirrors releases into a private index, that index is the
+equivalent installation source. Use the matching `github-constraints.txt` from
+the release; do not mix constraints from another release.
 
 ```bash
-uv pip install --system-certs \
-  --index-url https://pypi.lan/carbonteq/stable/+simple/ \
+uv pip install \
+  --index-url https://<your-index>/simple/ \
   --constraint github-constraints.txt \
   'posttrain[observatory,trackio,trl]'
 ```

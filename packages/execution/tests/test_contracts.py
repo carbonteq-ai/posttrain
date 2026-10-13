@@ -14,6 +14,7 @@ from posttrain.execution import (
     BundleRef,
     ExecutionHandle,
     ExecutionJournal,
+    ExecutionMount,
     ExecutionPolicy,
     ExecutionRecord,
     ExecutionRequest,
@@ -73,6 +74,32 @@ def test_request_carries_only_environment_names() -> None:
 
     with pytest.raises(ContractError, match="stable packaged worker entrypoint"):
         replace(request, command=("python", "payload.py"))
+
+
+def test_compile_cache_mount_routes_every_compiler_cache() -> None:
+    request = ExecutionRequest(
+        run_spec=_run_spec(),
+        job_definition_id="train/sft@1",
+        image=RuntimeImageRef(f"registry.lan/posttrain@sha256:{'a' * 64}"),
+        target=ExecutionTarget("targets/gpu", "1", "cuda", 24),
+        command=JOB_PACKAGE_WORKER_COMMAND,
+        idempotency_key="logical-run-attempt-1",
+        policy=ExecutionPolicy(300),
+    )
+    assert "CUDA_CACHE_PATH" not in request.launch_environment(provider="dstack")
+
+    root = Path("/root/.cache/posttrain/compile")
+    cached = replace(request, mounts=(ExecutionMount(Path("/var/lib/posttrain/cache/compile"), root, "compile-cache"),))
+    environment = cached.launch_environment(provider="dstack")
+
+    assert environment["VLLM_CACHE_ROOT"] == str(root / "vllm")
+    assert environment["TRITON_CACHE_DIR"] == str(root / "triton")
+    assert environment["TORCHINDUCTOR_CACHE_DIR"] == str(root / "torchinductor")
+    assert environment["FLASHINFER_WORKSPACE_BASE"] == str(root / "flashinfer")
+    assert environment["CUDA_CACHE_PATH"] == str(root / "nv")
+    assert int(environment["CUDA_CACHE_MAXSIZE"]) == 4 * 1024**3
+    # The model cache stays where the model-cache mount puts it.
+    assert "HF_HOME" not in environment and "XDG_CACHE_HOME" not in environment
 
 
 def test_execution_journal_is_append_only_and_mode_600(tmp_path: Path) -> None:

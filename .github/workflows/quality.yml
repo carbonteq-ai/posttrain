@@ -230,14 +230,14 @@ jobs:
           echo "${CARBONTEQ_TRL_WHEEL_SHA256}  ${CARBONTEQ_TRL_WHEEL_PATH}" | sha256sum --check --strict
           VIRTUAL_ENV=.venv uv pip install --no-deps "${CARBONTEQ_TRACKIO_WHEEL_PATH}" "${CARBONTEQ_RENDERERS_WHEEL_PATH}"
       - name: Install the Verifiers integration
-        # gsm8k-v1 at 17e0cd02 (the revision the framework catalog pins) depends on the
-        # framework's Verifiers 74dd3fbf; the constraint makes any environment
+        # gsm8k-v1 at d430dd87 (the revision the framework catalog pins) depends on the
+        # framework's Verifiers bc70a7de (0.3.2.dev109); the constraint makes any environment
         # that selects another Verifiers fail to install instead of replacing it.
         run: |
           uv sync --frozen --all-packages --extra verifiers --python 3.13 --no-install-package carbonteq-renderers --no-install-package carbonteq-trackio --inexact
           .venv/bin/python scripts/ci/locked_verifiers.py constraint > /tmp/locked-verifiers.txt
           uv pip install --python .venv/bin/python --constraint /tmp/locked-verifiers.txt \
-            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@17e0cd0228eab18d664c2b6ff82f4aec991f4523#subdirectory=environments/gsm8k_v1"
+            "gsm8k-v1 @ git+https://github.com/carbonteq-ai/verifiers-environments.git@d430dd87c8d6a37c0520acc3624d74f2de31659e#subdirectory=environments/gsm8k_v1"
       - name: Require the locked Verifiers build
         run: .venv/bin/python scripts/ci/locked_verifiers.py check
       - name: Test the Verifiers bridge

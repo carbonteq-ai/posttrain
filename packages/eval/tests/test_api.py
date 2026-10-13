@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -293,7 +294,7 @@ def test_agentic_and_domain_programs_share_the_native_port() -> None:
     source = AGENTIC_SMOKE.environments[0].source
     assert isinstance(source, EnvironmentSource)
     assert source.repository == ("https://github.com/carbonteq-ai/verifiers-environments")
-    assert source.revision == ("17e0cd0228eab18d664c2b6ff82f4aec991f4523")
+    assert source.revision == ("d430dd87c8d6a37c0520acc3624d74f2de31659e")
     assert source.subdirectory == "environments/automationbench_v1"
     assert AGENTIC_SMOKE.environments[0].max_concurrent == 1
     assert AUTOMATIONBENCH_PUBLIC.kind == "domain"
@@ -1055,3 +1056,30 @@ def test_general_program_factories_return_native_configs_when_extra_is_installed
     assert config.taskset.id == "gsm8k-v1"
     assert config.agent.harness.id == "null"
     assert config.agent.timeout.rollout == 180
+
+
+def test_evaluate_publishes_gzip_traces(tmp_path: Path) -> None:
+    lines = "".join(json.dumps({"id": f"trace-{index}", "pad": "x" * 200}) + "\n" for index in range(50))
+
+    def fake_runner(
+        execution: RunContext,
+        evaluation: EvaluateRequest,
+        output: Path,
+    ) -> VerifiersRunResult:
+        del execution, evaluation
+        (output / "traces.jsonl").write_text(lines, encoding="utf-8")
+        return VerifiersRunResult(
+            ("trace-0",),
+            TraceSyncStats(observed_records=50, emitted_records=50),
+            EvaluationPopulation(attempted=50, complete=50, failed=0, truncated=0, coverage_missing=0),
+        )
+
+    first = evaluate(context(tmp_path / "first", RecordingObserver()), request(), runner=fake_runner)
+    second = evaluate(context(tmp_path / "second", RecordingObserver()), request(), runner=fake_runner)
+
+    directory = first.native_artifact.reference.path  # type: ignore[union-attr]
+    assert not (directory / "traces.jsonl").exists()
+    with gzip.open(directory / "traces.jsonl.gz", "rt", encoding="utf-8") as stream:
+        assert stream.read() == lines
+    # The compressed bytes carry no timestamp, so the same traces publish the same digest.
+    assert first.native_artifact.reference.digest == second.native_artifact.reference.digest  # type: ignore[union-attr]

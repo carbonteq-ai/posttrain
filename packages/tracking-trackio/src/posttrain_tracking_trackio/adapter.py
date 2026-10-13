@@ -856,7 +856,9 @@ class TrackioLifecycleAdmin:
         token = write_token or url_token or os.getenv("TRACKIO_WRITE_TOKEN")
         if not token:
             raise ContractError("Trackio purge requires TRACKIO_WRITE_TOKEN")
-        httpx_kwargs: dict[str, Any] = {"timeout": 30.0}
+        # Deleting a run whose trace table holds large episodes can take minutes on a
+        # loaded server; reads and writes keep 30 s, the response wait gets 10 minutes.
+        httpx_kwargs: dict[str, Any] = {"timeout": (30.0, 600.0, 30.0, 30.0)}  # connect, read, write, pool
         if ca_bundle is not None:
             httpx_kwargs["verify"] = str(ca_bundle)
         self._client = RemoteClient(
@@ -900,6 +902,7 @@ class TrackioLifecycleAdmin:
             blockers=tuple(str(value) for value in raw.get("blockers", [])),
             digest=str(raw["digest"]),
             created_at=created_at,
+            exists=raw.get("exists") is not False,
         )
 
     def apply_run_purge(self, plan: TrackingPurgePlan) -> TrackingPurgeReceipt:

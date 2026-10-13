@@ -91,6 +91,12 @@ uv run --no-sync posttrain-release receipt "$distribution_dir" \
 uv run --no-sync posttrain-release receipt-check "${output_dir}/python-release-receipt.json" \
   --distribution-root "$distribution_dir"
 cp "$distribution_dir"/* "$bundle_dir"/
+# Maintained forks served only by the internal index are bundled from their public
+# GitHub Releases (hash-checked against uv.lock) so the wheelhouse plus public PyPI
+# installs without internal network access. They stay outside the release receipt,
+# which covers only the distributions built here.
+uv run --no-sync python "$repository_root/scripts/release/bundle-public-fork-wheels" \
+  "$stage_dir/uv.lock" "$bundle_dir"
 cp "$stage_dir/docs/release-and-consumption.md" "$bundle_dir/README.md"
 cp "$stage_dir/release/github-constraints.txt" "$bundle_dir/github-constraints.txt"
 (

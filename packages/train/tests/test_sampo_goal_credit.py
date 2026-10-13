@@ -136,6 +136,9 @@ def test_harmful_turn_is_never_pushed_positive_by_its_attempts_success_even_with
     second = result.token_advantages[0][4]
     assert second == pytest.approx(-0.1)  # min(0.75 + 4 * 0.25 * 0.75, 0) - 0.1
     assert result.token_advantages[0][0] == pytest.approx(0.75)  # the clean turn keeps its episode credit
+    # The harm forced the goal turn negative, so it is not a turn the rule protected.
+    assert result.verified_turns[0] == (False, False)
+    assert result.hierarchy_evidence(1.0)["train/rl/verified_turn_fraction"][0] == 0.0
 
 
 def test_verified_sign_scales_the_goal_term_and_reports_protection():

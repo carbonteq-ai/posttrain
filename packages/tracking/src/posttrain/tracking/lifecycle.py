@@ -62,6 +62,9 @@ class TrackingPurgePlan:
     blockers: tuple[str, ...]
     digest: str
     created_at: datetime
+    # False when none of the selected provider runs exists (for example, a
+    # delete that finished on the server after the client timed out).
+    exists: bool = True
 
     def __post_init__(self) -> None:
         _text(self.provider, "provider")

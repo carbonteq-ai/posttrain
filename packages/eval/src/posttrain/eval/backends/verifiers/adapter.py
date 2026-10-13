@@ -362,7 +362,10 @@ async def _run(context: EvaluationContext, request: EvaluateRequest, output_dir:
     try:
         while not task.done():
             context.cancellation.raise_if_cancelled()
-            sync.drain()
+            # Parsing and validating an episode can take seconds (AutomationBench episodes
+            # reach hundreds of MB); off the event loop, rollouts keep running meanwhile.
+            # Only this coroutine touches the synchronizer, one drain at a time.
+            await asyncio.to_thread(sync.drain)
             await asyncio.sleep(0.1)
         traces = await task
     except BaseException:

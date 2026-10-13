@@ -289,6 +289,28 @@ def _completed_purge_planes(
     return tuple(sorted(completed))
 
 
+def _tracking_delete_attempted(stores: tuple[PurgeStore, ...], *, run_id: str, project_id: str) -> bool:
+    """Whether an earlier purge plan for this run journaled its tracking delete at all."""
+
+    action_id = f"tracking:{run_id}"
+    for store in stores:
+        if not store.root.is_dir():
+            continue
+        for directory in store.root.iterdir():
+            if not directory.is_dir():
+                continue
+            try:
+                plan = store.load_plan(directory.name)
+                if plan.project_id != project_id or run_id not in plan.run_ids:
+                    continue
+                events = store.journal(directory.name)
+            except Exception:
+                continue
+            if any(str(event.get("action_id")) == action_id for event in events):
+                return True
+    return False
+
+
 def _populate_trackio_lineage(
     layout: Any,
     candidates: dict[str, PurgeRunCandidate],
@@ -343,6 +365,21 @@ def _populate_trackio_lineage(
                 project=candidate.evidence_project,
                 provider_run_ids=(candidate.tracking_provider_run_id,),
             )
+            if getattr(plan, "exists", True) is False and _tracking_delete_attempted(
+                _plan_stores(layout), run_id=run_id, project_id=candidate.evidence_project
+            ):
+                # An earlier apply sent this run's tracking delete and lost the reply
+                # (for example a read timeout) while the server finished it. Absence
+                # after our own delete settles the plane; absence otherwise still blocks.
+                candidates[run_id] = _replace_lineage(
+                    candidate,
+                    completed_planes=tuple(sorted({*candidate.completed_planes, "tracking"})),
+                    consumers=(),
+                    external_consumers=(),
+                    lineage_complete=True,
+                    lineage_blockers=(),
+                )
+                continue
             consumers = {
                 provider_to_run[consumer]
                 for artifact in plan.artifacts

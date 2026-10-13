@@ -1577,26 +1577,30 @@ class VerifiersEnvironmentRolloutBridge:
                     for step, requested in sorted(requested_by_step.items())
                 ),
             )
-        records = [
-            json.loads(line) for line in self.trace_path.read_text(encoding="utf-8").splitlines() if line.strip()
-        ]
+        # Stream the trace file: a long run's file is ~100 GB, and holding every record
+        # (as this replay once did) OOM-killed a 400-update run after training completed.
+        # Per step, only each record's metric summary is kept.
         traces: list[TraceObservation] = list(episode_observations.values())
-        records_by_step: dict[int, list[dict[str, Any]]] = {}
-        for record in records:
-            if not isinstance(record, dict):
-                raise TypeError("preserved Verifiers traces must be JSON objects")
-            run = record.get("run")
-            if not isinstance(run, dict) or not isinstance(run.get("step"), int):
-                raise ValueError("preserved Verifiers traces require an integer run step")
-            external_id = str(record.get("id") or "")
-            if not external_id:
-                raise ValueError("preserved Verifiers traces require stable trace ids")
-            if external_id not in live_observed_trace_ids:
-                traces.append(self._observation_from_record(record))
-            records_by_step.setdefault(run["step"], []).append(record)
+        records_by_step: dict[int, list[_TraceSummary]] = {}
+        with self.trace_path.open(encoding="utf-8") as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                if not isinstance(record, dict):
+                    raise TypeError("preserved Verifiers traces must be JSON objects")
+                run = record.get("run")
+                if not isinstance(run, dict) or not isinstance(run.get("step"), int):
+                    raise ValueError("preserved Verifiers traces require an integer run step")
+                external_id = str(record.get("id") or "")
+                if not external_id:
+                    raise ValueError("preserved Verifiers traces require stable trace ids")
+                if external_id not in live_observed_trace_ids:
+                    traces.append(self._observation_from_record(record))
+                records_by_step.setdefault(run["step"], []).append(_summarize_trace(record))
         metrics = tuple(
             MetricBatchObservation(
-                _trace_metrics(step_records, requested=requested_by_step.get(step)),
+                _summary_metrics(step_records, requested=requested_by_step.get(step)),
                 step=step,
                 attributes={"observation_source": "verifiers"},
             )
@@ -1660,37 +1664,68 @@ def _trace_has_tool_failure(record: Mapping[str, Any]) -> bool:
     return False
 
 
+@dataclass(frozen=True, slots=True)
+class _TraceSummary:
+    """The few values of one trace record that per-step rollout metrics use."""
+
+    reward: float | None
+    example_id: str
+    completed: bool
+    failed: bool
+    truncated: bool
+    ending: Any
+    tool_call: bool
+    tool_failure: bool
+
+
+def _summarize_trace(record: Mapping[str, Any]) -> _TraceSummary:
+    info = record.get("info")
+    return _TraceSummary(
+        reward=_trace_reward(record),
+        example_id=str(info.get("example_id") or "") if isinstance(info, Mapping) else "",
+        completed=bool(record.get("is_completed")),
+        failed=_trace_has_error(record),
+        truncated=_trace_is_truncated(record),
+        ending=verifiers_episode_ending(record),
+        tool_call=_trace_has_tool_call(record),
+        tool_failure=_trace_has_tool_failure(record),
+    )
+
+
 def _trace_metrics(
     records: Sequence[Mapping[str, Any]],
     *,
     requested: int | None = None,
 ) -> dict[str, float]:
-    attempted = len(records)
+    return _summary_metrics([_summarize_trace(record) for record in records], requested=requested)
+
+
+def _summary_metrics(
+    summaries: Sequence[_TraceSummary],
+    *,
+    requested: int | None = None,
+) -> dict[str, float]:
+    attempted = len(summaries)
     if attempted == 0 and requested is None:
         raise ValueError("cannot derive rollout evidence from an empty step")
-    rewards = [reward for record in records if (reward := _trace_reward(record)) is not None]
+    rewards = [summary.reward for summary in summaries if summary.reward is not None]
     grouped_rewards: dict[str, list[float]] = {}
-    for record in records:
-        reward = _trace_reward(record)
-        info = record.get("info")
-        example_id = str(info.get("example_id") or "") if isinstance(info, Mapping) else ""
-        if reward is not None:
-            grouped_rewards.setdefault(example_id, []).append(reward)
+    for summary in summaries:
+        if summary.reward is not None:
+            grouped_rewards.setdefault(summary.example_id, []).append(summary.reward)
     grouped = [values for values in grouped_rewards.values() if len(values) > 1]
     values = {
         "train/rl/rollouts_requested": float(requested if requested is not None else attempted),
         "train/rl/rollouts_attempted": float(attempted),
-        "train/rl/rollouts_completed": float(sum(bool(record.get("is_completed")) for record in records)),
-        "train/rl/rollouts_failed": float(sum(_trace_has_error(record) for record in records)),
-        "train/rl/rollouts_truncated": float(sum(_trace_is_truncated(record) for record in records)),
+        "train/rl/rollouts_completed": float(sum(summary.completed for summary in summaries)),
+        "train/rl/rollouts_failed": float(sum(summary.failed for summary in summaries)),
+        "train/rl/rollouts_truncated": float(sum(summary.truncated for summary in summaries)),
         "train/rl/rollouts_unscorable": float(attempted - len(rewards)),
-        **episode_ending_metrics(verifiers_episode_ending(record) for record in records),
+        **episode_ending_metrics(summary.ending for summary in summaries),
     }
     if attempted:
-        values["train/rl/tool_call_frequency"] = sum(_trace_has_tool_call(record) for record in records) / attempted
-        values["train/rl/tool_failure_frequency"] = (
-            sum(_trace_has_tool_failure(record) for record in records) / attempted
-        )
+        values["train/rl/tool_call_frequency"] = sum(summary.tool_call for summary in summaries) / attempted
+        values["train/rl/tool_failure_frequency"] = sum(summary.tool_failure for summary in summaries) / attempted
     if requested is not None:
         values["train/rl/rollouts_missing"] = float(max(requested - attempted, 0))
     # Missing reward variation is evidence that no valid training population

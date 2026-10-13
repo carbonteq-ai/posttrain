@@ -179,14 +179,18 @@ The AutomationBench v1 environment vendors this source byte for byte (only the
 environment's own `tools/api/schemas/index.txt` data file is extra) rather than
 depending on the registry distribution. Framework catalog and evaluation
 bindings pin the environment repository at
-`17e0cd0228eab18d664c2b6ff82f4aec991f4523`, released as
-[`carbonteq-2026.10.07`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.10.07)
-(`automationbench-v1` 0.5.0), so run lineage names the code that actually
-loaded the tasks. Simulator fixes change some task outcomes: re-baseline
-evaluations on this revision. The lab's held-out suites stay on environment
-`24e1fc9` for comparability with earlier runs.
+`d430dd87c8d6a37c0520acc3624d74f2de31659e`, released as
+[`carbonteq-2026.10.08`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.10.08)
+(`automationbench-v1` 0.5.1), so run lineage names the code that actually
+loaded the tasks. 0.5.1 fixes eleven manifest checks that a correct episode
+could not meet (seven in held-out evaluation tasks, four in training tasks);
+goal rates on the luna-v2 held-out suite rise 6-8 points for the same
+episodes, so re-baseline evaluations on this revision. The 64K luna-v2
+held-out evaluation uses the same release; the older lab held-out suites stay
+on environment `24e1fc9` for comparability with earlier runs.
 
-The previous selection was `1.0.5.post1` at
+The previous selections were environment `17e0cd02` (`carbonteq-2026.10.07`,
+`automationbench-v1` 0.5.0) and, before it, `1.0.5.post1` at
 `908db2abd4a868acc37ab0850474bff653bea25c` through environment `11f4d712`.
 
 ### Deterministic simulation runtime (2026-10-06)

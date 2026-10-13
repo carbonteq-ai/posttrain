@@ -1,0 +1,35 @@
+project_id: posttrain-lab
+work_package_id: eval/lfm2.5-2.6b/automationbench-luna2-heldout-64k20t-t05
+stage: qualify
+description: luna-v2's 20 held-out tasks (task mix automationbench-manifest-luna-v2) at the earlier held-out evals' budgets (20 turns, 8192-token replies, 32768 per episode, 64K context) at temperature 0.5 with Liquid's top-k 50 and repetition penalty 1.1, five attempts per task, concurrency 60, with manifest goal and harm findings recorded.
+recipe:
+  type: inline
+  id: recipes/lfm2.5-2.6b-automationbench-luna2-heldout-64k20t-t05@1
+  revision: "1"
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+    - id: evaluate
+      kind: eval.general
+      definition: eval/verifiers-managed-general@1
+  expected_artifacts: [native evaluation result]
+bindings:
+  model: {type: ref, family: model, id: models/lfm2.5-2.6b@bf16}
+  evaluation_inference: {type: ref, family: inference, id: inference/lfm2.5-2.6b-vllm-automationbench-eval-t05-liquid-local@2}
+  target: {type: ref, family: target, id: targets/carbonteq-rtx-pro-6000-96gb}
+  evaluation_plan: {type: ref, family: evaluation, id: automationbench-manifest-luna2-heldout-64k20t-t05}
+  environment: {type: ref, family: environment, id: automationbench-manifest-luna2-eval-64k20t-t05-v1}
+enabled_optional_jobs: []
+metadata:
+  comparison_family: automationbench-manifest-luna2-heldout-64k20t-t05
+  evaluation_population: heldout20
+  repetitions_per_task: "5"
+  policy_call_output_budget: "8192"
+  episode_output_budget: "32768"
+  max_turns: "20"
+  labels: [qualification, evaluation, automationbench, lfm2.5, heldout, matched, context64k, tool-fidelity]

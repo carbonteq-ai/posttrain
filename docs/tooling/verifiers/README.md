@@ -180,20 +180,33 @@ and [06 · ingest](../../post-training/06-observation-and-lineage.md#verifiers-i
 
 ## Install / pin
 
-Posttrain 0.4.15 selects the released fork commit
-`carbonteq-ai/verifiers@74dd3fbf176d60cb0070f2408bc8a597bbfc099e`
-([`carbonteq-v0.3.2.dev102`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev102),
+Posttrain 0.4.16 selects the released fork commit
+`carbonteq-ai/verifiers@bc70a7deaf64c8f8e0b41e39c00ac2d1ea1d7e0b`
+([`carbonteq-v0.3.2.dev109`](https://github.com/carbonteq-ai/verifiers/releases/tag/carbonteq-v0.3.2.dev109),
 release branch `codex/carbonteq-verifiers-latest`; wheel SHA-256
-`ce3bb4031f6a64566a9a552fed341cbbf7659f963d14b83643e909cff804489c`). It is
-`58df1306` (the manifest-steps selection described next) plus the repository's
-own formatting, required by the fork's push checks, with no behavior change.
+`0b2bffc55471fbe3666c3b691822895e9a1bb77b7419893bfceb1b488916d16c`). It adds
+to `0.3.2.dev102`:
+
+- eval-client transport retries: connections the provider has not accepted are
+  retried with backoff, idle connections expire after 2 s, and a connection
+  closed before any response is retried; an empty error names its exception
+  type. Six 100-episode AutomationBench evaluations lost no attempts (earlier
+  evaluations lost 7-14 to 503s and connect timeouts);
+- compact assessment archives: batches reference the pooled source and view by
+  identity instead of repeating them, and earlier lifecycle batches of an
+  attempt are stored as deltas of its last batch. A 100-episode evaluation
+  trace drops from 902 MB to 140 MB and every episode stays under Trackio's
+  10 MB field limit. Old traces still load; readers older than dev109 cannot
+  read the new form.
+
 Every workspace package, job-kind profile and lock, and the veRL backend lock
 name it. The environment packages select it from
-`verifiers-environments@17e0cd0228eab18d664c2b6ff82f4aec991f4523`, released as
-[`carbonteq-2026.10.07`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.10.07)
-on that repository's `main` (automationbench-v1 0.5.0, gsm8k-v1 0.3.1, the
-other packages 0.1.1). The online-RL TRL, online-RL veRL and eval kind images
-were republished for it. Plan: `docs/plan/posttrain-0.4.15-release.md`.
+`verifiers-environments@d430dd87c8d6a37c0520acc3624d74f2de31659e`, released as
+[`carbonteq-2026.10.08`](https://github.com/carbonteq-ai/verifiers-environments/releases/tag/carbonteq-2026.10.08)
+on that repository's `main` (automationbench-v1 0.5.1 with eleven manifest
+check fixes, gsm8k-v1 0.3.2, the other packages 0.1.2). The online-RL TRL,
+online-RL veRL and eval kind images were republished for it. Plan:
+`docs/plan/posttrain-0.4.16-release.md`.
 
 The AutomationBench manifest-steps catalog
 (`apps/lab/.posttrain/catalog/automationbench-manifest-steps.yaml`) and the

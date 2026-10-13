@@ -76,6 +76,16 @@ def _select_checkpoint_output(
             )
             == step
         )
+    if step is None and len(candidates) > 1:
+        # Without a step the request is the run's terminal output; per-step checkpoint
+        # views (which carry checkpoint_step) are not candidates when one terminal exists.
+        terminal = tuple(
+            link
+            for link in candidates
+            if "checkpoint_step" not in getattr(getattr(link, "artifact", None), "provider_metadata", {})
+        )
+        if len(terminal) == 1:
+            candidates = terminal
     if len(candidates) > 1:
         digests = {getattr(getattr(link, "artifact", None), "digest", None) for link in candidates}
         if len(digests) == 1 and None not in digests:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
+import shutil
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -33,6 +35,27 @@ def _directory_digest(path: Path) -> str:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
     return digest.hexdigest()
+
+
+def _compress_traces(output_dir: Path) -> None:
+    """Replace the native ``traces.jsonl`` with a deterministic gzip copy before publication.
+
+    Verifiers repeats each assessment batch's source and view blocks in every lifecycle
+    batch, so a 100-episode AutomationBench evaluation reaches about 1.2 GB of highly
+    repetitive JSON (about 21x smaller as gzip). The trace synchronizer has already read the
+    plain file when this runs; readers open ``traces.jsonl.gz`` with ``gzip.open``.
+    """
+
+    source = output_dir / "traces.jsonl"
+    if not source.is_file():
+        return
+    target = output_dir / "traces.jsonl.gz"
+    partial = target.with_name(target.name + ".partial")
+    with source.open("rb") as plain, partial.open("wb") as raw:
+        with gzip.GzipFile(filename="traces.jsonl", mode="wb", fileobj=raw, compresslevel=6, mtime=0) as packed:
+            shutil.copyfileobj(plain, packed, 8 * 1024 * 1024)
+    partial.replace(target)
+    source.unlink()
 
 
 def evaluate(
@@ -92,6 +115,7 @@ def evaluate(
             encoding="utf-8",
         )
     backend = runner(context, request, output_dir)
+    _compress_traces(output_dir)
     artifact = ProducedArtifact(
         name=f"evaluation/{_model_id(request)}/{_plan_id(request)}/{environment.id}",
         kind="verifiers-evaluation",
