@@ -1,0 +1,29 @@
+
+╔══╗─────────▶╔╗ ╔╗      ╔╗◀───┐
+╚╣╠╝◀─────┐  ╔╝╚╗║║────▶╔╝╚╗   │
+ ║║   ╔══╦══╦╩╗╔╝║║  ╔╦═╩╗╔╝╔═╦══╗
+ ║║╔══╣╔╗║╔╗║╔╣║ ║║ ╔╬╣╔╗║║ ║│║╔═╝
+╔╣╠╣║║║╚╝║╚╝║║║╚╗║╚═╝║║║║║╚╗║═╣║
+╚══╩╩╩╣╔═╩══╩╝╚═╝╚═══╩╩╝╚╩═╩╩═╩╝
+  └──▶║║                    ▲
+      ╚╝────────────────────┘
+
+
+---------
+Contracts
+---------
+
+Analyzed 528 files, 3786 dependencies.
+--------------------------------------
+
+Reusable capability packages are independent KEPT
+New common contracts do not import execution frameworks KEPT
+The settings advisor reads recorded selections, not capability packages KEPT
+Canonical data contracts do not import execution frameworks KEPT
+Reusable packages do not import the lab application KEPT
+Observatory reads providers only through tracking adapters KEPT
+Serving is independent of observation and legacy configuration KEPT
+Evaluation is endpoint neutral and observation independent KEPT
+Training is observation and serving independent KEPT
+
+Contracts: 9 kept, 0 broken.

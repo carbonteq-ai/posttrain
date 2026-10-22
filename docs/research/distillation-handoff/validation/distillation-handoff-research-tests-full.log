@@ -1,0 +1,93 @@
+................................................................s....... [ 13%]
+........................................................................ [ 27%]
+........................................................................ [ 41%]
+........................................................................ [ 55%]
+........................................................................ [ 68%]
+........................................................................ [ 82%]
+........................................................................ [ 96%]
+..................                                                       [100%]
+==================================== ERRORS ====================================
+_ ERROR collecting scripts/qualification/test_calibrate_general_episode_prompt.py _
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_calibrate_general_episode_prompt.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_calibrate_general_episode_prompt.py:5: in <module>
+    from automationbench_v1.episode_prompt import EpisodeVerdict
+E   ModuleNotFoundError: No module named 'automationbench_v1'
+_ ERROR collecting scripts/qualification/test_episode_judge_vllm_benchmark.py __
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_episode_judge_vllm_benchmark.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_episode_judge_vllm_benchmark.py:12: in <module>
+    import episode_judge_vllm_benchmark as benchmark
+scripts/qualification/episode_judge_vllm_benchmark.py:21: in <module>
+    from automationbench_v1.episode_prompt import (
+E   ModuleNotFoundError: No module named 'automationbench_v1'
+_____ ERROR collecting scripts/qualification/test_episode_reward_audit.py ______
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_episode_reward_audit.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_episode_reward_audit.py:7: in <module>
+    import audit_structured_toy as audit
+scripts/qualification/audit_structured_toy.py:14: in <module>
+    from verifiers.v1.trace import WireTrace
+E   ModuleNotFoundError: No module named 'verifiers'
+_ ERROR collecting scripts/qualification/test_optimize_episode_judge_prompt.py _
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_optimize_episode_judge_prompt.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_optimize_episode_judge_prompt.py:8: in <module>
+    import optimize_episode_judge_prompt as optimizer
+scripts/qualification/optimize_episode_judge_prompt.py:21: in <module>
+    from automationbench_v1.episode_prompt import (
+E   ModuleNotFoundError: No module named 'automationbench_v1'
+_____ ERROR collecting scripts/qualification/test_replay_episode_judge.py ______
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_replay_episode_judge.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_replay_episode_judge.py:5: in <module>
+    from replay_episode_judge import judge_input, summarize
+scripts/qualification/replay_episode_judge.py:19: in <module>
+    import verifiers.v1 as vf
+E   ModuleNotFoundError: No module named 'verifiers'
+___ ERROR collecting scripts/qualification/test_self_feedback_transitions.py ___
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_self_feedback_transitions.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_self_feedback_transitions.py:8: in <module>
+    from self_feedback_native import collect_transitions
+scripts/qualification/self_feedback_native.py:19: in <module>
+    from live import environment_config
+E   ModuleNotFoundError: No module named 'live'
+______ ERROR collecting scripts/qualification/test_self_vllm_alignment.py ______
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_self_vllm_alignment.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_self_vllm_alignment.py:6: in <module>
+    from vllm.v1.core.sched.scheduler import Scheduler
+E   ModuleNotFoundError: No module named 'vllm'
+_____ ERROR collecting scripts/qualification/test_self_vllm_concurrency.py _____
+ImportError while importing test module '/home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_self_vllm_concurrency.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+scripts/qualification/test_self_vllm_concurrency.py:8: in <module>
+    from self_feedback_vllm import LocalVLLMRollout
+scripts/qualification/self_feedback_vllm.py:16: in <module>
+    from vllm import SamplingParams
+E   ModuleNotFoundError: No module named 'vllm'
+=============================== warnings summary ===============================
+scripts/qualification/test_sdpo_agent_config.py::test_pinned_sdpo_loss_moves_probability_toward_teacher
+  /home/hammad/projects/worktrees/rl-rft/scripts/qualification/test_sdpo_agent_config.py:183: TRLExperimentalWarning: You are importing from 'trl.experimental'. APIs here are unstable and may change or be removed without notice. Silence this warning by setting environment variable TRL_EXPERIMENTAL_SILENCE=1.
+    from trl.experimental.sdpo.loss_utils import compute_topk_self_distillation_loss
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR scripts/qualification/test_calibrate_general_episode_prompt.py
+ERROR scripts/qualification/test_episode_judge_vllm_benchmark.py
+ERROR scripts/qualification/test_episode_reward_audit.py
+ERROR scripts/qualification/test_optimize_episode_judge_prompt.py
+ERROR scripts/qualification/test_replay_episode_judge.py
+ERROR scripts/qualification/test_self_feedback_transitions.py
+ERROR scripts/qualification/test_self_vllm_alignment.py
+ERROR scripts/qualification/test_self_vllm_concurrency.py
+521 passed, 1 skipped, 1 warning, 8 errors in 11.93s
