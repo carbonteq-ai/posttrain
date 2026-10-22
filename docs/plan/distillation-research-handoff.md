@@ -24,9 +24,9 @@ distillation has qualified. The frozen product baseline is unchanged.
 - [x] Write the colleague guide and source-backed five-study comparison.
 - [x] Validate CPU tests, changed framework/environment tests, archive integrity,
   secret screening and documented local links.
-- [ ] Commit related environment source repairs, then framework/runtime changes,
+- [x] Commit related environment source repairs, then framework/runtime changes,
   then research source/evidence/handoff. Record exact commit IDs.
-- [ ] Produce portable Git bundles outside the repositories and verify them.
+- [x] Produce portable Git bundles outside the repositories and verify them.
 
 ## Surprises & Discoveries
 
@@ -145,3 +145,9 @@ Source/evidence credential-format screens found no matches. Related fork commits
 are b3d26ab and c0f0baa; runtime consumer commit c4c7ee9e. Research commit and
 portable bundle receipt are resolved by the final transfer manifest outside Git.
 Historical GPU experiments remain unchanged and the current training gate is false.
+
+Final transfer: runtime commit`c4c7ee9e`, research/evidence commit`a6e1fed9`.
+All three full-history bundles verified with no prerequisites. The transfer manifest
+at `/home/hammad/projects/handoffs/distillation-20261022/transfer-manifest.json`
+records exact delivered branch tips and SHA256 values. All three worktrees were
+clean after source commits; no push, new GPU job or dependency repin occurred.
