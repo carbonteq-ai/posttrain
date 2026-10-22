@@ -1,6 +1,10 @@
 schema_version: 1
 layer_id: posttrain-lab-serving-capacity-v1
 files:
+  - heldout62-scoring-fix-local.yaml
+  - heldout62-observable-local.yaml
+  - lfm25-moe-heldout62.yaml
+  - qwen35-27b-heldout62.yaml
   - algorithm-qualification.yaml
   - automationbench-manifest-steps.yaml
   - current-capsule-qualification.yaml

@@ -1,0 +1,88 @@
+# Matched-budget BF16 screens; native tokenizer templates preserve model-specific reasoning prefixes.
+model:
+  models/lfm2.5-8b-a1b@bf16:
+    artifact:
+      kind: hub
+      repo_id: LiquidAI/LFM2.5-8B-A1B
+      revision: 5dd22602c2e9f6a097b1de4c4efe0658b605015c
+    form: foundation
+    weight_precision: bf16
+    family: lfm2.5
+    parameters: 8467856832
+    instruction_tuned: true
+    renderer_contract: lfm2.5-moe-tools@1
+    capabilities: {modalities: [text], native_context_window: 128000}
+    provenance:
+      source: huggingface
+      license: lfm1.0
+      upstream_model_type: lfm2_moe
+      upstream_architecture: Lfm2MoeForCausalLM
+      active_parameters_approx: 1500000000
+      experts: 32
+      experts_per_token: 4
+  models/lfm2.5-24b-a2b@bf16:
+    artifact:
+      kind: hub
+      repo_id: LiquidAI/LFM2.5-24B-A2B
+      revision: 1769516ac588c4c558089c94f27d96b0dc67b183
+    form: foundation
+    weight_precision: bf16
+    family: lfm2.5
+    parameters: 23971587712
+    instruction_tuned: true
+    renderer_contract: lfm2.5-moe-tools@1
+    capabilities: {modalities: [text], native_context_window: 131072}
+    provenance:
+      source: huggingface
+      license: lfm1.0
+      upstream_model_type: lfm2_moe
+      upstream_architecture: Lfm2MoeForCausalLM
+      active_parameters_approx: 2000000000
+      experts: 64
+      experts_per_token: 4
+
+inference:
+  inference/lfm2.5-8b-a1b-heldout62-bf16-c8@2:
+    revision: "2"
+    startup_timeout_seconds: 1800
+    model: models/lfm2.5-8b-a1b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-moe-tools@1
+    engine:
+      gpu_memory_utilization: 0.85
+      tensor_parallel_size: 1
+      max_model_len: 65536
+      max_num_seqs: 8
+      batch_invariant: true
+      max_num_batched_tokens: 8192
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      reasoning_parser: lfm2_optional_thinking
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 8192, temperature: 0.5, top_p: 1.0, top_k: 50, repetition_penalty: 1.1}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]
+  inference/lfm2.5-24b-a2b-heldout62-bf16-c8@1:
+    revision: "1"
+    startup_timeout_seconds: 1800
+    model: models/lfm2.5-24b-a2b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: lfm2.5-moe-tools@1
+    engine:
+      gpu_memory_utilization: 0.85
+      tensor_parallel_size: 1
+      max_model_len: 65536
+      max_num_seqs: 8
+      batch_invariant: true
+      max_num_batched_tokens: 8192
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      reasoning_parser: qwen3
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 8192, temperature: 0.5, top_p: 1.0, top_k: 50, repetition_penalty: 1.1}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]

@@ -1,0 +1,62 @@
+project_id: posttrain-lab
+work_package_id: eval/qwen3.5-9b/automationbench-heldout62-64k20t/linkedin-fix-local
+stage: qualify
+description: Fresh heldout62 evaluation with locally snapshotted LinkedIn serialization
+  repair; unpublished source, separate comparison cohort; episode admission eight.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-9b-automationbench-heldout62-64k20t-linkedin-fix-local@1
+  revision: '1'
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+  - id: evaluate
+    kind: eval.general
+    definition: eval/lfm-moe-managed-general-c8@1
+  expected_artifacts:
+  - native evaluation result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-9b@bf16
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-9b-vllm-automationbench-eval-64k-local@1
+  target:
+    type: ref
+    family: target
+    id: targets/carbonteq-rtx-pro-6000-96gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: automationbench-heldout62-linkedin-fix-local-qwen-v1
+  environment:
+    type: ref
+    family: environment
+    id: automationbench-heldout62-linkedin-fix-local-qwen-v1
+enabled_optional_jobs: []
+metadata:
+  comparison_family: heldout62-linkedin-fix-local-20261017
+  evaluation_population: heldout62
+  repetitions_per_task: '5'
+  policy_call_output_budget: '8192'
+  episode_output_budget: '32768'
+  max_turns: '20'
+  labels:
+  - qualification
+  - evaluation
+  - automationbench
+  - qwen3.5
+  - heldout
+  - matched
+  - context64k
+  - tool-fidelity
+  environment_source: local-snapshot-unpublished
+  episode_concurrency: '8'

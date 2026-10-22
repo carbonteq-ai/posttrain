@@ -37,6 +37,9 @@ gpu-posttrain = [
 [project.scripts]
 posttrain-lab = "posttrain_lab.cli:main"
 
+[project.entry-points."vllm.general_plugins"]
+lab-lfm-moe-native-reasoning = "posttrain_lab.lfm_moe_reasoning:register_optional_reasoning"
+
 [tool.uv.sources]
 posttrain-common = { workspace = true }
 posttrain-catalog = { workspace = true }

@@ -46,6 +46,10 @@ def test_configure_is_side_effect_free_and_uses_standard_definitions_and_git_met
     assert runtime.catalog is catalog
     assert set(runtime.definitions) == {
         *standard_definitions(),
+        "eval/lfm-moe-managed-general-c8@1",
+        "serve/lfm-moe-native-tool-smoke@1",
+        "eval/workstation-managed-general-c8@1",
+        "serve/native-tool-continuation@1",
         "train/sampo-turn-judged@1",
         "train/gdpo-episode-judged@1",
         "train/capo-turn-judged@1",

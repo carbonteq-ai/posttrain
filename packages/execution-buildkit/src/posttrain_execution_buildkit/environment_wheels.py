@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Protocol
 
 from posttrain.common import ContractError
-from posttrain.execution_pack import EnvironmentWheelRequest, ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import EnvironmentWheelRequest, ProjectEnvironmentSourceRequest, digest_context_tree
 
 from .git_sources import (
     LockedGitSubdirectory,
@@ -28,6 +28,21 @@ from .git_sources import (
 _SCHEMA = "posttrain.environment-wheel-lock.v1"
 _DEFAULT_MAX_PACKAGES = 64
 _DEFAULT_MAX_WHEEL_BYTES = 512 * 1024 * 1024
+
+
+def _project_snapshot_digest(package_root: Path, project_path: str) -> str:
+    """Verify the same project-relative snapshot bytes planned and staged by CLI.
+
+    Git sources use a different root-relative digest. A project snapshot includes
+    its declared path ancestors and uses the execution-pack context-tree format.
+    Keep that complete digest rather than dropping the check or trusting a lock.
+    """
+    snapshot_root = package_root
+    for component in reversed(Path(project_path).parts):
+        if snapshot_root.name != component:
+            raise ContractError(f"project environment snapshot path mismatch: {project_path}")
+        snapshot_root = snapshot_root.parent
+    return digest_context_tree(snapshot_root)
 
 
 class WheelBuildGateway(Protocol):
@@ -225,7 +240,7 @@ class ImmutableEnvironmentWheelBuilder:
                 raise ContractError(f"project environment source was not materialized: {request.path}") from error
             if not package_root.is_absolute() or package_root.is_symlink() or not package_root.is_dir():
                 raise ContractError(f"project environment source is not a regular directory: {request.path}")
-            if _tree_digest(package_root) != request.tree_digest:
+            if _project_snapshot_digest(package_root, request.path) != request.tree_digest:
                 raise ContractError(f"project environment source differs from its planned digest: {request.path}")
             pyproject = package_root / "pyproject.toml"
             if not pyproject.is_file() or pyproject.is_symlink():
@@ -233,7 +248,7 @@ class ImmutableEnvironmentWheelBuilder:
             _verify_project_name(pyproject, request.package)
             wheel = self._build_one(package_root)
             try:
-                if _tree_digest(package_root) != request.tree_digest:
+                if _project_snapshot_digest(package_root, request.path) != request.tree_digest:
                     raise ContractError(f"project environment source changed during wheel build: {request.path}")
                 wheel_digest = _file_digest(wheel)
                 wheel_size = wheel.stat().st_size

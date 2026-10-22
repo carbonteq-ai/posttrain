@@ -1,5 +1,12 @@
 # AutomationBench compatibility fork
 
+Research handoff snapshot (2026-10-22): task fixture repairs are committed locally
+as `b3d26ab` on `codex/fix-six-task-data` in the sibling AutomationBench fork.
+The Jira fixture/fidelity subset passed65 tests. This source is unpublished;
+consumer pins remain unchanged. See
+`docs/research/distillation-handoff/source-receipt.json` for the full commit and
+handoff guide. Historical experiment capsule hashes remain authoritative.
+
 Current unpublished checkpoint (2026-10-04; supersedes the historical entries
 below): communication evidence is now frozen before producer iteration. Owner
 core tests, independent adversarial probes and all 28 fresh-revision preflights
@@ -324,3 +331,14 @@ from queryable training results. The optional SDK backend, semantic accuracy,
 whole-task coverage, archive publication and dependency adoption remain open.
 See the [summary checkpoint](../../research/verifiers-assessment-qualification/reward-candidate/summary-policy-checkpoint.md)
 and authoritative plan for exact evidence and source boundaries.
+# Local124-task fixture readiness (2026-10-20)
+
+The unpublished candidate on /home/hammad/projects/automationbench branch
+codex/fix-six-task-data at basef96cb666066577dd8c203e20579fa282753f7ae4 repairs
+missing public Jira projects in four training fixtures and the explicit name of
+the Incident Management project. The consumed environment candidate mirrors
+only these fixture hunks and revises three Jira-source binding digests, preserving
+all checks/public requests/non-Jira state. Five regression cases fail on the old
+snapshot;65 related fixture/Jira tests pass after repair. Unknown projects still
+fail. This is local source work, not a release or pin update. Execution and
+before/after evidence live in docs/plan/progress-teacher-ten-qualification.md.

@@ -6,9 +6,17 @@ import os
 import subprocess
 from dataclasses import replace
 
-from posttrain.jobs import build_job_runtime, sampo_definition, structured_rl_definition
+from posttrain.eval import EvaluationBudget
+from posttrain.jobs import (
+    build_job_runtime,
+    managed_general_evaluation_definition,
+    sampo_definition,
+    serve_smoke_definition,
+    structured_rl_definition,
+)
 from posttrain.work import JobRuntime, ProjectExecutionRequest
 
+from .lfm_moe_smoke import native_tool_smoke
 from .source import resolve_git_source
 
 
@@ -29,6 +37,22 @@ def configure(request: ProjectExecutionRequest) -> JobRuntime:
     runtime = build_job_runtime(
         request,
         extra_definitions={
+            "eval/workstation-managed-general-c8@1": managed_general_evaluation_definition(
+                budget=EvaluationBudget(max_concurrent=8),
+                definition_id="eval/workstation-managed-general-c8@1",
+            ),
+            "serve/native-tool-continuation@1": serve_smoke_definition(
+                operation=native_tool_smoke,
+                definition_id="serve/native-tool-continuation@1",
+            ),
+            "eval/lfm-moe-managed-general-c8@1": managed_general_evaluation_definition(
+                budget=EvaluationBudget(max_concurrent=8),
+                definition_id="eval/lfm-moe-managed-general-c8@1",
+            ),
+            "serve/lfm-moe-native-tool-smoke@1": serve_smoke_definition(
+                operation=native_tool_smoke,
+                definition_id="serve/lfm-moe-native-tool-smoke@1",
+            ),
             "train/sampo-turn-judged@1": sampo_definition(
                 definition_id="train/sampo-turn-judged@1",
                 turn_rewards=True,

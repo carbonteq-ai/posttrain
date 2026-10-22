@@ -1,5 +1,12 @@
 # Verifiers (library)
 
+Research handoff snapshot (2026-10-22): the environment source repairs are locally
+committed as `c0f0baa` on `codex/distillation-handoff-env-20261022` in
+`/home/hammad/projects/worktrees/abv1-heldout62-scoring-fix`. The repair subset
+passed24 tests. The commit remains unpublished; no dependency pin was changed.
+Full provenance is in `docs/research/distillation-handoff/source-receipt.json`.
+Old result receipts retain their original environment hashes and missing scores.
+
 Local Trello label inventory repair (2026-10-05): candidate read capture accepts
 audited acknowledged label mutations without manufacturing read facts.39related
 regressions pass including missing-ACK abstention; exact public task adoption
@@ -743,3 +750,58 @@ unchanged rewards/source bytes and empty errors. Evidence is in
 `docs/research/verifiers-assessment-qualification/reward-candidate/gmail-thread-read-native-recheck-20261005.json`.
 This unpublished environment increment does not change simulator source,
 framework pins, task qualification or eligibility.
+Local heldout62 LinkedIn serialization candidate (2026-10-17): isolated source
+at `/home/hammad/projects/worktrees/abv1-heldout62-scoring-fix` starts from exact
+environment pin a0c7378b179e2b267382b8125192876502d82f89. PostContent accepts
+field names alongside API aliases, retaining strict extra-field rejection.
+This repairs persisted article fields rejected during final scoring. The new
+regression reproduced the old failure; 58 related tests and the combined six
+environment wheel install/loader gate pass. No source commit/push or dependency
+pin update is authorized; the user chose to keep the fix local. Prepared
+project-path snapshot configurations are experimental and unsubmitted. Original
+heldout62 evidence and source selections remain unchanged. See
+`docs/plan/heldout62-scoring-fix-rerun.md` for exact hashes and validation limits.
+
+Local heldout62 observability experiment (2026-10-18): the same isolated source
+adds explicit per-task tool additions and mixed-taskset declared-clock context.
+The new selection exposes15 clocks and repairs two access paths (tax Gmail
+search/read; prepaid Slack channel discovery), retaining the LinkedIn codec fix.
+All62 native task definitions/world roundtrips validate, source states and
+assertions remain unchanged, and residual policy/identity/timezone ambiguities
+are recorded per task. Do not treat static access validation as proof of every
+task's unambiguous semantic solvability. No published Git pin or release changes;
+see docs/plan/heldout62-observability-audit.md and its exact local source receipt.
+
+Local ten-task teacher qualification (2026-10-20) additionally opts into
+strict_tool_arguments for limited_zapier. A native MCP middleware rejects unknown
+raw argument keys before schema coercion can drop them; it returns an ordinary
+tool error without executing the action. It lists raw unknown keys, which can
+themselves contain malformed model text; this is not a general redaction guarantee. Declared
+types/defaults retain the SDK behavior. Historical default remains false.
+Thirty-five local environment regressions passed, including real MCP JSON-RPC
+and clock/codec checks. The ten-task CPU audit preserves worlds and rubric
+assertions. These tests do not qualify model behavior. A source-hashed local
+snapshot must pass the pinned offline image before native collection; fresh
+controls are mandatory because declared clock context changes public prompts.
+No fork publication or dependency pin update is authorized. Execution/evidence:
+docs/plan/progress-teacher-ten-qualification.md.
+
+The same local candidate also fixes LinkedIn Profile's destructive input alias
+normalization. A copied before-validator input preserves original task provenance
+while retaining canonical model values. Both affected training tasks match the
+original manifests again; no digest rebinding or task exclusion.52 related local
+tests pass, including native setup/validation in deterministic and ordinary modes.
+All124 intended training-pool tasks pass source readiness after the user's split
+correction; historical development/reserve membership no longer automatically
+excludes them. Heldout62 remains separate. This does not yet qualify teacher
+guidance or native learning behavior.
+
+Full124 qualification also defines the project-local profile
+local-clock-strict-access-v2. It uses the existing additional_tools_by_task
+contract to expose calendly_list_event_types only for
+operations.calendly_equipment_inspection. The original task exposed booking but
+no event-type discovery; the booking schema asks for an ID/URI. Actual native
+discovery-to-booking CPU proof passes the60minute booking assertion while
+preserving the initial state, assertions and public request. No fork source or
+dependency pin is changed by this project selection. Fresh controls are required
+under this profile; do not reuse partial populations from the old tool inventory.

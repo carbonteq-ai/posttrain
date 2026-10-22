@@ -1,5 +1,25 @@
 # TRL
 
+## Unpublished SELF prototype
+
+The local `codex/self-feedback-prototype` worktree at
+`/home/hammad/projects/worktrees/trl-self` extends the post15 source with
+target-aligned reverse KL, feedback prediction and an EMA LoRA teacher sharing
+one frozen base. See the [living qualification plan](../../plan/self-trl-workstation-experiment.md).
+Five CPU checks and a fresh AutomationBench three-update GPU qualification
+passed. Exact full-vocabulary chunking reduced measured temporary scoring
+allocation by 57.6%; deterministic adapter gradients matched the dense
+reference. Fast kernels have separately recorded run-to-run gradient variation.
+The bounded native vLLM r7 cycle now passes three updates, student-only adapter
+refresh, cache reset, batch invariance and a fresh second rollout using the
+existing [SM120 vLLM stack](../vllm/README.md). The aligned cache block operating
+point is required. This is not a qualified multi-round campaign: the single
+fixture regressed from success to failure after updates. Prompt diagnostics,
+recovery and broader learning-quality qualification remain open.
+No publication or dependency-pin change is implied.
+
+## Selected release
+
 Selected (RFT branch `codex/rft-warm-start`): `1.12.0.post15`, published as
 [carbonteq-v1.12.0.post15](https://github.com/carbonteq-ai/trl/releases/tag/carbonteq-v1.12.0.post15)
 at immutable source `290c03d8e1553db509b0d033907f60fc1cb47b82`. It is post14 plus one

@@ -6,7 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
-from posttrain.execution_pack import ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import (
+    ImmutableSourceSnapshotter,
+    ProjectEnvironmentSourceRequest,
+    SourceSnapshotRequest,
+)
 from posttrain_execution_buildkit import (
     EnvironmentWheelRequest,
     GitSourceLock,
@@ -137,12 +141,22 @@ def test_deduplicates_exact_requests(tmp_path: Path) -> None:
 
 
 def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
-    root = (tmp_path / "toy_env").absolute()
-    root.mkdir()
+    project = (tmp_path / "project").absolute()
+    root = project / "environments/toy_env"
+    root.mkdir(parents=True)
     (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
     gateway = FakeWheelGateway({"toy_env": {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}})
     builder = ImmutableEnvironmentWheelBuilder(output_root=(tmp_path / "wheels").absolute(), gateway=gateway)
-    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", _tree_digest(root))
+    # Use the exact planner/CLI snapshot contract, not a hand-made Git-tree hash.
+    snapshotter = ImmutableSourceSnapshotter(cache_root=tmp_path / "snapshots")
+    source_request = SourceSnapshotRequest(
+        root=project, includes=("environments/toy_env",), install_roots=("environments/toy_env",)
+    )
+    digest = snapshotter.inspect(source_request)
+    snapshot = snapshotter.materialize(source_request)
+    assert snapshot.digest == digest
+    root = snapshot.package.root / "environments/toy_env"
+    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", digest)
 
     result = builder.build_project_sources({request.path: root}, (request,))
 
@@ -150,6 +164,24 @@ def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
     assert lock.source_kind == "project-path"
     assert lock.repository is None and lock.revision is None
     assert lock.project_path == request.path
+
+    (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "2.0.0"\n')
+    with pytest.raises(ContractError, match="differs from its planned digest"):
+        builder.build_project_sources({request.path: root}, (request,))
+    (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
+    class OriginalSourceDrift(FakeWheelGateway):
+        def build(self, package_root: Path, output_directory: Path) -> None:
+            super().build(package_root, output_directory)
+            # Generated files in the disposable build copy are allowed; external
+            # mutation of the retained, originally planned snapshot is not.
+            (root / "drift.txt").write_text("external mutation")
+
+    builder = ImmutableEnvironmentWheelBuilder(
+        output_root=(tmp_path / "drift-wheels").absolute(),
+        gateway=OriginalSourceDrift({"toy_env": {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}}),
+    )
+    with pytest.raises(ContractError, match="changed during wheel build"):
+        builder.build_project_sources({request.path: root}, (request,))
 
 
 def test_accepts_uv_generated_output_gitignore(tmp_path: Path) -> None:

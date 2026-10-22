@@ -1,0 +1,44 @@
+# Pinned cached full-precision baseline; no training or demonstration generation.
+model:
+  models/qwen3.5-27b@bf16:
+    artifact:
+      kind: hub
+      repo_id: Qwen/Qwen3.5-27B
+      revision: fc05daec18b0a78c049392ed2e771dde82bdf654
+    form: foundation
+    weight_precision: bf16
+    family: qwen3.5
+    parameters: 27781427952
+    instruction_tuned: true
+    renderer_contract: qwen3.5-tools-thinking@1
+    capabilities: {modalities: [text, image], native_context_window: 262144}
+    provenance:
+      source: huggingface
+      license: apache-2.0
+      upstream_architecture: Qwen3_5ForConditionalGeneration
+      cache_shards_verified: 11
+
+inference:
+  inference/qwen3.5-27b-heldout62-bf16-c8@1:
+    revision: "1"
+    startup_timeout_seconds: 1800
+    model: models/qwen3.5-27b@bf16
+    backend: vllm@0.29.1.dev4
+    renderer: qwen3.5-tools-thinking@1
+    engine:
+      gpu_memory_utilization: 0.90
+      tensor_parallel_size: 1
+      max_model_len: 65536
+      max_num_seqs: 8
+      max_num_batched_tokens: 8192
+      batch_invariant: true
+      block_size: 128
+      enable_chunked_prefill: true
+      enable_prefix_caching: true
+      reasoning_parser: qwen3
+      text_only: true
+      skip_mm_profiling: true
+    sampling: {max_tokens: 8192, temperature: 1.0, top_p: 0.95, top_k: 20}
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    purpose: [eval]
+    capabilities: [tool-calling]

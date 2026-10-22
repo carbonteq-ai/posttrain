@@ -1,0 +1,59 @@
+project_id: posttrain-lab
+work_package_id: qualify/qwen3.5-27b/heldout62-observable-local
+stage: qualify
+description: 'Separate local repaired heldout62: declared task clocks, audited retrieval
+  additions, LinkedIn roundtrip fix; original task names, checks, model and budgets
+  retained.'
+recipe:
+  type: inline
+  id: recipes/qwen3.5-27b-heldout62-observable-local@1
+  revision: '1'
+  stage: qualify
+  seats:
+    model: model
+    evaluation_inference: inference
+    target: target
+    evaluation_plan: evaluation
+    environment: environment
+  jobs:
+  - id: evaluate
+    kind: eval.general
+    definition: eval/workstation-managed-general-c8@1
+  expected_artifacts:
+  - native evaluation result
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-27b@bf16
+  evaluation_inference:
+    type: ref
+    family: inference
+    id: inference/qwen3.5-27b-heldout62-bf16-c8@1
+  target:
+    type: ref
+    family: target
+    id: targets/carbonteq-rtx-pro-6000-96gb
+  evaluation_plan:
+    type: ref
+    family: evaluation
+    id: automationbench-heldout62-observable-local-qwen
+  environment:
+    type: ref
+    family: environment
+    id: automationbench-heldout62-observable-local-qwen-v1
+enabled_optional_jobs: []
+metadata:
+  comparison_family: automationbench-heldout62-observable-local-qwen
+  evaluation_population: heldout62
+  repetitions_per_task: '5'
+  policy_call_output_budget: '8192'
+  episode_output_budget: '32768'
+  max_turns: '20'
+  labels:
+  - qualification
+  - evaluation
+  - automationbench
+  - qwen3.5
+  - heldout62
+  - bf16

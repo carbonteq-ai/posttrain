@@ -17,6 +17,19 @@ from posttrain.serve.benchmarks import CORE_INFERENCE_V1
 from posttrain.serve.profiles import VllmEngineConfig, VllmSpeculativeConfig
 
 
+def test_native_block_alignment_roundtrips_cli_and_embedded_engine_without_changing_defaults():
+    default = VllmEngineConfig(max_model_len=65536, gpu_memory_utilization=.9)
+    assert "block_size" not in default.as_vllm_kwargs()
+    assert "--block-size" not in default.as_cli_args()
+    aligned = VllmEngineConfig(max_model_len=65536, gpu_memory_utilization=.9, block_size=128)
+    assert aligned.as_vllm_kwargs()["block_size"] == 128
+    cli = aligned.as_cli_args()
+    assert cli[cli.index("--block-size") + 1] == "128"
+    for value in (0, -1, True, "128", 1.5):
+        with pytest.raises(ValueError, match="block_size"):
+            VllmEngineConfig(max_model_len=65536, gpu_memory_utilization=.9, block_size=value)
+
+
 def test_qwen_screen_binding_captures_tested_8gb_constraints(qwen_screen_binding: InferenceBinding) -> None:
     binding = qwen_screen_binding
     kwargs = engine_config(binding).as_vllm_kwargs()

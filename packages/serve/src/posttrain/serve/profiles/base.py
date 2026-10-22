@@ -126,10 +126,16 @@ class VllmEngineConfig:
     speculative: VllmSpeculativeConfig | None = None
     batch_invariant: bool = False
     """Make each request's output independent of its batch (``VLLM_BATCH_INVARIANT=1``)."""
+    block_size: int | None = None
+    """Optional native KV-cache block alignment; leave backend defaults unchanged when absent."""
 
     def __post_init__(self) -> None:
         if not isinstance(self.batch_invariant, bool):
             raise ValueError("batch_invariant must be a boolean")
+        if self.block_size is not None and (
+            isinstance(self.block_size, bool) or not isinstance(self.block_size, int) or self.block_size < 1
+        ):
+            raise ValueError("block_size must be positive")
         if isinstance(self.max_model_len, bool) or not isinstance(self.max_model_len, int) or self.max_model_len < 1:
             raise ValueError("max_model_len must be positive")
         if (
@@ -195,6 +201,8 @@ class VllmEngineConfig:
             values["max_num_seqs"] = self.max_num_seqs
         if self.max_num_batched_tokens is not None:
             values["max_num_batched_tokens"] = self.max_num_batched_tokens
+        if self.block_size is not None:
+            values["block_size"] = self.block_size
         if self.text_only:
             values["limit_mm_per_prompt"] = {"image": 0, "video": 0, "audio": 0}
         if self.skip_mm_profiling:
@@ -239,6 +247,8 @@ class VllmEngineConfig:
             values.extend(("--max-num-seqs", str(self.max_num_seqs)))
         if self.max_num_batched_tokens is not None:
             values.extend(("--max-num-batched-tokens", str(self.max_num_batched_tokens)))
+        if self.block_size is not None:
+            values.extend(("--block-size", str(self.block_size)))
         if self.text_only:
             values.extend(("--limit-mm-per-prompt", json.dumps({"image": 0, "video": 0, "audio": 0})))
         if self.skip_mm_profiling:

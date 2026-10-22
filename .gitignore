@@ -82,3 +82,32 @@ ops/*.txt
 
 # OS
 .DS_Store
+
+# Lossless archived research snapshots; restore with materialize_experiment_evidence.py.
+/docs/research/evidence/combined-teacher-four-20261019-r1/
+/docs/research/evidence/combined-teacher-qualification-20261019-r1/
+/docs/research/evidence/deepseek-context32-20261019-r1/
+/docs/research/evidence/dynamic-deepseek-two-contexts-20261020-r1/
+/docs/research/evidence/dynamic-deepseek-two-contexts-20261020-r2/
+/docs/research/evidence/dynamic-deepseek-two-contexts-20261020-r3/
+/docs/research/evidence/failure-localization-four-20261020-r1/
+/docs/research/evidence/focused-corpus-examples-20261020-r1/
+/docs/research/evidence/focused-deterministic-two-20261020-r1/
+/docs/research/evidence/focused-pool-qualification-20261020-r1/
+/docs/research/evidence/focused-precise-two-20261020-r1/
+/docs/research/evidence/heldout62-observability-20261018/
+/docs/research/evidence/luna-ssr-sft-20261018/
+/docs/research/evidence/progress-teacher-124-20261020-r1/
+/docs/research/evidence/progress-teacher-ten-20261019-r1/
+/docs/research/evidence/progress-teacher-ten-repaired-20261020-r1/
+/docs/research/evidence/qwen35-27b-20261018/
+/docs/research/evidence/qwen35-27b-heldout62-20261018/
+/docs/research/evidence/sdpo-campaign-b32-20261018/
+/docs/research/evidence/sdpo-curated32-20261018/
+/docs/research/evidence/sdpo-guidance-five-20261019/
+/docs/research/evidence/sdpo-guidance20-20261019/
+/docs/research/evidence/sdpo-lfm26-20261018/
+/docs/research/evidence/sdpo-pool124-20261018/
+/docs/research/evidence/sdpo-vllm-20261018/
+/docs/research/evidence/self-trl-20261017/
+/docs/research/evidence/self-vllm-20261017/

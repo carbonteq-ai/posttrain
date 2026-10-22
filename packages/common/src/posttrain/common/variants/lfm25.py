@@ -47,6 +47,25 @@ LFM25_26B_RENDERER_CONTRACT = RendererContract(
     ),
 )
 
+LFM25_MOE_RENDERER_CONTRACT = RendererContract(
+    id="lfm2.5-moe-tools@1",
+    model_family="lfm2.5",
+    conversation=ConversationProfile(
+        chat_template=ChatTemplate("tokenizer"),
+        roles=("system", "user", "assistant", "tool"),
+        reasoning_modes=(ReasoningMode("native"),),
+        default_reasoning_mode="native",
+        tool_calls=ToolCallProtocol(
+            id="lfm2_pythonic",
+            assistant_format="Python call list",
+            start_token="<|tool_call_start|>",
+            end_token="<|tool_call_end|>",
+        ),
+        strips_past_reasoning=True,
+    ),
+)
+
+
 LFM_25_12B_THINKING = ModelVariant(
     id="lfm2.5-1.2b-thinking",
     artifact=HubModelRef(

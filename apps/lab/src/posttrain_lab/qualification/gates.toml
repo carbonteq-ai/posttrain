@@ -1,6 +1,99 @@
 schema_version = 1
 
 [[gates]]
+id = "qwen35-27b-heldout62-observable-local"
+work_package = ".posttrain/work_packages/qwen35_27b_heldout62_observable_local.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "evaluation-summary"
+experiment_family = "heldout62-observable-local-v1"
+hypothesis = "Explicit task clocks and audited read access remove demonstrated information-access failures without weakening checks."
+owner = "posttrain-evaluation"
+replacement_condition = "Retain separate frozen and repaired cohorts; reconcile all310 native episodes and audit residual ambiguities before model-quality claims."
+
+[[gates]]
+id = "qwen35-27b-native-tool-continuation"
+work_package = ".posttrain/work_packages/qwen35_27b_native_tool_smoke.yaml"
+job_id = "smoke"
+tier = "experimental"
+state = "candidate"
+job_kind = "serve.smoke"
+acceptance = "serving-probe"
+experiment_family = "qwen35-27b-heldout62"
+hypothesis = "The pinned BF16 Qwen3.5-27B parses a native tool call and consumes its result."
+owner = "posttrain-serving"
+replacement_condition = "Promote after retained native tool, result and final-channel qualification; retain failed evidence."
+
+[[gates]]
+id = "qwen35-27b-heldout62"
+work_package = ".posttrain/work_packages/qwen35_27b_heldout62_eval.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "evaluation-summary"
+experiment_family = "qwen35-27b-heldout62"
+hypothesis = "The larger Qwen baseline improves task completion while preserving native constraints under unchanged benchmark budgets."
+owner = "posttrain-evaluation"
+replacement_condition = "Promote after qualified smoke and reconciled310 native episodes with uncertainty and missing-score audit; baseline results do not authorize SFT generation."
+
+[[gates]]
+id = "lfm25-8b-a1b-native-tool-smoke"
+work_package = ".posttrain/work_packages/lfm25_8b_moe_native_tool_smoke.yaml"
+job_id = "smoke"
+tier = "experimental"
+state = "candidate"
+job_kind = "serve.smoke"
+acceptance = "serving-probe"
+experiment_family = "lfm25-moe-heldout62"
+hypothesis = "The pinned MoE parses a function call and consumes the tool result."
+owner = "posttrain-serving"
+replacement_condition = "Promote after retained native tool continuation evidence; retire if runtime support is removed."
+
+[[gates]]
+id = "lfm25-24b-a2b-native-tool-smoke"
+work_package = ".posttrain/work_packages/lfm25_24b_moe_native_tool_smoke.yaml"
+job_id = "smoke"
+tier = "experimental"
+state = "candidate"
+job_kind = "serve.smoke"
+acceptance = "serving-probe"
+experiment_family = "lfm25-moe-heldout62"
+hypothesis = "The pinned MoE parses a function call and consumes the tool result."
+owner = "posttrain-serving"
+replacement_condition = "Promote after retained native tool continuation evidence; retire if runtime support is removed."
+
+
+[[gates]]
+id = "lfm25-8b-a1b-heldout62"
+work_package = ".posttrain/work_packages/lfm25_8b_moe_heldout62_eval.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "evaluation-summary"
+experiment_family = "lfm25-moe-heldout62"
+hypothesis = "LFM2.5-8B-A1B improves agentic capability under the frozen heldout62 budgets without unacceptable harm regressions."
+owner = "posttrain-evaluation"
+replacement_condition = "Promote after a native-tool smoke and a reconciled 310-episode BF16 evaluation; retire if the pinned runtime cannot support the model."
+
+[[gates]]
+id = "lfm25-24b-a2b-heldout62"
+work_package = ".posttrain/work_packages/lfm25_24b_moe_heldout62_eval.yaml"
+job_id = "evaluate"
+tier = "experimental"
+state = "candidate"
+job_kind = "eval.general"
+acceptance = "evaluation-summary"
+experiment_family = "lfm25-moe-heldout62"
+hypothesis = "LFM2.5-24B-A2B improves agentic capability under the frozen heldout62 budgets without unacceptable harm regressions."
+owner = "posttrain-evaluation"
+replacement_condition = "Promote after a native-tool smoke and a reconciled 310-episode BF16 evaluation; retire if the pinned runtime cannot support the model."
+
+
+[[gates]]
 id = "gemma4-unified-serving"
 work_package = ".posttrain/work_packages/gemma4_unified_serve_smoke_qualification.yaml"
 job_id = "smoke"
