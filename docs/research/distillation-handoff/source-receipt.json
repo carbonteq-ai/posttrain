@@ -1,16 +1,19 @@
 {
   "date": "2026-10-22",
-  "publication": "local commits only; no push or dependency repin",
+  "publication": "User-authorized GitHub branch publication on 2026-10-22; no package release or dependency repin",
   "benchmark": {
     "path": "/home/hammad/projects/automationbench",
     "commit": "b3d26ab9bbb6a1b54bb6724f56ca560265e64274",
-    "branch": "codex/fix-six-task-data"
+    "branch": "codex/fix-six-task-data",
+    "github_branch": "https://github.com/carbonteq-ai/AutomationBench/tree/codex/fix-six-task-data"
   },
   "environment": {
     "path": "/home/hammad/projects/worktrees/abv1-heldout62-scoring-fix",
     "commit": "c0f0baa3032b3787de674e9a20d68219fcca7eed",
-    "branch": "codex/distillation-handoff-env-20261022"
+    "branch": "codex/distillation-handoff-env-20261022",
+    "github_branch": "https://github.com/carbonteq-ai/verifiers-environments/tree/codex/distillation-handoff-env-20261022"
   },
   "main_branch": "codex/rft-warm-start",
-  "training_approved": false
+  "training_approved": false,
+  "main_github_branch": "https://github.com/carbonteq-ai/posttrain/tree/codex/rft-warm-start"
 }

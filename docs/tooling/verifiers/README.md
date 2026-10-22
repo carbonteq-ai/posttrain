@@ -3,7 +3,9 @@
 Research handoff snapshot (2026-10-22): the environment source repairs are locally
 committed as `c0f0baa` on `codex/distillation-handoff-env-20261022` in
 `/home/hammad/projects/worktrees/abv1-heldout62-scoring-fix`. The repair subset
-passed24 tests. The commit remains unpublished; no dependency pin was changed.
+passed24 tests. The source branch is now published at
+https://github.com/carbonteq-ai/verifiers-environments/tree/codex/distillation-handoff-env-20261022;
+no package release or dependency pin change was performed.
 Full provenance is in `docs/research/distillation-handoff/source-receipt.json`.
 Old result receipts retain their original environment hashes and missing scores.
 

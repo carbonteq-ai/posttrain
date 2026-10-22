@@ -4,6 +4,15 @@ Status: 2026-10-22. Start here; the chat is not required. This is private resear
 not a qualified training recipe. Source commits preserve the investigation;
 historical results retain their original source/runtime identities.
 
+Publication update (2026-10-22, subsequent user authorization): all three handoff
+branches are being published to GitHub. Start with the
+[main research branch](https://github.com/carbonteq-ai/posttrain/tree/codex/rft-warm-start),
+[benchmark repair branch](https://github.com/carbonteq-ai/AutomationBench/tree/codex/fix-six-task-data)
+and [environment repair branch](https://github.com/carbonteq-ai/verifiers-environments/tree/codex/distillation-handoff-env-20261022).
+Earlier local-only/no-push entries below and in historical plans describe the
+initial handoff snapshot; this update supersedes that publication restriction.
+Publishing source does not approve training, release a package or change pins.
+
 ## Objective and current answer
 
 We want Qwen3.5-4B to learn better tool decisions from its own trajectories. The
@@ -236,9 +245,9 @@ SHA256 `ed81cf1fe88f68bb8420bb46c5fdf3afde24660c7043812da680bb1c7bc9196f`.
 
 ## Ownership and safe next steps
 
-Local source-only fork commits are listed in `source-receipt.json`. Benchmark
+Source-only fork commits and GitHub branch links are listed in `source-receipt.json`. Benchmark
 fixtures must be committed before the matching vendored environment changes;
-consumer pins remain unchanged until fork publication/release qualification.
+consumer pins remain unchanged until release qualification.
 These commits do not retroactively change any historical result's environment.
 
 1. Restore evidence and inspect four current failure contexts plus native effects.
@@ -251,6 +260,9 @@ These commits do not retroactively change any historical result's environment.
    harms/preservation, errors, exclusions and paired uncertainty together.
 
 Transfer uses verified Git bundles outside this repository; their manifest records
-the exact main and fork commits. Nothing has been pushed or sent to the colleague.
-Source and evidence are portable; live GPU reproducibility still needs the private
+the exact main and fork commits. Ali Safdar received the initial handoff summary
+and local transfer details in Mattermost; the GitHub branches now provide remote
+source/evidence access under the subsequent user authorization.
+The initial bundles are an offline snapshot; GitHub branch tips include subsequent
+publication documentation. Source and evidence are portable; live GPU reproducibility still needs the private
 runtime access and qualification described above.

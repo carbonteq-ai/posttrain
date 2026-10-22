@@ -44,6 +44,14 @@ must remain explicit.
 
 ## Decision Log
 
+- Publication amendment (2026-10-22, subsequent direct user instruction): push
+  all three handoff branches and inform Ali Safdar in Mattermost through Chrome.
+  This supersedes the original local-only publication decision, while leaving
+  dependency pins, release qualification and the failed training gate unchanged.
+  Benchmark branch b3d26ab and environment branch c0f0baa were pushed first;
+  the main research branch follows with updated GitHub links/provenance. Initial
+  offline bundles retain their original checksums and are not silently replaced.
+
 - Decision: retain all currently untracked research evidence in verified,
   lossless archives, leaving local originals intact. Ignore only those exact
   archived raw directory paths, not future evidence by default. Rationale:

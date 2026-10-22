@@ -2,7 +2,8 @@
 
 Research handoff snapshot (2026-10-22): task fixture repairs are committed locally
 as `b3d26ab` on `codex/fix-six-task-data` in the sibling AutomationBench fork.
-The Jira fixture/fidelity subset passed65 tests. This source is unpublished;
+The Jira fixture/fidelity subset passed65 tests. This source branch is now published
+at https://github.com/carbonteq-ai/AutomationBench/tree/codex/fix-six-task-data;
 consumer pins remain unchanged. See
 `docs/research/distillation-handoff/source-receipt.json` for the full commit and
 handoff guide. Historical experiment capsule hashes remain authoritative.
