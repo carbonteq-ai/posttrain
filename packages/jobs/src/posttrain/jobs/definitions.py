@@ -339,14 +339,20 @@ def distillation_definition(
             _seat(seats, "student", ModelVariant),
             _seat(seats, "rollout_inference", InferenceBinding),
         )
+        teacher, teacher_inference = _materialize_selected_model(
+            context,
+            _seat(seats, "teacher", ModelVariant),
+            _seat(seats, "teacher_inference", InferenceBinding),
+            role="teacher",
+        )
         request = build_verifiers_distillation_request(
             student=student,
-            teacher=_seat(seats, "teacher", ModelVariant),
+            teacher=teacher,
             environment=_seat(seats, "environment", EnvironmentBinding),
             settings=_seat(seats, "settings", OnPolicyDistillationSettings),
             training=_seat(seats, "training", TrainingBinding),
             rollout_inference=rollout_inference,
-            teacher_inference=_seat(seats, "teacher_inference", InferenceBinding),
+            teacher_inference=teacher_inference,
             trace_path=context.workspace / "training" / "distill" / "verifiers-traces.jsonl",
             run_id=context.run_id,
             tasks=tasks,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -516,3 +517,37 @@ def test_work_package_exposes_published_artifacts_without_wrapping_value(
 
     assert result.jobs[0].value == "checked"
     assert result.jobs[0].published_artifacts == (published,)
+
+
+def test_artifact_inputs_name_each_model_seat_so_a_teacher_cannot_replace_the_student() -> None:
+    from posttrain.work.runner import _artifact_inputs
+
+    def adapter(name: str):
+        return replace(
+            QWEN_35_2B,
+            id=f"models/qwen3.5-2b-{name}@v0",
+            artifact=StoredArtifactRef("trackio", "ambient-agent", f"{name}-adapter", "v0"),
+            form="peft-adapter",
+            parent=QWEN_35_2B.id,
+        )
+
+    inputs = _artifact_inputs({"student": adapter("student"), "teacher": adapter("teacher"), "model": QWEN_35_2B})
+
+    assert {name: (item.reference.name, item.kind) for name, item in inputs.items()} == {
+        "model_adapter": ("student-adapter", "model-adapter"),
+        "teacher_adapter": ("teacher-adapter", "model-adapter"),
+    }
+
+
+def test_artifact_inputs_keep_the_model_names_for_a_single_policy_seat() -> None:
+    from posttrain.work.runner import _artifact_inputs
+
+    policy = replace(
+        QWEN_35_2B,
+        artifact=StoredArtifactRef("trackio", "ambient-agent", "policy-weights", "v1"),
+        form="full-finetuned",
+    )
+
+    inputs = _artifact_inputs({"model": policy})
+
+    assert {name: item.kind for name, item in inputs.items()} == {"model_weights": "model-weights"}
