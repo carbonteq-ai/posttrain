@@ -671,6 +671,32 @@ def _record(value: Any) -> Mapping[str, JsonValue]:
     raise TypeError(f"cannot project {type(value).__name__} into a policy message record")
 
 
+def _assistant_replay_key(message: Any) -> str:
+    """Identify one assistant action across its sampled and replayed wire shapes.
+
+    A replay may omit provider-specific reasoning and re-encode tool-call JSON with different
+    insignificant whitespace. Neither changes the action the environment executed.
+    """
+
+    record = dict(_record(message))
+    record.pop("reasoning_content", None)
+    record.pop("provider_state", None)
+    calls = record.get("tool_calls")
+    if isinstance(calls, list):
+        normalized_calls: list[JsonValue] = []
+        for value in calls:
+            call = dict(value) if isinstance(value, Mapping) else value
+            arguments = call.get("arguments") if isinstance(call, dict) else None
+            if isinstance(call, dict) and isinstance(arguments, str):
+                try:
+                    call["arguments"] = json.loads(arguments)
+                except json.JSONDecodeError:
+                    pass
+            normalized_calls.append(call)  # type: ignore[arg-type]
+        record["tool_calls"] = normalized_calls
+    return json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
 def _project_training_branch(trace: Any) -> Any:
     """Resolve Verifiers' sampled/raw plus canonical tool-turn graph into one trajectory.
 
@@ -698,21 +724,32 @@ def _project_training_branch(trace: Any) -> Any:
     expected_sampled_ids = {
         id(node) for branch in branches for node in branch.nodes if bool(getattr(node, "sampled", False))
     }
+    claimed_sampled_ids: set[int] = set()
     resolved_nodes: list[Any] = []
     for node in terminal[0].nodes:
         role = getattr(getattr(node, "message", None), "role", None)
         if role != "assistant" or bool(getattr(node, "sampled", False)):
+            if bool(getattr(node, "sampled", False)):
+                claimed_sampled_ids.add(id(node))
             resolved_nodes.append(node)
             continue
         position = node_positions[id(node)]
-        sampled_siblings = [
+        earlier_sampled = [
             candidate
             for candidate in trace.nodes[:position]
-            if candidate.parent == node.parent
-            and bool(getattr(candidate, "sampled", False))
+            if bool(getattr(candidate, "sampled", False))
             and id(candidate) in expected_sampled_ids
             and getattr(getattr(candidate, "message", None), "role", None) == "assistant"
         ]
+        sampled_siblings = [candidate for candidate in earlier_sampled if candidate.parent == node.parent]
+        if len(sampled_siblings) != 1:
+            # No unique sibling by parent: match the replayed turn to the sampled action it replays.
+            replay_key = _assistant_replay_key(node.message)
+            sampled_siblings = [
+                candidate
+                for candidate in (sampled_siblings or earlier_sampled)
+                if id(candidate) not in claimed_sampled_ids and _assistant_replay_key(candidate.message) == replay_key
+            ] or sampled_siblings
         if not sampled_siblings:
             resolved_nodes.append(node)
             continue
@@ -720,6 +757,7 @@ def _project_training_branch(trace: Any) -> Any:
             raise VerifiersRolloutFailure(
                 "online-RL cannot resolve an unsampled assistant turn with multiple sampled siblings"
             )
+        claimed_sampled_ids.add(id(sampled_siblings[0]))
         resolved_nodes.append(sampled_siblings[0])
 
     sampled_nodes = [node for node in resolved_nodes if bool(getattr(node, "sampled", False))]
