@@ -115,6 +115,12 @@ def _validate_definition() -> None:
         dockerfile.index("/sources/") < dockerfile.index("/datasets/"),
         "source code must precede datasets in the cache graph",
     )
+    resources_copy = "COPY --from=packaged-context /environment-resources/ environment-resources/"
+    _require(
+        resources_copy in dockerfile
+        and dockerfile.index(resources_copy) < dockerfile.index("posttrain-runtime qualify"),
+        "activation resources must be copied before offline qualification",
+    )
     for forbidden in ("--mount=type=secret", "--mount=type=ssh"):
         _require(
             forbidden not in dockerfile,
