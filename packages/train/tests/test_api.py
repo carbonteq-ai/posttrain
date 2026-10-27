@@ -78,6 +78,7 @@ from posttrain.train import (
 )
 from posttrain.train.backends.trl.common import BackendTrainingResult, callback_type, trainer_lifecycle
 from posttrain.train.backends.trl.distillation import (
+    _bounded_opd_rollout,
     _distillation_arguments,
 )
 from posttrain.train.backends.trl.distillation import (
@@ -2409,3 +2410,121 @@ def test_trl_sampo_rollout_accepts_an_oversampled_first_round_and_refill(monkeyp
     assert len(rollout([[{"role": "user", "content": "q"}]] * 16, trainer, inputs=refill)["rollout_reward"]) == 16
     with pytest.raises(ValueError, match="at most 40 rows"):
         rollout([[{"role": "user", "content": "q"}]] * 48, trainer, inputs=_rows("abcdef", 8))
+
+
+def _opd_rollout(
+    *,
+    prompt_length: int = 2,
+    mask: tuple[bool, ...],
+    turns: tuple[tuple[int, int], ...] = (),
+) -> EnvironmentRollout:
+    from posttrain.train.online_rl import AgenticTurn
+
+    return EnvironmentRollout(
+        example_id="gsm8k/train/0",
+        prompt_ids=tuple(range(1, prompt_length + 1)),
+        completion_ids=tuple(range(100, 100 + len(mask))),
+        sampling_logprobs=(-0.1,) * len(mask),
+        env_mask=mask,
+        reward=1.0,
+        is_truncated=False,
+        trace=TraceObservation("test", "trace-long", {"example_id": "gsm8k/train/0"}),
+        turns=tuple(AgenticTurn(start, end, f"state-{start}") for start, end in turns),
+    )
+
+
+def test_bounded_opd_rollout_keeps_a_rollout_that_fits() -> None:
+    rollout = _opd_rollout(mask=(True,) * 6)
+
+    assert _bounded_opd_rollout(rollout, completion_limit=6, sequence_limit=8) is rollout
+
+
+def test_bounded_opd_rollout_cuts_at_the_completion_limit_and_keeps_tokens_aligned() -> None:
+    rollout = _opd_rollout(mask=(True,) * 10, turns=((0, 4), (4, 10)))
+
+    bounded = _bounded_opd_rollout(rollout, completion_limit=6, sequence_limit=100)
+
+    assert bounded.completion_ids == rollout.completion_ids[:6]
+    assert len(bounded.sampling_logprobs) == len(bounded.env_mask) == 6
+    assert bounded.is_truncated
+    assert [(turn.completion_start, turn.completion_end) for turn in bounded.turns] == [(0, 4)]
+    assert bounded.trace.external_id == rollout.trace.external_id
+    assert bounded.trace.attributes["original_completion_token_count"] == 10
+    assert bounded.trace.attributes["completion_token_count"] == 6
+    assert bounded.trace.attributes["is_truncated"] is True
+
+
+def test_bounded_opd_rollout_never_ends_inside_environment_text() -> None:
+    # Two sampled turns around four tool-output tokens; the limit lands inside the tool output.
+    mask = (True, True, True, False, False, False, False, True, True, True)
+    rollout = _opd_rollout(mask=mask, turns=((0, 3), (7, 10)))
+
+    bounded = _bounded_opd_rollout(rollout, completion_limit=6, sequence_limit=100)
+
+    assert bounded.env_mask == (True, True, True)
+    assert bounded.completion_ids == rollout.completion_ids[:3]
+    assert [(turn.completion_start, turn.completion_end) for turn in bounded.turns] == [(0, 3)]
+    assert bounded.trace.attributes["completion_token_count"] == 3
+
+
+def test_bounded_opd_rollout_respects_the_total_sequence_limit() -> None:
+    rollout = _opd_rollout(prompt_length=4, mask=(True,) * 10)
+
+    bounded = _bounded_opd_rollout(rollout, completion_limit=100, sequence_limit=8)
+
+    assert len(bounded.completion_ids) == 4  # 8 total tokens minus the 4-token prompt
+
+
+def test_bounded_opd_rollout_rejects_a_prompt_that_leaves_no_completion_room() -> None:
+    with pytest.raises(ValueError, match="no completion capacity"):
+        _bounded_opd_rollout(_opd_rollout(prompt_length=8, mask=(True,) * 3), completion_limit=4, sequence_limit=8)
+
+
+def test_bounded_opd_rollout_rejects_a_cut_with_no_model_sampled_token() -> None:
+    rollout = _opd_rollout(mask=(False, False, False, False, True, True))
+
+    with pytest.raises(ValueError, match="retains no model-sampled tokens"):
+        _bounded_opd_rollout(rollout, completion_limit=3, sequence_limit=100)
+
+
+def test_distillation_hands_trl_only_the_bounded_rollout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import sys
+
+    from posttrain.train.distillation import DistillationBatchLedger
+
+    monkeypatch.setitem(
+        sys.modules,
+        "posttrain.train.backends.trl.online_rl",
+        SimpleNamespace(TrlPolicyGenerator=lambda *args, **kwargs: object()),
+    )
+    request = _distillation_request()
+    assert request.settings.max_completion_length == 384
+    mask = (True,) * 300 + (False,) * 100 + (True,) * 100  # a 500-token trajectory with a tool-output span
+
+    @dataclass
+    class LongRolloutBridge(FakeRLBridge):
+        async def run(self, batch, generator) -> tuple[EnvironmentRollout, ...]:
+            del generator
+            return tuple(
+                replace(
+                    _opd_rollout(mask=mask), example_id=example_id, trace=TraceObservation("test", f"trace-{n}", {})
+                )
+                for n, example_id in enumerate(batch.example_ids)
+            )
+
+    run_rollouts = _distillation_rollout_function(
+        _context(tmp_path, Observer()),
+        replace(request, bridge=LongRolloutBridge()),
+        tokenizer=None,
+        ledger=DistillationBatchLedger("revision"),
+    )
+
+    result = run_rollouts(
+        ["prompt"],
+        SimpleNamespace(state=SimpleNamespace(global_step=0)),
+        inputs=[{"example_id": "gsm8k/train/0"}],
+    )
+
+    assert len(result["completion_ids"][0]) == 300  # the 384-token cut falls in the tool output, so it backs up
+    assert len(result["completion_loss_mask"][0]) == len(result["logprobs"][0]) == 300
+    assert all(result["completion_loss_mask"][0])
