@@ -27,6 +27,8 @@ from .common import (
     emit_runtime_versions,
     finish_training,
     framework_imports,
+    load_peft_adapter,
+    load_pretrained_base,
     load_tokenizer,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
@@ -156,11 +158,7 @@ def run_distillation(
                 model=model,
                 teacher_model=cast(
                     Any,
-                    (
-                        None
-                        if teacher_product == "vllm"
-                        else _colocated_teacher_model(request, imports, model_dtype=model_dtype)
-                    ),
+                    (None if teacher_product == "vllm" else _colocated_teacher_model(request, imports)),
                 ),
                 args=IWOPDConfig(**arguments),
                 train_dataset=dataset,
@@ -218,33 +216,17 @@ def _teacher_hub_ref(request: OnPolicyDistillationRequest) -> HubModelRef:
     raise ValueError("TRL distillation requires a Hugging Face teacher or a materialized PEFT adapter teacher")
 
 
-def _colocated_teacher_model(
-    request: OnPolicyDistillationRequest,
-    imports: dict[str, Any],
-    *,
-    model_dtype: str,
-) -> Any:
+def _colocated_teacher_model(request: OnPolicyDistillationRequest, imports: dict[str, Any]) -> Any:
     """The teacher TRL scores with in-process: a repo id, or its pinned base with the adapter applied."""
 
-    base = _teacher_hub_ref(request)
-    artifact = request.teacher.artifact
-    if isinstance(artifact, HubModelRef):
-        return artifact.repo_id
-    assert isinstance(artifact, LocalArtifactRef)
-    if not artifact.path.is_dir():
-        raise FileNotFoundError(artifact.path)
-    torch = imports["torch"]
-    if model_dtype not in {"bfloat16", "float16", "float32"}:
+    if isinstance(request.teacher.artifact, HubModelRef):
+        return request.teacher.artifact.repo_id
+    # The same precision a Hub teacher gets from teacher_model_init_kwargs in _distillation_arguments.
+    teacher_dtype = request.teacher_inference.engine.get("dtype", "bfloat16")
+    if teacher_dtype not in {"bfloat16", "float16", "float32"}:
         raise ValueError("TRL teacher dtype must be 'bfloat16', 'float16' or 'float32'")
-    model = imports["AutoModelForCausalLM"].from_pretrained(
-        base.repo_id,
-        revision=base.revision,
-        device_map={"": 0},
-        dtype=getattr(torch, model_dtype),
-        attn_implementation="sdpa",
-        trust_remote_code=request.teacher.provenance.get("trust_remote_code") is True,
-    )
-    teacher = imports["PeftModel"].from_pretrained(model, artifact.path, is_trainable=False)
+    base = load_pretrained_base(request.teacher, imports, dtype=getattr(imports["torch"], teacher_dtype))
+    teacher = load_peft_adapter(base, request.teacher, imports, trainable=False)
     teacher.eval()
     return teacher
 

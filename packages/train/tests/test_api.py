@@ -2473,7 +2473,7 @@ def test_distillation_scores_with_the_pinned_base_and_the_materialized_teacher_a
     request = _adapter_teacher_request(tmp_path)
     adapter_path = request.teacher.artifact.path  # type: ignore[union-attr]
 
-    teacher = _colocated_teacher_model(request, _fake_framework_imports(), model_dtype="bfloat16")
+    teacher = _colocated_teacher_model(request, _fake_framework_imports())
 
     assert _FakeAutoModel.calls == [
         {
@@ -2495,10 +2495,28 @@ def test_distillation_scores_with_a_hub_teacher_by_repo_id() -> None:
     request = _distillation_request()
     assert isinstance(request.teacher.artifact, HubModelRef)
 
-    teacher = _colocated_teacher_model(request, _fake_framework_imports(), model_dtype="bfloat16")
+    teacher = _colocated_teacher_model(request, _fake_framework_imports())
 
     assert teacher == request.teacher.artifact.repo_id
     assert _FakeAutoModel.calls == [] and _FakePeftModel.calls == []
+
+
+def test_a_teacher_adapter_loads_at_the_teacher_score_dtype_not_the_students(tmp_path: Path) -> None:
+    from posttrain.train.backends.trl.distillation import _colocated_teacher_model
+
+    request = _adapter_teacher_request(tmp_path)
+    teacher_inference = request.teacher_inference
+    request = replace(
+        request,
+        teacher_inference=replace(teacher_inference, engine={**teacher_inference.engine, "dtype": "float32"}),
+        training=replace(
+            request.training, backend_options={**request.training.backend_options, "model_dtype": "bfloat16"}
+        ),
+    )
+
+    _colocated_teacher_model(request, _fake_framework_imports())
+
+    assert [call["dtype"] for call in _FakeAutoModel.calls] == ["fp32"]
 
 
 def test_distillation_rejects_a_teacher_adapter_that_is_not_on_disk(tmp_path: Path) -> None:
@@ -2508,7 +2526,7 @@ def test_distillation_rejects_a_teacher_adapter_that_is_not_on_disk(tmp_path: Pa
     request.teacher.artifact.path.rmdir()  # type: ignore[union-attr]
 
     with pytest.raises(FileNotFoundError, match="teacher-adapter"):
-        _colocated_teacher_model(request, _fake_framework_imports(), model_dtype="bfloat16")
+        _colocated_teacher_model(request, _fake_framework_imports())
 
 
 def test_distillation_rejects_materialized_teacher_weights(tmp_path: Path) -> None:
