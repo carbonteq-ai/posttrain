@@ -697,6 +697,22 @@ def _assistant_replay_key(message: Any) -> str:
     return json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+def _replayed_action_matches(
+    node: Any, sampled_siblings: list[Any], earlier_sampled: list[Any], claimed_ids: set[int]
+) -> list[Any]:
+    """Unclaimed sampled turns that replay the same action as ``node``.
+
+    Searches the parent's sampled siblings when there are several, otherwise every earlier sampled turn.
+    """
+
+    replay_key = _assistant_replay_key(node.message)
+    return [
+        candidate
+        for candidate in (sampled_siblings or earlier_sampled)
+        if id(candidate) not in claimed_ids and _assistant_replay_key(candidate.message) == replay_key
+    ]
+
+
 def _project_training_branch(trace: Any) -> Any:
     """Resolve Verifiers' sampled/raw plus canonical tool-turn graph into one trajectory.
 
@@ -743,13 +759,10 @@ def _project_training_branch(trace: Any) -> Any:
         ]
         sampled_siblings = [candidate for candidate in earlier_sampled if candidate.parent == node.parent]
         if len(sampled_siblings) != 1:
-            # No unique sibling by parent: match the replayed turn to the sampled action it replays.
-            replay_key = _assistant_replay_key(node.message)
-            sampled_siblings = [
-                candidate
-                for candidate in (sampled_siblings or earlier_sampled)
-                if id(candidate) not in claimed_sampled_ids and _assistant_replay_key(candidate.message) == replay_key
-            ] or sampled_siblings
+            sampled_siblings = (
+                _replayed_action_matches(node, sampled_siblings, earlier_sampled, claimed_sampled_ids)
+                or sampled_siblings
+            )
         if not sampled_siblings:
             resolved_nodes.append(node)
             continue
