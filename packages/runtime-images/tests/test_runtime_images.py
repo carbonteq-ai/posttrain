@@ -72,6 +72,14 @@ def test_actual_job_verifies_source_before_package_build_backends_run() -> None:
     assert copied < verified < installed
 
 
+def test_actual_job_copies_activation_resources_before_offline_qualification() -> None:
+    with definition_root() as root:
+        dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
+    copied = dockerfile.index("COPY --from=packaged-context /environment-resources/ environment-resources/")
+    qualified = dockerfile.index("posttrain-runtime qualify")
+    assert copied < qualified
+
+
 def test_actual_job_can_apply_only_a_digest_bound_backend_development_source() -> None:
     with definition_root() as root:
         dockerfile = (root / "containers/posttrain-job/Dockerfile").read_text()
