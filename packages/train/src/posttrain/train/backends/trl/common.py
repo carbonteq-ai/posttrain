@@ -313,21 +313,17 @@ def load_trainable_model(
         # Loss scaling steps float32 master weights; only PEFT LoRA adapters are
         # float32 over a float16 base.
         raise ValueError("float16 training requires a LoRA update")
-    load_options: dict[str, Any] = {
-        "revision": model.base.revision,
-        "device_map": {"": 0},
-        "dtype": dtype,
-        "attn_implementation": "sdpa",
-        "trust_remote_code": model.provenance.get("trust_remote_code") is True,
-    }
-    if isinstance(update, QLoRAUpdate):
-        load_options["quantization_config"] = imports["BitsAndBytesConfig"](
+    quantization_config = (
+        imports["BitsAndBytesConfig"](
             load_in_4bit=True,
             bnb_4bit_quant_type=update.quant_type,
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=update.double_quant,
         )
-    base = trainable_model_factory(model, imports).from_pretrained(model.base.repo_id, **load_options)
+        if isinstance(update, QLoRAUpdate)
+        else None
+    )
+    base = load_pretrained_base(model, imports, dtype=dtype, quantization_config=quantization_config)
     base.config.use_cache = False
     if isinstance(update, QLoRAUpdate):
         base = imports["prepare_model_for_kbit_training"](
@@ -352,11 +348,36 @@ def load_trainable_model(
         raise ValueError("training currently accepts foundation or PEFT-adapter variants")
     if update.kind == "full":
         raise ValueError("full-parameter updates cannot resume from a PEFT-adapter variant")
+    return load_peft_adapter(base, model, imports, trainable=True)
+
+
+def load_pretrained_base(
+    model: ModelVariant,
+    imports: dict[str, Any],
+    *,
+    dtype: Any,
+    quantization_config: Any = None,
+) -> Any:
+    """Load a variant's pinned base model on the first GPU."""
+    load_options: dict[str, Any] = {
+        "revision": model.base.revision,
+        "device_map": {"": 0},
+        "dtype": dtype,
+        "attn_implementation": "sdpa",
+        "trust_remote_code": model.provenance.get("trust_remote_code") is True,
+    }
+    if quantization_config is not None:
+        load_options["quantization_config"] = quantization_config
+    return trainable_model_factory(model, imports).from_pretrained(model.base.repo_id, **load_options)
+
+
+def load_peft_adapter(base: Any, model: ModelVariant, imports: dict[str, Any], *, trainable: bool) -> Any:
+    """Apply a variant's materialized PEFT adapter to its loaded base."""
     if not isinstance(model.artifact, LocalArtifactRef):
         raise ValueError("the host must materialize a remote adapter artifact before training")
     if not model.artifact.path.is_dir():
         raise FileNotFoundError(model.artifact.path)
-    return imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=True)
+    return imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=trainable)
 
 
 def emit_parameter_counts(context: RunContext, model: Any, update: ParameterUpdatePlan) -> None:
