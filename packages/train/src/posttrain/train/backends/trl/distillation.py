@@ -530,11 +530,12 @@ def _bounded_opd_rollout(
         raise ValueError("bounded OPD rollout retains no model-sampled tokens")
 
     trace = rollout.trace
+    retained_mask = rollout.env_mask[:retained_length]
     return replace(
         rollout,
         completion_ids=rollout.completion_ids[:retained_length],
         sampling_logprobs=rollout.sampling_logprobs[:retained_length],
-        env_mask=rollout.env_mask[:retained_length],
+        env_mask=retained_mask,
         is_truncated=True,
         trace=TraceObservation(
             trace_type=trace.trace_type,
@@ -545,6 +546,7 @@ def _bounded_opd_rollout(
                 "is_truncated": True,
                 "original_completion_token_count": original_length,
                 "completion_token_count": retained_length,
+                "selected_token_count": sum(retained_mask),
             },
             facts=trace.facts,
         ),

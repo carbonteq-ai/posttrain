@@ -2467,6 +2467,25 @@ def test_bounded_opd_rollout_never_ends_inside_environment_text() -> None:
     assert bounded.trace.attributes["completion_token_count"] == 3
 
 
+def test_bounded_opd_rollout_recounts_the_selected_tokens_it_keeps() -> None:
+    # The bridge records the selected-token count on the trace; a cut must not leave the pre-cut count.
+    mask = (True, True, True, False, False, False, False, True, True, True)
+    rollout = replace(
+        _opd_rollout(mask=mask, turns=((0, 3), (7, 10))),
+        trace=TraceObservation(
+            "test",
+            "trace-long",
+            {"example_id": "gsm8k/train/0"},
+            attributes={"completion_token_count": 10, "selected_token_count": 6},
+        ),
+    )
+
+    bounded = _bounded_opd_rollout(rollout, completion_limit=9, sequence_limit=100)
+
+    assert bounded.trace.attributes["completion_token_count"] == 9
+    assert bounded.trace.attributes["selected_token_count"] == 5
+
+
 def test_bounded_opd_rollout_respects_the_total_sequence_limit() -> None:
     rollout = _opd_rollout(prompt_length=4, mask=(True,) * 10)
 
