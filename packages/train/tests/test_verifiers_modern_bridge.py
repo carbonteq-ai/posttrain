@@ -845,32 +845,38 @@ def _trace(vf, nodes):
 
 def test_training_branch_resolves_replayed_turn_to_its_sampled_action_when_parents_differ() -> None:
     vf = pytest.importorskip("verifiers.v1")
-    # The sampled response hangs off the original context; the canonical chain was rebuilt from
-    # messages, so the replayed turn has different parent nodes. The replay drops reasoning and
-    # re-encodes the tool-call JSON, but it is the same action the sampled response issued.
+    # The shape of a failed Qwen3.5 OPD rollout. The client replayed the first call with its JSON
+    # re-encoded, so the canonical chain forks beside it and repeats the tool result. The second
+    # sampled call hangs off the original tool result, while its replay (reasoning dropped, JSON
+    # re-encoded) hangs off the repeated one, so the two never share a parent.
+    first_call = '{"query":"SELECT 1"}'
+    second_call = '{"query":"SELECT 2"}'
     trace = _trace(
         vf,
         [
             vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
             vf.MessageNode(parent=0, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
-            _sampled_node(vf, 1, _tool_call_turn(vf, arguments='{"a": 1, "b": 2}', reasoning="think"), [3, 4]),
-            vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
-            vf.MessageNode(parent=3, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
-            _replayed_node(vf, 4, _tool_call_turn(vf, arguments='{"a":1,"b":2}'), [30, 40]),
+            _sampled_node(vf, 1, _tool_call_turn(vf, arguments=first_call), [3, 4]),
             vf.MessageNode(
-                parent=5,
-                message=vf.ToolMessage(tool_call_id="call", content="result"),
-                token_ids=[5],
-                mask=[False],
+                parent=2, message=vf.ToolMessage(tool_call_id="call", content="[]"), token_ids=[5], mask=[False]
             ),
-            _sampled_node(vf, 6, vf.AssistantMessage(content="done"), [6]),
+            _sampled_node(vf, 3, _tool_call_turn(vf, arguments=second_call, reasoning="no rows"), [6, 7]),
+            _replayed_node(vf, 1, _tool_call_turn(vf, arguments='{"query": "SELECT 1"}'), [30, 40]),
+            vf.MessageNode(
+                parent=5, message=vf.ToolMessage(tool_call_id="call", content="[]"), token_ids=[50], mask=[False]
+            ),
+            _replayed_node(vf, 6, _tool_call_turn(vf, arguments='{"query": "SELECT 2"}'), [60, 70]),
+            vf.MessageNode(
+                parent=7, message=vf.ToolMessage(tool_call_id="call", content="rows"), token_ids=[8], mask=[False]
+            ),
+            _sampled_node(vf, 8, vf.AssistantMessage(content="done"), [9]),
         ],
     )
 
     branch = _project_training_branch(trace)
 
-    assert branch.token_ids == [1, 2, 3, 4, 5, 6]
-    assert branch.sampled_mask == [False, False, True, True, False, True]
+    assert branch.token_ids == [1, 2, 3, 4, 50, 6, 7, 8, 9]
+    assert branch.sampled_mask == [False, False, True, True, False, True, True, False, True]
 
 
 def test_training_branch_claims_each_sampled_action_once_when_the_agent_repeats_it() -> None:
