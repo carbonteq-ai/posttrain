@@ -1,8 +1,9 @@
 """Tests for standard definitions and default runtime composition."""
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 from posttrain.catalog import open_catalog
@@ -62,6 +63,7 @@ from posttrain.jobs.definitions import (
 from posttrain.train import (
     DynamicGroupSampling,
     GRPOSettings,
+    OnPolicyDistillationSettings,
     SAMPOSettings,
     SFTRequest,
     SFTSettings,
@@ -1111,3 +1113,111 @@ def test_static_preparation_checks_sampo_oversampling_capacity_on_verl() -> None
     validator(on_verl())  # type: ignore[arg-type]
     with pytest.raises(ContractError, match="oversample 1 needs 12 concurrent episodes"):
         validator(on_verl(max_num_seqs=8))  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True)
+class _CapturedDistillation:
+    student: ModelVariant
+    teacher: ModelVariant
+    rollout_inference: InferenceBinding
+    teacher_inference: InferenceBinding
+    resume_from: LocalArtifactRef | None = None
+
+
+def _run_distillation_definition(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    student: ModelVariant,
+    teacher: ModelVariant,
+    inference: InferenceBinding,
+    input_artifacts: dict[str, LocalArtifactRef],
+) -> _CapturedDistillation:
+    monkeypatch.setattr(
+        "posttrain.jobs.definitions.build_verifiers_distillation_request",
+        lambda **kwargs: _CapturedDistillation(
+            **{name: kwargs[name] for name in ("student", "teacher", "rollout_inference", "teacher_inference")}
+        ),
+    )
+    context = RunContext(
+        project_id="jobs-test",
+        work_package_id="train/distill-materialize",
+        run_id="run-distill",
+        job_kind="train.distill",
+        job_definition_version="train/trl-distill@1",
+        workspace=(tmp_path / "workspace").resolve(),
+        observer=NullObserver(),
+        input_artifacts=input_artifacts,
+    )
+    seats = {
+        "student": student,
+        "teacher": teacher,
+        "rollout_inference": inference,
+        "teacher_inference": inference,
+        "environment": MagicMock(spec=EnvironmentBinding),
+        "settings": MagicMock(spec=OnPolicyDistillationSettings),
+        "training": MagicMock(spec=TrainingBinding),
+    }
+    captured = distillation_definition(lambda _context, request: request).operation(context, seats)
+    assert isinstance(captured, _CapturedDistillation)
+    return captured
+
+
+def test_distillation_materializes_each_models_own_stored_adapter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    catalog = open_catalog(scope="jobs-test")
+    foundation = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    inference = cast(InferenceBinding, _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1"))
+    student = replace(
+        foundation,
+        id="models/qwen3.5-2b-student@v0",
+        artifact=StoredArtifactRef("trackio", "ambient-agent", "student-adapter", "v0"),
+        form="peft-adapter",
+        parent=foundation.id,
+    )
+    teacher = replace(
+        foundation,
+        id="models/qwen3.5-2b-teacher@v0",
+        artifact=StoredArtifactRef("trackio", "ambient-agent", "teacher-adapter", "v0"),
+        form="peft-adapter",
+        parent=foundation.id,
+    )
+    student_adapter = LocalArtifactRef((tmp_path / "student-adapter").resolve(), "a" * 64)
+    teacher_adapter = LocalArtifactRef((tmp_path / "teacher-adapter").resolve(), "b" * 64)
+
+    request = _run_distillation_definition(
+        monkeypatch,
+        tmp_path,
+        student=student,
+        teacher=teacher,
+        inference=inference,
+        input_artifacts={"model_adapter": student_adapter, "teacher_adapter": teacher_adapter},
+    )
+
+    assert request.student.artifact is student_adapter
+    assert request.teacher.artifact is teacher_adapter
+    assert request.teacher.form == "adapter"
+    assert request.rollout_inference.model is request.student
+    assert request.teacher_inference.model is request.teacher
+
+
+def test_distillation_keeps_a_teacher_without_a_materialized_artifact(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    catalog = open_catalog(scope="jobs-test")
+    foundation = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    inference = cast(InferenceBinding, _selection(catalog, "inference", "inference/qwen3.5-2b-vllm-eval@1"))
+    student_adapter = LocalArtifactRef((tmp_path / "student-adapter").resolve(), "a" * 64)
+
+    request = _run_distillation_definition(
+        monkeypatch,
+        tmp_path,
+        student=foundation,
+        teacher=foundation,
+        inference=inference,
+        input_artifacts={"model_adapter": student_adapter},
+    )
+
+    assert request.teacher is foundation
+    assert request.teacher_inference.model is foundation
