@@ -9,6 +9,7 @@ import sys
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -17,7 +18,7 @@ import httpx
 from posttrain.common import HubModelRef, JsonValue, LocalArtifactRef, RunContext, TraceObservation
 
 from ...distillation import DistillationBatch, DistillationBatchLedger
-from ...online_rl import RolloutBatch, policy_sampling_from_binding
+from ...online_rl import EnvironmentRollout, RolloutBatch, policy_sampling_from_binding
 from ...requests import OnPolicyDistillationRequest
 from .common import (
     BackendTrainingResult,
@@ -430,6 +431,14 @@ def _rollout_function(
             )
         if len(rollouts) != len(inputs):
             raise ValueError("environment rollout count does not match the distillation trainer batch")
+        rollouts = tuple(
+            _bounded_opd_rollout(
+                rollout,
+                completion_limit=request.settings.max_completion_length,
+                sequence_limit=request.settings.loop.max_length,
+            )
+            for rollout in rollouts
+        )
         trace_ids = tuple(rollout.trace.external_id for rollout in rollouts)
         digest = hashlib.sha256()
         digest.update(ledger.policy_revision.encode())
@@ -492,6 +501,58 @@ def _rollout_function(
         }
 
     return run_rollouts
+
+
+def _bounded_opd_rollout(
+    rollout: EnvironmentRollout,
+    *,
+    completion_limit: int,
+    sequence_limit: int,
+) -> EnvironmentRollout:
+    """Bound an external trajectory to the trainer's lengths while keeping its tokens aligned.
+
+    A multi-turn trajectory includes environment tokens (tool output) between sampled turns and can
+    outgrow the completion or total sequence budget. Keep the longest prefix that ends on a
+    model-sampled token so the scored span never ends inside environment text.
+    """
+
+    capacity = min(completion_limit, sequence_limit - len(rollout.prompt_ids))
+    if capacity < 1:
+        raise ValueError("OPD rollout prompt leaves no completion capacity")
+    original_length = len(rollout.completion_ids)
+    if original_length <= capacity:
+        return rollout
+
+    retained_length = capacity
+    while retained_length > 0 and not rollout.env_mask[retained_length - 1]:
+        retained_length -= 1
+    if retained_length < 1:
+        raise ValueError("bounded OPD rollout retains no model-sampled tokens")
+
+    trace = rollout.trace
+    retained_mask = rollout.env_mask[:retained_length]
+    return replace(
+        rollout,
+        completion_ids=rollout.completion_ids[:retained_length],
+        sampling_logprobs=rollout.sampling_logprobs[:retained_length],
+        env_mask=retained_mask,
+        is_truncated=True,
+        trace=TraceObservation(
+            trace_type=trace.trace_type,
+            external_id=trace.external_id,
+            payload=trace.payload,
+            attributes={
+                **trace.attributes,
+                "is_truncated": True,
+                "original_completion_token_count": original_length,
+                "completion_token_count": retained_length,
+                "selected_token_count": sum(retained_mask),
+            },
+            facts=trace.facts,
+        ),
+        turns=tuple(turn for turn in rollout.turns if turn.completion_end <= retained_length),
+        reward_evidence=None,
+    )
 
 
 class _ObservedTeacherClient:
