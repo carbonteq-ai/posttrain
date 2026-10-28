@@ -56,6 +56,11 @@ def run_distillation(
     model_dtype = request.training.backend_options.get("model_dtype", "bfloat16")
     if not isinstance(model_dtype, str):
         raise ValueError("TRL distillation model_dtype must be a string")
+    logits_chunk_size = request.training.backend_options.get("logits_chunk_size")
+    if logits_chunk_size is not None and (
+        isinstance(logits_chunk_size, bool) or not isinstance(logits_chunk_size, int) or logits_chunk_size < 1
+    ):
+        raise ValueError("TRL distillation logits_chunk_size must be a positive integer")
 
     try:
         from trl.experimental.iw_opd import (  # pyright: ignore[reportMissingImports]
@@ -115,6 +120,29 @@ def run_distillation(
                             "train/distill/teacher_latency_ms",
                             (time.perf_counter() - started_at) * 1_000,
                         )
+
+            def compute_loss(
+                self,
+                model: Any,
+                inputs: dict[str, Any],
+                return_outputs: bool = False,
+                num_items_in_batch: Any = None,
+            ) -> Any:
+                if logits_chunk_size is None or not _scores_local_iw_opd(self):
+                    return super().compute_loss(
+                        model,
+                        inputs,
+                        return_outputs=return_outputs,
+                        num_items_in_batch=num_items_in_batch,
+                    )
+                return _compute_local_iw_opd_loss_chunked(
+                    self,
+                    model,
+                    inputs,
+                    chunk_rows=logits_chunk_size,
+                    return_outputs=return_outputs,
+                    num_items_in_batch=num_items_in_batch,
+                )
 
             def training_step(self, *args: Any, **kwargs: Any) -> Any:
                 loss = super().training_step(*args, **kwargs)
@@ -357,6 +385,155 @@ def _patch_local_teacher_divergence_numerics(trainer_type: Any) -> None:
 
     trainer_type._compute_local_sparse_top_1_divergence_loss = _compute_local_sparse_top_1_divergence_loss
     trainer_type._posttrain_local_teacher_patch = True
+
+
+def _scores_local_iw_opd(trainer: Any) -> bool:
+    """Whether the trainer computes the IW-OPD loss against a local teacher without Liger."""
+    return not trainer.use_teacher_server and trainer.distillation_objective == "iw_opd" and not trainer.use_liger_loss
+
+
+def _decoder(model: Any) -> Any:
+    if hasattr(model, "get_decoder") and model.get_decoder() is not None:
+        return model.get_decoder()
+    return getattr(model, getattr(model, "base_model_prefix", "model"), model)
+
+
+def _compute_iw_opd_from_actual_logprobs(
+    trainer: Any,
+    student_actual_logprobs: Any,
+    teacher_actual_logprobs: Any,
+    labels: Any,
+    rollout_logprobs: Any,
+    num_items_in_batch: Any,
+) -> Any:
+    """IWOPDTrainer._compute_iw_opd_loss, from sampled-token scores instead of full-vocabulary logits."""
+    import torch
+
+    valid_mask = labels != -100
+    # selected_token_logprobs already rejects non-finite student and teacher logits.
+    if rollout_logprobs is not None:
+        unusable = valid_mask & ~torch.isfinite(rollout_logprobs)
+        if unusable.any():
+            raise ValueError(
+                "Rollout logprobs are non-finite or missing for required IW-OPD positions: "
+                f"{int(unusable.sum().item())}/{int(valid_mask.sum().item())}."
+            )
+
+    safe_teacher_logprobs = torch.where(valid_mask, teacher_actual_logprobs, 0.0)
+    if rollout_logprobs is None:
+        rollout_logprobs = student_actual_logprobs
+    safe_rollout_logprobs = torch.where(valid_mask, rollout_logprobs, 0.0)
+    advantages = (safe_teacher_logprobs - safe_rollout_logprobs).detach()
+    advantages = torch.where(valid_mask, advantages, torch.zeros_like(advantages))
+
+    absolute_advantages = advantages.abs()
+    prefix_absolute_advantages = absolute_advantages.cumsum(dim=1) - absolute_advantages
+    total_absolute_advantages = absolute_advantages.sum(dim=1, keepdim=True).clamp_min(trainer.iw_opd_epsilon)
+    weights = (1.0 + trainer.iw_opd_gamma * (1.0 - prefix_absolute_advantages / total_absolute_advantages)).detach()
+    weighted_advantages = weights * advantages
+
+    loss = -student_actual_logprobs * weighted_advantages
+    loss = torch.where(valid_mask, loss, torch.zeros_like(loss))
+
+    with torch.no_grad():
+        mode = "train" if trainer.model.training else "eval"
+        if valid_mask.any():
+            valid_advantages = weighted_advantages[valid_mask]
+            valid_absolute_advantages = absolute_advantages[valid_mask]
+            valid_weights = weights[valid_mask]
+            trainer._metrics[mode]["iw_opd/mean_advantage"].append(valid_advantages.mean().item())
+            trainer._metrics[mode]["iw_opd/mean_abs_advantage"].append(valid_absolute_advantages.mean().item())
+            trainer._metrics[mode]["iw_opd/mean_weight"].append(valid_weights.mean().item())
+            trainer._metrics[mode]["iw_opd/min_weight"].append(valid_weights.min().item())
+            trainer._metrics[mode]["iw_opd/max_weight"].append(valid_weights.max().item())
+
+    if num_items_in_batch is not None:
+        loss_sum = loss.sum()
+        if isinstance(num_items_in_batch, torch.Tensor):
+            num_items_in_batch = num_items_in_batch.to(loss_sum.device)
+        return loss_sum / num_items_in_batch
+    return loss.sum() / valid_mask.sum().clamp_min(1)
+
+
+def _compute_local_iw_opd_loss_chunked(
+    trainer: Any,
+    model: Any,
+    inputs: dict[str, Any],
+    *,
+    chunk_rows: int,
+    return_outputs: bool,
+    num_items_in_batch: Any,
+) -> Any:
+    """Score only sampled tokens, without materializing full-vocabulary log-softmax tensors."""
+    import torch
+
+    from ..policy_update_logprobs import output_head, selected_token_logprobs
+
+    trainer._raise_if_local_teacher_tokenizer_mismatch()
+    # The post-generation count stamped by TRL's _fill_buffer wins, as in IWOPDTrainer.compute_loss: the
+    # Trainer-level value was counted before on-policy generation filled the completion labels.
+    num_items_in_batch = inputs.get("num_items_in_batch", num_items_in_batch)
+    student = trainer.accelerator.unwrap_model(model)
+    student_outputs = _decoder(student)(
+        input_ids=inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        use_cache=False,
+    )
+
+    teacher = trainer.accelerator.unwrap_model(trainer.teacher_model)
+    teacher.eval()
+    with torch.no_grad():
+        teacher_outputs = _decoder(teacher)(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            use_cache=False,
+        )
+
+    prompt_length = trainer._compute_prompt_length(inputs)
+    labels = inputs["labels"][:, prompt_length:]
+    completion_tokens = inputs["input_ids"][:, prompt_length:]
+    rollout_logprobs = inputs.get("rollout_logprobs")
+    if rollout_logprobs is not None:
+        rollout_logprobs = rollout_logprobs[:, prompt_length:]
+
+    student_hidden = student_outputs.last_hidden_state[:, prompt_length - 1 : -1, :]
+    teacher_hidden = teacher_outputs.last_hidden_state[:, prompt_length - 1 : -1, :]
+    shape = completion_tokens.shape
+    targets = completion_tokens.reshape(-1)
+
+    student_weight, student_bias, student_softcap = output_head(student)
+    student_actual_logprobs, _ = selected_token_logprobs(
+        student_hidden.reshape(-1, student_hidden.shape[-1]),
+        student_weight,
+        student_bias,
+        targets,
+        temperature=trainer.temperature,
+        softcap=student_softcap,
+        chunk_rows=chunk_rows,
+        with_entropy=False,
+    )
+    with torch.no_grad():
+        teacher_weight, teacher_bias, teacher_softcap = output_head(teacher)
+        teacher_actual_logprobs, _ = selected_token_logprobs(
+            teacher_hidden.reshape(-1, teacher_hidden.shape[-1]),
+            teacher_weight,
+            teacher_bias,
+            targets,
+            temperature=trainer.temperature,
+            softcap=teacher_softcap,
+            chunk_rows=chunk_rows,
+            with_entropy=False,
+        )
+
+    loss = _compute_iw_opd_from_actual_logprobs(
+        trainer,
+        student_actual_logprobs.reshape(shape),
+        teacher_actual_logprobs.reshape(shape),
+        labels,
+        rollout_logprobs,
+        num_items_in_batch,
+    )
+    return (loss, student_outputs) if return_outputs else loss
 
 
 def _rollout_function(
