@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from posttrain.common import ContractError
-from posttrain.execution_pack import ProjectEnvironmentSourceRequest
+from posttrain.execution_pack import ImmutableSourceSnapshotter, ProjectEnvironmentSourceRequest, SourceSnapshotRequest
 from posttrain_execution_buildkit import (
     EnvironmentWheelRequest,
     GitSourceLock,
@@ -136,13 +136,25 @@ def test_deduplicates_exact_requests(tmp_path: Path) -> None:
     assert len(gateway.calls) == 1
 
 
-def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
-    root = (tmp_path / "toy_env").absolute()
-    root.mkdir()
+@pytest.mark.parametrize("mutate", [False, True])
+def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path, mutate: bool) -> None:
+    root = (tmp_path / "environments/toy_env").absolute()
+    root.mkdir(parents=True)
     (root / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
     gateway = FakeWheelGateway({"toy_env": {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}})
     builder = ImmutableEnvironmentWheelBuilder(output_root=(tmp_path / "wheels").absolute(), gateway=gateway)
-    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", _tree_digest(root))
+    snapshot = ImmutableSourceSnapshotter(cache_root=tmp_path / "snapshots").materialize(
+        SourceSnapshotRequest(
+            root=tmp_path, includes=("environments/toy_env",), install_roots=("environments/toy_env",)
+        )
+    )
+    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", snapshot.digest)
+    root = snapshot.package.root / request.path
+    if mutate:
+        (root / "pyproject.toml").write_text('[project]\nname = "changed"\nversion = "1.0.0"\n')
+        with pytest.raises(ContractError, match="differs from its planned digest"):
+            builder.build_project_sources({request.path: root}, (request,))
+        return
 
     result = builder.build_project_sources({request.path: root}, (request,))
 
@@ -150,6 +162,49 @@ def test_builds_a_project_snapshot_without_git_metadata(tmp_path: Path) -> None:
     assert lock.source_kind == "project-path"
     assert lock.repository is None and lock.revision is None
     assert lock.project_path == request.path
+
+
+def test_builds_a_project_snapshot_of_an_environment_at_the_project_root(tmp_path: Path) -> None:
+    project = (tmp_path / "project").absolute()
+    project.mkdir()
+    (project / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
+    snapshot = ImmutableSourceSnapshotter(cache_root=tmp_path / "snapshots").materialize(
+        SourceSnapshotRequest(root=project, includes=(".",), install_roots=(".",))
+    )
+    request = ProjectEnvironmentSourceRequest("toy-env", ".", snapshot.digest)
+    root = snapshot.package.root
+    gateway = FakeWheelGateway({root.name: {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}})
+    builder = ImmutableEnvironmentWheelBuilder(output_root=(tmp_path / "wheels").absolute(), gateway=gateway)
+
+    result = builder.build_project_sources({request.path: root}, (request,))
+
+    assert result.wheels[0].lock.project_path == "."
+    assert result.wheels[0].lock.source_tree_digest == snapshot.digest
+
+
+def test_rejects_a_project_source_that_changes_during_the_wheel_build(tmp_path: Path) -> None:
+    project = (tmp_path / "environments/toy_env").absolute()
+    project.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "toy-env"\nversion = "1.0.0"\n')
+    snapshot = ImmutableSourceSnapshotter(cache_root=tmp_path / "snapshots").materialize(
+        SourceSnapshotRequest(
+            root=tmp_path, includes=("environments/toy_env",), install_roots=("environments/toy_env",)
+        )
+    )
+    request = ProjectEnvironmentSourceRequest("toy-env", "environments/toy_env", snapshot.digest)
+    root = snapshot.package.root / request.path
+
+    class EditsSourceDuringBuild(FakeWheelGateway):
+        # The build runs on a staged copy, so the edit must land on the selected source itself.
+        def build(self, package_root: Path, output_directory: Path) -> None:
+            super().build(package_root, output_directory)
+            (root / "edited.py").write_text("late = True\n")
+
+    gateway = EditsSourceDuringBuild({"toy_env": {"toy_env-1.0.0-py3-none-any.whl": b"wheel"}})
+    builder = ImmutableEnvironmentWheelBuilder(output_root=(tmp_path / "wheels").absolute(), gateway=gateway)
+
+    with pytest.raises(ContractError, match="changed during wheel build"):
+        builder.build_project_sources({request.path: root}, (request,))
 
 
 def test_accepts_uv_generated_output_gitignore(tmp_path: Path) -> None:
