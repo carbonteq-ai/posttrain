@@ -15,7 +15,7 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
-from posttrain.common import HubModelRef, JsonValue, RunContext, TraceObservation
+from posttrain.common import HubModelRef, JsonValue, LocalArtifactRef, RunContext, TraceObservation
 
 from ...distillation import DistillationBatch, DistillationBatchLedger
 from ...online_rl import EnvironmentRollout, RolloutBatch, policy_sampling_from_binding
@@ -28,6 +28,8 @@ from .common import (
     emit_runtime_versions,
     finish_training,
     framework_imports,
+    load_peft_adapter,
+    load_pretrained_base,
     load_tokenizer,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
@@ -52,8 +54,9 @@ def run_distillation(
     teacher_url = request.teacher_inference.engine.get("base_url")
     if teacher_product == "vllm" and (not isinstance(teacher_url, str) or not teacher_url.strip()):
         raise ValueError("the vLLM teacher-score binding must provide engine.base_url")
-    if not isinstance(request.teacher.artifact, HubModelRef):
-        raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
+    _teacher_hub_ref(request)
+    if isinstance(request.teacher.artifact, LocalArtifactRef) and teacher_product != "transformers":
+        raise ValueError("a materialized teacher adapter requires a transformers teacher-score binding")
     model_dtype = request.training.backend_options.get("model_dtype", "bfloat16")
     if not isinstance(model_dtype, str):
         raise ValueError("TRL distillation model_dtype must be a string")
@@ -156,7 +159,7 @@ def run_distillation(
                 model=model,
                 teacher_model=cast(
                     Any,
-                    (None if teacher_product == "vllm" else request.teacher.artifact.repo_id),
+                    (None if teacher_product == "vllm" else _colocated_teacher_model(request, imports)),
                 ),
                 args=IWOPDConfig(**arguments),
                 train_dataset=dataset,
@@ -201,6 +204,32 @@ def run_distillation(
                     imports=imports,
                 )
                 raise
+
+
+def _teacher_hub_ref(request: OnPolicyDistillationRequest) -> HubModelRef:
+    """The Hugging Face model the teacher scores from: itself, or the base of a materialized adapter."""
+
+    artifact = request.teacher.artifact
+    if isinstance(artifact, HubModelRef):
+        return artifact
+    if isinstance(artifact, LocalArtifactRef) and request.teacher.form in {"adapter", "peft-adapter"}:
+        return request.teacher.base
+    raise ValueError("TRL distillation requires a Hugging Face teacher or a materialized PEFT adapter teacher")
+
+
+def _colocated_teacher_model(request: OnPolicyDistillationRequest, imports: dict[str, Any]) -> Any:
+    """The teacher TRL scores with in-process: a repo id, or its pinned base with the adapter applied."""
+
+    if isinstance(request.teacher.artifact, HubModelRef):
+        return request.teacher.artifact.repo_id
+    # The same precision a Hub teacher gets from teacher_model_init_kwargs in _distillation_arguments.
+    teacher_dtype = request.teacher_inference.engine.get("dtype", "bfloat16")
+    if teacher_dtype not in {"bfloat16", "float16", "float32"}:
+        raise ValueError("TRL teacher dtype must be 'bfloat16', 'float16' or 'float32'")
+    base = load_pretrained_base(request.teacher, imports, dtype=getattr(imports["torch"], teacher_dtype))
+    teacher = load_peft_adapter(base, request.teacher, imports, trainable=False)
+    teacher.eval()
+    return teacher
 
 
 @contextmanager
@@ -554,9 +583,7 @@ def _distillation_arguments(
     output_dir: Path,
     teacher_url: str | None,
 ) -> dict[str, Any]:
-    teacher_artifact = request.teacher.artifact
-    if not isinstance(teacher_artifact, HubModelRef):
-        raise ValueError("TRL distillation currently requires a Hugging Face teacher model")
+    teacher_artifact = _teacher_hub_ref(request)
     arguments = trainer_arguments(request.settings.loop, output_dir)
     rollout = request.rollout_inference.engine
     speculative_config, engine_kwargs = vllm_rollout_options(request.student, rollout)
@@ -598,7 +625,7 @@ def _distillation_arguments(
                     "revision": teacher_artifact.revision,
                     "dtype": teacher_engine.get("dtype", "bfloat16"),
                 }
-                if teacher_product == "transformers"
+                if teacher_product == "transformers" and isinstance(request.teacher.artifact, HubModelRef)
                 else None
             ),
             "use_vllm": True,

@@ -2528,3 +2528,155 @@ def test_distillation_hands_trl_only_the_bounded_rollout(monkeypatch: pytest.Mon
     assert len(result["completion_ids"][0]) == 300  # the 384-token cut falls in the tool output, so it backs up
     assert len(result["completion_loss_mask"][0]) == len(result["logprobs"][0]) == 300
     assert all(result["completion_loss_mask"][0])
+
+
+def _adapter_teacher_request(
+    tmp_path: Path,
+    *,
+    teacher_backend: str = "transformers@5.14.1",
+    form: str = "adapter",
+) -> OnPolicyDistillationRequest:
+    request = _distillation_request()
+    adapter = (tmp_path / "teacher-adapter").resolve()
+    adapter.mkdir(exist_ok=True)
+    teacher = replace(
+        request.teacher,
+        artifact=LocalArtifactRef(adapter, "a" * 64),
+        form=form,  # type: ignore[arg-type]
+        parent=QWEN_35_2B.id,
+    )
+    return replace(
+        request,
+        teacher=teacher,
+        teacher_inference=replace(_teacher_inference(teacher), backend=teacher_backend),
+    )
+
+
+class _FakeAutoModel:
+    calls: list[dict[str, object]] = []
+
+    @classmethod
+    def from_pretrained(cls, repo_id: str, **options: object) -> object:
+        cls.calls.append({"repo_id": repo_id, **options})
+        return "base-model"
+
+
+class _FakePeftModel:
+    calls: list[tuple[object, Path, bool]] = []
+
+    def __init__(self) -> None:
+        self.evaluating = False
+
+    @classmethod
+    def from_pretrained(cls, model: object, path: Path, *, is_trainable: bool) -> _FakePeftModel:
+        cls.calls.append((model, path, is_trainable))
+        return cls()
+
+    def eval(self) -> None:
+        self.evaluating = True
+
+
+def _fake_framework_imports() -> dict[str, object]:
+    _FakeAutoModel.calls = []
+    _FakePeftModel.calls = []
+    return {
+        "torch": SimpleNamespace(bfloat16="bf16", float32="fp32", float16="fp16"),
+        "AutoModelForCausalLM": _FakeAutoModel,
+        "PeftModel": _FakePeftModel,
+    }
+
+
+def test_distillation_scores_with_the_pinned_base_and_the_materialized_teacher_adapter(tmp_path: Path) -> None:
+    from posttrain.train.backends.trl.distillation import _colocated_teacher_model
+
+    request = _adapter_teacher_request(tmp_path)
+    adapter_path = request.teacher.artifact.path  # type: ignore[union-attr]
+
+    teacher = _colocated_teacher_model(request, _fake_framework_imports())
+
+    assert _FakeAutoModel.calls == [
+        {
+            "repo_id": QWEN_35_2B.base.repo_id,
+            "revision": QWEN_35_2B.base.revision,
+            "device_map": {"": 0},
+            "dtype": "bf16",
+            "attn_implementation": "sdpa",
+            "trust_remote_code": False,
+        }
+    ]
+    assert _FakePeftModel.calls == [("base-model", adapter_path, False)]
+    assert isinstance(teacher, _FakePeftModel) and teacher.evaluating
+
+
+def test_distillation_scores_with_a_hub_teacher_by_repo_id() -> None:
+    from posttrain.train.backends.trl.distillation import _colocated_teacher_model
+
+    request = _distillation_request()
+    assert isinstance(request.teacher.artifact, HubModelRef)
+
+    teacher = _colocated_teacher_model(request, _fake_framework_imports())
+
+    assert teacher == request.teacher.artifact.repo_id
+    assert _FakeAutoModel.calls == [] and _FakePeftModel.calls == []
+
+
+def test_a_teacher_adapter_loads_at_the_teacher_score_dtype_not_the_students(tmp_path: Path) -> None:
+    from posttrain.train.backends.trl.distillation import _colocated_teacher_model
+
+    request = _adapter_teacher_request(tmp_path)
+    teacher_inference = request.teacher_inference
+    request = replace(
+        request,
+        teacher_inference=replace(teacher_inference, engine={**teacher_inference.engine, "dtype": "float32"}),
+        training=replace(
+            request.training, backend_options={**request.training.backend_options, "model_dtype": "bfloat16"}
+        ),
+    )
+
+    _colocated_teacher_model(request, _fake_framework_imports())
+
+    assert [call["dtype"] for call in _FakeAutoModel.calls] == ["fp32"]
+
+
+def test_distillation_rejects_a_teacher_adapter_that_is_not_on_disk(tmp_path: Path) -> None:
+    from posttrain.train.backends.trl.distillation import _colocated_teacher_model
+
+    request = _adapter_teacher_request(tmp_path)
+    request.teacher.artifact.path.rmdir()  # type: ignore[union-attr]
+
+    with pytest.raises(FileNotFoundError, match="teacher-adapter"):
+        _colocated_teacher_model(request, _fake_framework_imports())
+
+
+def test_distillation_rejects_materialized_teacher_weights(tmp_path: Path) -> None:
+    from posttrain.train.backends.trl.distillation import run_distillation
+
+    request = _adapter_teacher_request(tmp_path, form="full-finetuned")
+
+    with pytest.raises(ValueError, match="materialized PEFT adapter teacher"):
+        run_distillation(_context(tmp_path, Observer()), request, tmp_path / "output")
+
+
+def test_distillation_requires_in_process_scoring_for_a_teacher_adapter(tmp_path: Path) -> None:
+    from posttrain.train.backends.trl.distillation import run_distillation
+
+    request = _adapter_teacher_request(tmp_path, teacher_backend="vllm@0.25.1")
+
+    with pytest.raises(ValueError, match="requires a transformers teacher-score binding"):
+        run_distillation(_context(tmp_path, Observer()), request, tmp_path / "output")
+
+
+def test_distillation_arguments_pin_the_base_revision_of_a_teacher_adapter(tmp_path: Path) -> None:
+    from posttrain.train.backends.trl.distillation import _distillation_arguments
+
+    adapter = _distillation_arguments(_adapter_teacher_request(tmp_path), tmp_path / "output", None)
+    hub_request = replace(
+        _distillation_request(),
+        teacher_inference=replace(_teacher_inference(_distillation_request().teacher), backend="transformers@5.14.1"),
+    )
+    hub = _distillation_arguments(hub_request, tmp_path / "output", None)
+
+    assert adapter["teacher_model_revision"] == QWEN_35_2B.base.revision
+    assert adapter["teacher_model_init_kwargs"] is None
+    assert hub["teacher_model_revision"] == QWEN_35_2B.base.revision
+    assert hub["teacher_model_init_kwargs"] == {"revision": QWEN_35_2B.base.revision, "dtype": "bfloat16"}

@@ -1389,7 +1389,7 @@ def _evaluation_contract_snapshot(
 
 def _artifact_inputs(seats: ResolvedSeats) -> dict[str, ArtifactInput]:
     inputs: dict[str, ArtifactInput] = {}
-    for value in seats.values():
+    for role, value in seats.items():
         if isinstance(value, ModelVariant) and isinstance(value.artifact, (StoredArtifactRef, TrackioArtifactRef)):
             reference = (
                 value.artifact
@@ -1402,10 +1402,11 @@ def _artifact_inputs(seats: ResolvedSeats) -> dict[str, ArtifactInput]:
                     provider_metadata={"alias": value.artifact.alias},
                 )
             )
+            prefix = "model" if role in {"model", "student"} else role
             if value.form in {"adapter", "peft-adapter"}:
-                inputs["model_adapter"] = ArtifactInput(reference, "model-adapter")
+                inputs[f"{prefix}_adapter"] = ArtifactInput(reference, "model-adapter")
             else:
-                inputs["model_weights"] = ArtifactInput(reference, "model-weights")
+                inputs[f"{prefix}_weights"] = ArtifactInput(reference, "model-weights")
     return inputs
 
 

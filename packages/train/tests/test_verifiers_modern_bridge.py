@@ -11,6 +11,7 @@ import pytest
 from posttrain.common import JsonValue, LocalArtifactRef
 from posttrain.train.integrations.verifiers import (
     VerifiersEnvironmentRolloutBridge,
+    VerifiersRolloutFailure,
     _compress_jsonl,
     _episode_assessment_observation,
     _project_training_branch,
@@ -806,3 +807,124 @@ async def test_modern_automationbench_executes_tool_and_retains_turn_credit(tmp_
     assert False in rollout.env_mask
     episode = module.WireEpisode.model_validate_json((tmp_path / "episodes.jsonl").read_text())
     assert episode.traces[0].rewards["partial_credit"].score == 1.0
+
+
+def _tool_call_turn(vf, *, arguments: str, reasoning: str | None = None):
+    return vf.AssistantMessage(
+        content="",
+        reasoning_content=reasoning,
+        tool_calls=[vf.ToolCall(id="call", name="bump", arguments=arguments)],
+    )
+
+
+def _sampled_node(vf, parent, message, tokens):
+    return vf.MessageNode(
+        parent=parent,
+        message=message,
+        sampled=True,
+        token_ids=tokens,
+        mask=[True] * len(tokens),
+        logprobs=[-0.1] * len(tokens),
+    )
+
+
+def _replayed_node(vf, parent, message, tokens):
+    return vf.MessageNode(parent=parent, message=message, token_ids=tokens, mask=[False] * len(tokens))
+
+
+def _trace(vf, nodes):
+    return vf.Trace(
+        episode_id="episode",
+        agent=vf.AgentInfo(config=vf.AgentConfig()),
+        task=vf.TraceTask(type="Task", data=vf.TaskData(idx=0, prompt="task")),
+        nodes=nodes,
+        is_completed=True,
+        ok=True,
+    )
+
+
+def test_training_branch_resolves_replayed_turn_to_its_sampled_action_when_parents_differ() -> None:
+    vf = pytest.importorskip("verifiers.v1")
+    # The shape of a failed Qwen3.5 OPD rollout. The client replayed the first call with its JSON
+    # re-encoded, so the canonical chain forks beside it and repeats the tool result. The second
+    # sampled call hangs off the original tool result, while its replay (reasoning dropped, JSON
+    # re-encoded) hangs off the repeated one, so the two never share a parent.
+    first_call = '{"query":"SELECT 1"}'
+    second_call = '{"query":"SELECT 2"}'
+    trace = _trace(
+        vf,
+        [
+            vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
+            vf.MessageNode(parent=0, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
+            _sampled_node(vf, 1, _tool_call_turn(vf, arguments=first_call), [3, 4]),
+            vf.MessageNode(
+                parent=2, message=vf.ToolMessage(tool_call_id="call", content="[]"), token_ids=[5], mask=[False]
+            ),
+            _sampled_node(vf, 3, _tool_call_turn(vf, arguments=second_call, reasoning="no rows"), [6, 7]),
+            _replayed_node(vf, 1, _tool_call_turn(vf, arguments='{"query": "SELECT 1"}'), [30, 40]),
+            vf.MessageNode(
+                parent=5, message=vf.ToolMessage(tool_call_id="call", content="[]"), token_ids=[50], mask=[False]
+            ),
+            _replayed_node(vf, 6, _tool_call_turn(vf, arguments='{"query": "SELECT 2"}'), [60, 70]),
+            vf.MessageNode(
+                parent=7, message=vf.ToolMessage(tool_call_id="call", content="rows"), token_ids=[8], mask=[False]
+            ),
+            _sampled_node(vf, 8, vf.AssistantMessage(content="done"), [9]),
+        ],
+    )
+
+    branch = _project_training_branch(trace)
+
+    assert branch.token_ids == [1, 2, 3, 4, 50, 6, 7, 8, 9]
+    assert branch.sampled_mask == [False, False, True, True, False, True, True, False, True]
+
+
+def test_training_branch_claims_each_sampled_action_once_when_the_agent_repeats_it() -> None:
+    vf = pytest.importorskip("verifiers.v1")
+    # The agent issues the same call twice, so both replayed turns carry one replay key. The
+    # sampled responses must each be used once, in order, or one turn would train on the other's tokens.
+    repeated = '{"a": 1}'
+    trace = _trace(
+        vf,
+        [
+            vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
+            vf.MessageNode(parent=0, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
+            _sampled_node(vf, 1, _tool_call_turn(vf, arguments=repeated), [3]),
+            vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
+            vf.MessageNode(parent=3, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
+            _replayed_node(vf, 4, _tool_call_turn(vf, arguments=repeated), [30]),
+            vf.MessageNode(
+                parent=5, message=vf.ToolMessage(tool_call_id="call", content="one"), token_ids=[5], mask=[False]
+            ),
+            _sampled_node(vf, 1, _tool_call_turn(vf, arguments=repeated), [7]),
+            _replayed_node(vf, 6, _tool_call_turn(vf, arguments=repeated), [70]),
+            vf.MessageNode(
+                parent=8, message=vf.ToolMessage(tool_call_id="call", content="two"), token_ids=[9], mask=[False]
+            ),
+            _sampled_node(vf, 9, vf.AssistantMessage(content="done"), [10]),
+        ],
+    )
+
+    branch = _project_training_branch(trace)
+
+    assert branch.token_ids == [1, 2, 3, 5, 7, 9, 10]
+    assert branch.sampled_mask == [False, False, True, False, True, False, True]
+
+
+def test_training_branch_does_not_match_a_replayed_turn_to_a_different_sampled_action() -> None:
+    vf = pytest.importorskip("verifiers.v1")
+    trace = _trace(
+        vf,
+        [
+            vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
+            vf.MessageNode(parent=0, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
+            _sampled_node(vf, 1, _tool_call_turn(vf, arguments='{"a": 1}'), [3]),
+            vf.MessageNode(message=vf.SystemMessage(content="system"), token_ids=[1], mask=[False]),
+            vf.MessageNode(parent=3, message=vf.UserMessage(content="task"), token_ids=[2], mask=[False]),
+            _replayed_node(vf, 4, _tool_call_turn(vf, arguments='{"a": 2}'), [30]),
+            _sampled_node(vf, 5, vf.AssistantMessage(content="done"), [6]),
+        ],
+    )
+
+    with pytest.raises(VerifiersRolloutFailure, match="does not cover every sampled assistant turn"):
+        _project_training_branch(trace)
