@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Posttrain workstation cleanup daily
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
