@@ -382,9 +382,94 @@ def render_preferences(
     return tuple(rendered)
 
 
+def _mask_spans(mask: Sequence[int]) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    start = None
+    for index, value in enumerate([*mask, 0]):
+        if value and start is None:
+            start = index
+        elif not value and start is not None:
+            spans.append((start, index))
+            start = None
+    return spans
+
+
+def apply_token_overrides(
+    tokenizer: Any,
+    rendered: tuple[RenderedPreferenceExample, ...],
+    dataset: PreferenceDataset,
+    *,
+    max_length: int,
+) -> tuple[RenderedPreferenceExample, ...]:
+    """Use token ids carried by the examples (``metadata["token_ids"]``) in place of the rendered ids.
+
+    A policy's own attempts are best scored on the tokens it sampled; re-tokenising their text can split some words
+    differently. An override (``prompt``, ``chosen``, ``chosen_mask``, ``rejected``, ``rejected_mask``) replaces the
+    rendering only after proving, per side, that it decodes to exactly the rendered text (the renderer's trailing
+    newline after the final stop aside) and that every trained span decodes to text inside the rendered assistant
+    spans, in order, so no prompt or tool-result token can carry loss. Either every example carries an override or
+    none does."""
+
+    by_id = {example.id: example for example in dataset.examples}
+    carried = [sample for sample in rendered if "token_ids" in by_id[sample.id].metadata]
+    if not carried:
+        return rendered
+    if len(carried) != len(rendered):
+        raise ValueError("token overrides must cover every preference example or none")
+
+    def decode(ids: Sequence[int]) -> str:
+        return cast(str, tokenizer.decode(list(ids), skip_special_tokens=False))
+
+    def inside(ids: Sequence[int], mask: Sequence[int], rendered_ids: Sequence[int], rendered_mask: Sequence[int]):
+        allowed = [decode(rendered_ids[a:b]) for a, b in _mask_spans(rendered_mask)]
+        span, cursor = 0, 0
+        for a, b in _mask_spans(mask):
+            text = decode(ids[a:b])
+            while span < len(allowed):
+                found = allowed[span].find(text, cursor)
+                if found >= 0:
+                    cursor = found + len(text)
+                    break
+                span, cursor = span + 1, 0
+            else:
+                return False
+        return True
+
+    overridden: list[RenderedPreferenceExample] = []
+    for sample in rendered:
+        override = cast(Mapping[str, Any], by_id[sample.id].metadata["token_ids"])
+        prompt = tuple(int(token) for token in override["prompt"])
+        sides: dict[str, tuple[tuple[int, ...], tuple[int, ...]]] = {}
+        if decode(prompt) != decode(sample.prompt_ids):
+            raise ValueError(f"preference example {sample.id!r}: override prompt differs from the rendered text")
+        for side, rendered_ids, rendered_mask in (
+            ("chosen", sample.chosen_ids, sample.chosen_mask),
+            ("rejected", sample.rejected_ids, sample.rejected_mask),
+        ):
+            ids = tuple(int(token) for token in override[side])
+            mask = tuple(int(value) for value in override[f"{side}_mask"])
+            if len(mask) != len(ids) or set(mask) - {0, 1} or not any(mask):
+                raise ValueError(f"preference example {sample.id!r}: invalid {side} override mask")
+            mine, theirs = decode(prompt + ids), decode(sample.prompt_ids + rendered_ids)
+            if mine != theirs and theirs != mine + "\n":
+                raise ValueError(f"preference example {sample.id!r}: {side} override differs from the rendered text")
+            if not inside(ids, mask, rendered_ids, rendered_mask):
+                raise ValueError(f"preference example {sample.id!r}: {side} override trains non-assistant text")
+            sides[side] = (ids, mask)
+        if len(prompt) + max(len(sides["chosen"][0]), len(sides["rejected"][0])) > max_length:
+            raise ValueError(f"preference example {sample.id!r} exceeds max_length; curate or raise the settings limit")
+        overridden.append(
+            RenderedPreferenceExample(
+                sample.id, prompt, sides["chosen"][0], sides["rejected"][0], sides["chosen"][1], sides["rejected"][1]
+            )
+        )
+    return tuple(overridden)
+
+
 __all__ = [
     "RenderedPreferenceExample",
     "RenderedSFTExample",
+    "apply_token_overrides",
     "create_renderer",
     "create_renderer_config",
     "render_preferences",

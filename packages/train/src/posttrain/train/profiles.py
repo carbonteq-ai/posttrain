@@ -105,7 +105,9 @@ class DPOSettings:
     id: str
     loop: TrainingLoop
     beta: float = 0.1
-    loss_kernel: Literal["liger", "torch"] = "torch"
+    # torch: TRL's full-logits loss; liger: TRL's fused kernel; chunked: completion tokens only reach
+    # the output projection, a checkpointed chunk at a time (long multi-turn pairs).
+    loss_kernel: Literal["liger", "torch", "chunked"] = "torch"
     revision: str = "1"
     # Weight of a supervised loss on the chosen completion (RPO); it keeps the chosen
     # likelihood from falling while the margin grows. Zero is plain DPO.
@@ -128,6 +130,8 @@ class DPOSettings:
             # TRL's fused Liger loss takes only beta and the first loss type: it would drop the
             # sft term and ignore the preference variant without saying so.
             raise ValueError("the liger DPO loss kernel supports only plain sigmoid DPO without sft_weight")
+        if self.loss_kernel == "chunked" and self.preference_loss != "sigmoid":
+            raise ValueError("the chunked DPO loss kernel supports only sigmoid DPO (with optional sft_weight)")
 
 
 @dataclass(frozen=True, slots=True)

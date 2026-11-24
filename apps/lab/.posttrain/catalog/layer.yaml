@@ -21,3 +21,4 @@ files:
   - verl-capsule-qualification.yaml
   - verl-adapter-continuation.yaml
   - verl-vortex-parity.yaml
+  - qwen35-4b-automationbench-dpo-p9.yaml

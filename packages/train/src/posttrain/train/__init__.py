@@ -97,7 +97,13 @@ from .profiles import (
     shape_online_reward,
     shape_soft_overlong_reward,
 )
-from .rendering import RenderedPreferenceExample, RenderedSFTExample, render_preferences, render_supervised
+from .rendering import (
+    RenderedPreferenceExample,
+    RenderedSFTExample,
+    apply_token_overrides,
+    render_preferences,
+    render_supervised,
+)
 from .requests import (
     CAPORequest,
     DPORequest,
@@ -258,6 +264,7 @@ __all__ = [
     "verl_training_loop_problem",
     "compute_sampo_advantages",
     "normalize_grpo_metrics",
+    "apply_token_overrides",
     "render_preferences",
     "resolve_training_model_configuration",
     "render_supervised",

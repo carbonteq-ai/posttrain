@@ -1,0 +1,9 @@
+{
+ "date": "2026-11-19",
+ "rule": "phase-1 parity rule (as parity-exclusions-20261118.json): an attempt whose rendered text cannot equal P9's sampled tokens is not used",
+ "scope": "found when all 1,028 candidate pairs were checked before the CHES ranking; neither attempt is in the 322 approved pairs",
+ "excluded": {
+  "dpo-w6/operations.chatgpt_feedback_analysis/fa03a0cb3fbc4a3b89759df902c9cd73": "P9 wrote a stray extra </parameter> after max_tokens; the recorded arguments (a mapping) cannot hold it (2 candidate pairs)",
+  "dpo-w6/operations.mailchimp_campaign_tracking/35a7820584504f0eabfb90d8705a13f0": "a string argument ends in a literal backslash-n and P9 closed the parameter without the newline the template always renders (1 candidate pair)"
+ }
+}

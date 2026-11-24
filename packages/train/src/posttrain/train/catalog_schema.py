@@ -223,7 +223,13 @@ class DPOSettingsSchema(TrainCatalogSchema):
     revision: str = "1"
     loop: TrainingLoopSchema
     beta: float = Field(default=0.1, gt=0)
-    loss_kernel: Literal["liger", "torch"] = "torch"
+    loss_kernel: Literal["liger", "torch", "chunked"] = Field(
+        default="torch",
+        description=(
+            "torch: TRL's full-logits loss; liger: TRL's fused kernel (plain sigmoid only); chunked: the output "
+            "projection applied to completion tokens in checkpointed chunks (sigmoid, optional sft term)."
+        ),
+    )
     sft_weight: float = Field(
         default=0.0,
         ge=0,

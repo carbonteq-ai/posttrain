@@ -1,0 +1,809 @@
+{
+ "dpo-w6/finance.year_end_audit_prep/116cc78a7b8740558a6b822422d8a3a2": {
+  "lines": [
+   5
+  ]
+ },
+ "dpo-w6/finance.year_end_audit_prep/752b0bb85a4843df8313c5bd80795537": {
+  "lines": [
+   4
+  ]
+ },
+ "dpo-w6/finance.year_end_audit_prep/a399a2e8ed1141ea96fd7e0bdf72f0a2": {
+  "lines": [
+   4
+  ]
+ },
+ "dpo-w6/finance.year_end_audit_prep/b64344250f5f4c2eae127f330c248d99": {
+  "fragments": [
+   [
+    3,
+    " (row excluded due to 'Out of Scope')"
+   ]
+  ]
+ },
+ "dpo-w6/finance.year_end_audit_prep/d3622bcf7981402eae8b46814a6aa38f": {
+  "lines": [
+   4
+  ]
+ },
+ "dpo-w6/finance.year_end_audit_prep/ef951e76baa9466ab7e05d3fd4ada4a9": {
+  "lines": [
+   5
+  ],
+  "fragments": [
+   [
+    9,
+    ", excluding Out of Scope items"
+   ]
+  ]
+ },
+ "dpo-w6/hr.asana_compliance_tasks/ffb04c95d26c406aa193a32f91a2feed": {
+  "lines": [
+   13,
+   14,
+   15,
+   16,
+   17
+  ]
+ },
+ "dpo-w6/hr.background_check_followup/10ab846d3f6e404a86530f4143e8b30b": {
+  "lines": [
+   19,
+   20,
+   21
+  ]
+ },
+ "dpo-w6/hr.benefits_enrollment_review/4ab2dad4cffc4e5aab16f6dc9e122ea5": {
+  "lines": [
+   16
+  ]
+ },
+ "dpo-w6/hr.benefits_enrollment_review/578c61513cc74c26b5bad8a363545d5f": {
+  "lines": [
+   14,
+   15,
+   17,
+   18
+  ]
+ },
+ "dpo-w6/hr.benefits_enrollment_review/65e29b4a121e4eb9b7d30ebceb9af51c": {
+  "fragments": [
+   [
+    12,
+    " One employee (Elena Popov) was skipped due to active legal hold."
+   ]
+  ]
+ },
+ "dpo-w6/hr.benefits_enrollment_review/7061cb86f78f4458aee49a9ad3cad437": {
+  "lines": [
+   14,
+   15
+  ],
+  "fragments": [
+   [
+    19,
+    "/skipped"
+   ]
+  ]
+ },
+ "dpo-w6/hr.benefits_enrollment_review/9044088335d34bf3b4486609f264a303": {
+  "lines": [
+   13
+  ]
+ },
+ "dpo-w6/hr.compliance_training_enforcement/07bd548e7e284cb6b3655ca67f20cd19": {
+  "lines": [
+   10
+  ]
+ },
+ "dpo-w6/hr.compliance_training_enforcement/325515e91e8948adaf6b59b0d334de51": {
+  "lines": [
+   16,
+   17
+  ]
+ },
+ "dpo-w6/hr.compliance_training_enforcement/9a3c2467a6a54764aa747f6ea287e296": {
+  "lines": [
+   18,
+   19,
+   21
+  ],
+  "fragments": [
+   [
+    2,
+    " (1 exempted per policy)"
+   ]
+  ]
+ },
+ "dpo-w6/hr.compliance_training_enforcement/ea8eb1c234754ee3be8bc9a20dc032ef": {
+  "lines": [
+   2,
+   3
+  ]
+ },
+ "dpo-w6/hr.i9_verification_tracking/7518a37287de494f9aba22d5fd1e2450": {
+  "lines": [
+   20,
+   21
+  ]
+ },
+ "dpo-w6/hr.i9_verification_tracking/c1dc198b075a41c5a09142d609136c0d": {
+  "lines": [
+   3
+  ]
+ },
+ "dpo-w6/hr.monday_pip_tracking/871e500ffdd2464a97af9414174a251f": {
+  "lines": [
+   14
+  ]
+ },
+ "dpo-w6/hr.referral_bonus_tracking/c6989bee7d42494e9d9541df173588b5": {
+  "lines": [
+   6,
+   7,
+   8,
+   9,
+   10
+  ]
+ },
+ "dpo-w6/hr.referral_bonus_tracking/f22d252e919f42c5a1d98f340314ed72": {
+  "lines": [
+   6,
+   7,
+   8,
+   9,
+   10
+  ]
+ },
+ "dpo-w6/marketing.analyst_briefing/f9706edde34843ac95445e915d7a4f08": {
+  "lines": [
+   10,
+   11
+  ]
+ },
+ "dpo-w6/marketing.event_registration_sync/92a5169cd9694602950d4066e91ffe55": {
+  "lines": [
+   16,
+   17,
+   18,
+   19,
+   20
+  ]
+ },
+ "dpo-w6/marketing.industry_event_tracking/36e84e2d3f0c4a11b0ed73715e0381d8": {
+  "fragments": [
+   [
+    2,
+    ", excluding 4 non-relevant or ineligible events (Local Networking Meetup - General Tech; Healthcare IT Conf - Healthcare; SaaS Innovation Forum - competitor Athenix headline sponsor; SaaS Connect EU - registration closed)"
+   ]
+  ]
+ },
+ "dpo-w6/marketing.industry_event_tracking/4604ab9bac214eaf9a3fa50fbc729573": {
+  "lines": [
+   12,
+   13,
+   14,
+   15
+  ]
+ },
+ "dpo-w6/marketing.industry_event_tracking/4f4dd8ae54404e8bb36dcce1cf820d49": {
+  "lines": [
+   4,
+   5
+  ]
+ },
+ "dpo-w6/marketing.industry_event_tracking/b88cd592112e4a19821a0c8b703aafe5": {
+  "lines": [
+   4
+  ]
+ },
+ "dpo-w6/marketing.influencer_contract_reminders/ce36f26be68a4cbab30f9cf7479a491e": {
+  "lines": [
+   6
+  ]
+ },
+ "dpo-w6/marketing.influencer_contract_reminders/e21750b2bea9456cbf944320495a2812": {
+  "lines": [
+   6,
+   7,
+   8
+  ]
+ },
+ "dpo-w6/marketing.lifecycle_stage/59823d88c86b490180e51d80b89658b6": {
+  "lines": [
+   6,
+   7
+  ]
+ },
+ "dpo-w6/marketing.seasonal_campaign/570cce15d4be4c7784e5005caeac58a3": {
+  "lines": [
+   7,
+   8,
+   9,
+   10
+  ]
+ },
+ "dpo-w6/marketing.seasonal_campaign/69def23d23804ca9846f0a31d283f7c0": {
+  "lines": [
+   11
+  ],
+  "fragments": [
+   [
+    12,
+    "; skipped LinkedIn (B2B-focused) and TikTok (paused)"
+   ]
+  ]
+ },
+ "dpo-w6/marketing.seasonal_campaign/7009fda3e2344d2b91a84c5525dce914": {
+  "lines": [
+   17,
+   18
+  ],
+  "fragments": [
+   [
+    16,
+    " (excluded B2B LinkedIn)"
+   ]
+  ]
+ },
+ "dpo-w6/marketing.topic_cluster/d7464302337a489290f29bdc216cffd2": {
+  "fragments": [
+   [
+    5,
+    "; excluded Archived/Draft"
+   ]
+  ]
+ },
+ "dpo-w6/operations.canva_asset_management/2eb3ec6daba64d2184a7193e85f64c74": {
+  "lines": [
+   5
+  ]
+ },
+ "dpo-w6/operations.canva_asset_management/fe7c5ed3648e4e3c87e348784357c2a7": {
+  "lines": [
+   4
+  ]
+ },
+ "dpo-w6/operations.chatgpt_feedback_analysis/4e1265e2d35745fb9076d27de07f024a": {
+  "lines": [
+   4,
+   5,
+   6
+  ],
+  "fragments": [
+   [
+    15,
+    ", \"no action needed\""
+   ]
+  ]
+ },
+ "dpo-w6/operations.chatgpt_feedback_analysis/fef4c1af015842c9b4a06ad343805ca5": {
+  "lines": [
+   2,
+   3,
+   4
+  ],
+  "fragments": [
+   [
+    13,
+    ", no action needed"
+   ]
+  ]
+ },
+ "dpo-w6/operations.chemical_inventory_safety_audit/3efe4a777b33406abcec65f8308df646": {
+  "fragments": [
+   [
+    13,
+    " only (no mentions of excluded chemicals)"
+   ]
+  ]
+ },
+ "dpo-w6/operations.chemical_inventory_safety_audit/8104bd51ae9b465aa6d413b3d763a7b6": {
+  "lines": [
+   2
+  ],
+  "fragments": [
+   [
+    10,
+    " (excluded In Transit, Pending Disposal, and de minimis chemicals per policy)"
+   ]
+  ]
+ },
+ "dpo-w6/operations.cross_training_assignment/8de328d194944091830250bd428b0a96": {
+  "lines": [
+   6,
+   7
+  ]
+ },
+ "dpo-w6/operations.cross_training_assignment/f19eda03ea854e63abaaaf34c26dbb43": {
+  "lines": [
+   18,
+   19,
+   20,
+   21,
+   22,
+   23
+  ]
+ },
+ "dpo-w6/operations.energy_consumption_anomaly/3647dbf2709c4e529b530afab9b82bb6": {
+  "lines": [
+   15,
+   16,
+   17
+  ]
+ },
+ "dpo-w6/operations.energy_consumption_anomaly/59b9e37b89b641768b720d4b65b4469c": {
+  "lines": [
+   5
+  ]
+ },
+ "dpo-w6/operations.energy_consumption_anomaly/9cd893fb9a4148d2892292091ed1a88c": {
+  "lines": [
+   13
+  ]
+ },
+ "dpo-w6/operations.energy_consumption_anomaly/a3dacdee40914b4cace8ad4176e7bea8": {
+  "lines": [
+   4
+  ]
+ },
+ "dpo-w6/operations.energy_consumption_anomaly/b09113e932c84dad900c5f06e38fe922": {
+  "lines": [
+   10
+  ]
+ },
+ "dpo-w6/operations.hubspot_payment_failure/3715a1083994410c85e7d17aab416cb1": {
+  "lines": [
+   7,
+   8,
+   9
+  ]
+ },
+ "dpo-w6/operations.hubspot_payment_failure/3a6eb253726543f3b6deab1c4db9b636": {
+  "lines": [
+   19,
+   20,
+   21,
+   22
+  ]
+ },
+ "dpo-w6/operations.hubspot_payment_failure/83b7d96a29e44de181d390884a0238bc": {
+  "lines": [
+   12,
+   13,
+   14,
+   15
+  ],
+  "fragments": [
+   [
+    0,
+    ", following current billing policy exclusions"
+   ]
+  ]
+ },
+ "dpo-w6/operations.hubspot_payment_failure/89e4471ddf0a4464b9586447a591e9a6": {
+  "lines": [
+   7,
+   8,
+   9,
+   10,
+   11
+  ],
+  "fragments": [
+   [
+    0,
+    " after applying billing policy exclusions"
+   ]
+  ]
+ },
+ "dpo-w6/operations.hubspot_personalized_outreach/0f3db8cf904f4b52b3526a159a4cccbe": {
+  "lines": [
+   3,
+   4,
+   20,
+   21,
+   22,
+   23,
+   24
+  ]
+ },
+ "dpo-w6/operations.hubspot_personalized_outreach/2386657283934ff2a4044c7a26fd768f": {
+  "lines": [
+   3,
+   4,
+   11,
+   12,
+   13,
+   14
+  ]
+ },
+ "dpo-w6/operations.hubspot_personalized_outreach/39ad10538b954613b986b912e6ccd326": {
+  "lines": [
+   7,
+   8,
+   9
+  ]
+ },
+ "dpo-w6/operations.hubspot_personalized_outreach/a58bc9248add443f9590f47bbb69504a": {
+  "lines": [
+   3,
+   4
+  ]
+ },
+ "dpo-w6/operations.hubspot_personalized_outreach/ef76b8a1379142018c56fa65ada9b957": {
+  "lines": [
+   3,
+   4,
+   27,
+   28,
+   29,
+   30,
+   31,
+   32
+  ]
+ },
+ "dpo-w6/operations.inventory_enrichment/88c8e68486bd4c14bd17c2ff1848ddc8": {
+  "lines": [
+   7
+  ]
+ },
+ "dpo-w6/operations.perishable_inventory_expiry/f1a188876f4b4f7cbd6bcc77694bcde5": {
+  "fragments": [
+   [
+    0,
+    ", excluding Disposed/Quarantine items and applying the Product Liability Hold policy rule"
+   ]
+  ]
+ },
+ "dpo-w6/operations.sensor_monitoring_alert/2c46014c78e747739036c975766e1a8d": {
+  "lines": [
+   6,
+   7,
+   8
+  ]
+ },
+ "dpo-w6/operations.sensor_monitoring_alert/68ebb76574e14bae86636dafe1fd2cb1": {
+  "fragments": [
+   [
+    0,
+    ", maintenance zone exclusions"
+   ]
+  ]
+ },
+ "dpo-w6/operations.sensor_monitoring_alert/94b21c6eb2e94b6786ae480456524559": {
+  "lines": [
+   5,
+   7
+  ]
+ },
+ "dpo-w6/operations.sensor_monitoring_alert/a23cec6c38ff4daa86f20efcdc94da6a": {
+  "lines": [
+   7,
+   9
+  ]
+ },
+ "dpo-w6/operations.sensor_monitoring_alert/bd77756dd5ec4ee299e45af573d9cad6": {
+  "lines": [
+   5,
+   7
+  ]
+ },
+ "dpo-w6/operations.server_capacity_threshold_alerts/14fab998fb83406c9274f5ba21633069": {
+  "lines": [
+   17
+  ]
+ },
+ "dpo-w6/operations.server_capacity_threshold_alerts/5f550ee657ec420a95df7e87d95fc072": {
+  "fragments": [
+   [
+    4,
+    " and excluded decommissioned servers (staging-01)"
+   ]
+  ]
+ },
+ "dpo-w6/operations.server_capacity_threshold_alerts/8610f206f50e4e91bf8c5d22a35179d4": {
+  "lines": [
+   9
+  ],
+  "fragments": [
+   [
+    4,
+    ", 1 decommissioned (staging-01), and 10 Ops Noise entries"
+   ]
+  ]
+ },
+ "dpo-w6/operations.utility_cost_allocation/c22744b9aa6547c7ad73f11be4f38357": {
+  "fragments": [
+   [
+    6,
+    "; vacant floor not allocated"
+   ],
+   [
+    7,
+    "Returns Processing excluded due to temporary vacancy notes; "
+   ]
+  ]
+ },
+ "dpo-w6/sales.apply_project_label/59aeb920b695404aa7cb3828b0077e89": {
+  "fragments": [
+   [
+    3,
+    " (excluding HOLD emails and variant codes like ALPHA-420, ALPHA-42B, ALPHA-421, ALPHA-42-ARCHIVED)"
+   ]
+  ]
+ },
+ "dpo-w6/sales.linkedin_event_promotion/e30c359b65414997a002cb6e7aa7cc28": {
+  "fragments": [
+   [
+    10,
+    "; excluded analysts"
+   ]
+  ]
+ },
+ "dpo-w6/sales.linkedin_job_change/7f1b150594504028a867c631e99a546d": {
+  "lines": [
+   7
+  ]
+ },
+ "dpo-w6/sales.negative_selection/1fcc52f8363148cc8ebb7159aaf878bd": {
+  "lines": [
+   2,
+   3,
+   5,
+   6,
+   7,
+   8
+  ]
+ },
+ "dpo-w6/sales.update_contact_phone/22b9b09add56420f93426829e6e07045": {
+  "lines": [
+   8,
+   9
+  ]
+ },
+ "dpo-w6/sales.update_contact_phone/3a000c9ed3b14f948c883b3c6b28fc11": {
+  "lines": [
+   12,
+   13,
+   14,
+   15
+  ]
+ },
+ "dpo-w6/sales.update_contact_phone/6cfe05c7fee8458793e6d53106988c62": {
+  "lines": [
+   12
+  ]
+ },
+ "dpo-w6/sales.update_contact_phone/6d6a34bddd004f1083faf808506f970f": {
+  "lines": [
+   16
+  ]
+ },
+ "dpo-w6/sales.update_contact_phone/6f59475fd9dd40a7bb696cf03d57eb1f": {
+  "lines": [
+   18,
+   19,
+   20
+  ]
+ },
+ "dpo-w6/sales.update_contact_phone/ba834648bc0f490eb531261f7c8034f5": {
+  "lines": [
+   19
+  ],
+  "fragments": [
+   [
+    4,
+    " (after resolving conflicts and excluding CANCELLED/DRAFT entries)"
+   ],
+   [
+    18,
+    "; CANCELLED updates ignored"
+   ]
+  ]
+ },
+ "dpo-w6/sales.zoom_recording_distribution/2a9e7f8fef6f45c28be3ee106b25eae0": {
+  "lines": [
+   12
+  ]
+ },
+ "dpo-w6/sales.zoom_recording_distribution/8b4539b103f9454faf2cc82379befb5b": {
+  "lines": [
+   12,
+   18
+  ]
+ },
+ "dpo-w6/support.freshdesk_journey_mapping/5980656ca0d74427a313cf85d5da7dc4": {
+  "lines": [
+   5,
+   6
+  ]
+ },
+ "dpo-w6/support.freshdesk_journey_mapping/96589b82c0d84802af78c4532ec7bf0c": {
+  "fragments": [
+   [
+    4,
+    " (after exclusions)"
+   ]
+  ]
+ },
+ "dpo-w6/support.freshdesk_journey_mapping/a415876633b14f00a0245dd0f132fb2e": {
+  "fragments": [
+   [
+    16,
+    " exclusion reasons,"
+   ]
+  ]
+ },
+ "dpo-w6/support.freshdesk_journey_mapping/d603a18e1ee54c98b62489611538b7dc": {
+  "lines": [
+   4
+  ]
+ },
+ "dpo-w6/support.freshdesk_journey_mapping/e65415b7474d43b293df8315bfa57c77": {
+  "fragments": [
+   [
+    9,
+    " (excluded 3 noise contacts)"
+   ],
+   [
+    26,
+    " exclusion details,"
+   ]
+  ]
+ },
+ "dpo-w6/support.freshdesk_zoho_migration/0bb771717ab244bf977b579d9edb9eff": {
+  "fragments": [
+   [
+    3,
+    ", no excluded tags"
+   ]
+  ]
+ },
+ "dpo-w6/support.freshdesk_zoho_migration/8404fbbf6a4345b09fd45a2532ec947d": {
+  "lines": [
+   15
+  ],
+  "fragments": [
+   [
+    14,
+    " (excluded recent tickets)"
+   ]
+  ]
+ },
+ "dpo-w6/support.freshdesk_zoho_migration/86ba6434593d4d90b3bb8b718fe0cc28": {
+  "fragments": [
+   [
+    0,
+    ", excluding test/draft tags"
+   ]
+  ]
+ },
+ "dpo-w6/support.freshdesk_zoho_migration/dbb00d7a68374d06a955c0dae173edf6": {
+  "fragments": [
+   [
+    9,
+    ", no excluded tags"
+   ]
+  ]
+ },
+ "dpo-w6/support.gorgias_channel_consolidation/23756d72b63e43ee87e5f42578c92765": {
+  "lines": [
+   12,
+   17
+  ]
+ },
+ "dpo-w6/support.helpcrunch_usage_alerts/9bb962621fc54e47bf542985b2633f2d": {
+  "fragments": [
+   [
+    7,
+    ", excluding OldCo exemption"
+   ]
+  ]
+ },
+ "dpo-w6/support.hiver_escalation_patterns/c630aada56af48e681b4523978050fa9": {
+  "lines": [
+   10,
+   11,
+   12,
+   13
+  ]
+ },
+ "dpo-w6/support.intercom_demo_scheduling/6e927a5b40664e1b919755e330c0fc66": {
+  "lines": [
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10
+  ]
+ },
+ "dpo-w6/support.intercom_demo_scheduling/9ee73898ac63439f8f031d590daa2acf": {
+  "lines": [
+   5
+  ]
+ },
+ "dpo-w6/support.intercom_demo_scheduling/f193db0e16c9425ab415a5eb90eb1dc0": {
+  "lines": [
+   7,
+   26
+  ]
+ },
+ "dpo-w6/support.intercom_reactivation_campaign/1382f8664b5d4e63acd1f8872609de86": {
+  "fragments": [
+   [
+    7,
+    " Not Excluded,"
+   ]
+  ]
+ },
+ "dpo-w6/support.intercom_reactivation_campaign/8a0d79d592f84271977e7a2dd6b7a931": {
+  "fragments": [
+   [
+    8,
+    " excluding DNC, recent outreach, and active subscribers"
+   ]
+  ]
+ },
+ "dpo-w6/support.intercom_reactivation_campaign/af5a6c5f3c6c48b9b909df3c8f3c3c95": {
+  "fragments": [
+   [
+    7,
+    " not excluded by any list (ws_dnc, ws_recent_outreach, ws_active_subs)"
+   ]
+  ]
+ },
+ "dpo-w6/support.intercom_reactivation_campaign/f620489efa8c45c99a81410f4c4e9c07": {
+  "fragments": [
+   [
+    3,
+    "exclusion lists (DNC, recent outreach, active subs), "
+   ],
+   [
+    4,
+    ", excluding DNC/recent outreach/active sub users"
+   ]
+  ]
+ },
+ "dpo-w6/support.reamaze_multilanguage/825dd105f42148668df7579270333690": {
+  "lines": [
+   16
+  ]
+ },
+ "dpo-w6/support.zendesk_data_quality/40a78e1d1eca448ab669bd201ffa263b": {
+  "lines": [
+   5
+  ],
+  "fragments": [
+   [
+    3,
+    " (solved tickets excluded per requirements)"
+   ]
+  ]
+ },
+ "dpo-w6/support.zendesk_freshdesk_sync/1c166d82cc5a42a4b1b6a33006f41d44": {
+  "lines": [
+   5
+  ]
+ },
+ "dpo-w6/support.zendesk_freshdesk_sync/a95ffc8081444994977f6eb3d19eaf9c": {
+  "lines": [
+   6
+  ]
+ },
+ "dpo-w6/support.zendesk_freshdesk_sync/fc3b690b772e464fa2476d8406e2d371": {
+  "fragments": [
+   [
+    3,
+    ", excluded tags: internal/confidential"
+   ]
+  ]
+ },
+ "dpo-w6/support.zendesk_hubspot_org_sync/8d60c8fb3121455bae32a40398c046f3": {
+  "lines": [
+   7
+  ]
+ }
+}

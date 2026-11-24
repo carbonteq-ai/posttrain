@@ -1,0 +1,74 @@
+{
+ "date": "2026-11-17",
+ "rule": "a hit is cleared only if this exact (row, message, words) set is listed; every sentence was read: the words are used in their ordinary task sense ('materiality checks', 'a brief 10-minute chat', 'the general scoring policy', 'budget checks'), never for a grader or generation setup, which P9 never saw",
+ "cleared": {
+  "dpo-w6/finance.gl_variance_analysis/f89e1a7f38b74316a4213a646cbccda0": [
+   {
+    "message": 65,
+    "words": [
+     "checks"
+    ]
+   }
+  ],
+  "dpo-w6/finance.grant_expense_tracking/a93da43e79174bd88a03e3c177851d01": [
+   {
+    "message": 8,
+    "words": [
+     "checks"
+    ]
+   }
+  ],
+  "dpo-w6/finance.grant_expense_tracking/4fb19aaab3634c4fb5cd80bda62ad1d1": [
+   {
+    "message": 6,
+    "words": [
+     "checks"
+    ]
+   }
+  ],
+  "dpo-w6/operations.pipefy_gmail_vendor_approval/c2cd9a172e734455932764ef60947b42": [
+   {
+    "message": 6,
+    "words": [
+     "brief"
+    ]
+   },
+   {
+    "message": 19,
+    "words": [
+     "brief"
+    ]
+   }
+  ],
+  "dpo-w6/support.freshdesk_journey_mapping/1784802ec7f946dc95cb51664220628e": [
+   {
+    "message": 37,
+    "words": [
+     "brief"
+    ]
+   }
+  ],
+  "dpo-w6/support.zendesk_data_quality/782e34f8230c45caad9eed7ff4459fa7": [
+   {
+    "message": 5,
+    "words": [
+     "checks"
+    ]
+   }
+  ],
+  "dpo-w6/sales.gcal_travel_time_buffer/bcf19d1f031640af823b11b8afd149fd": [
+   {
+    "message": 12,
+    "words": [
+     "brief"
+    ]
+   },
+   {
+    "message": 15,
+    "words": [
+     "brief"
+    ]
+   }
+  ]
+ }
+}

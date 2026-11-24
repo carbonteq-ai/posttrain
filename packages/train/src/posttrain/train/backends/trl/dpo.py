@@ -9,8 +9,9 @@ from typing import Any
 from posttrain.common import RunContext
 from posttrain.data import PreferenceDataset
 
-from ...rendering import RenderedPreferenceExample, render_preferences
+from ...rendering import RenderedPreferenceExample, apply_token_overrides, render_preferences
 from ...requests import DPORequest
+from . import chunked_dpo
 from .common import (
     BackendTrainingResult,
     callback_type,
@@ -22,8 +23,8 @@ from .common import (
     load_frozen_adapter_reference,
     load_tokenizer,
     load_trainable_model,
+    model_class_option,
     preserve_recovery_checkpoint_after_error,
-    reject_model_class_option,
     trainer_arguments,
     trainer_lifecycle,
 )
@@ -71,10 +72,14 @@ def run_dpo(
     emit_runtime_versions(context, imports)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.model, imports)
-        reject_model_class_option(request.training.backend_options, "DPO")
-        model = load_trainable_model(request.model, request.training.update, request.settings.loop, imports)
+        # image-text-to-text keeps a Qwen3.5 adapter's module names (model.language_model): an adapter trained by
+        # SFT under that class only attaches under it, and the DPO adapter loads in the same evaluation runtime.
+        model_class = model_class_option(request.training.backend_options)
+        model = load_trainable_model(
+            request.model, request.training.update, request.settings.loop, imports, model_class=model_class
+        )
         # Continuing an adapter (DPO after SFT): the reference is that adapter's policy, frozen.
-        reference = load_frozen_adapter_reference(request.model, imports)
+        reference = load_frozen_adapter_reference(request.model, imports, model_class)
     with context.phase("data_preparation", {"backend": "trl"}):
         samples = render_preferences(
             tokenizer,
@@ -82,6 +87,10 @@ def run_dpo(
             dataset_snapshot,
             request.training.renderer,
             max_length=request.settings.loop.max_length,
+        )
+        # Examples may carry the policy's own sampled token ids; they replace the rendering after a text check.
+        samples = apply_token_overrides(
+            tokenizer, samples, dataset_snapshot, max_length=request.settings.loop.max_length
         )
         _emit_preference_profile(
             context,
@@ -132,6 +141,8 @@ def run_dpo(
         workspace=output_dir.parent,
     )()
 
+    chunked = request.settings.loss_kernel == "chunked"
+
     class MaskedPreferenceCollator(DataCollatorForPreference):
         """TRL's preference collator with the renderer's per-token completion masks.
 
@@ -157,6 +168,16 @@ def run_dpo(
             if required.issubset(set(dataset.column_names)):
                 return dataset
             return super()._prepare_dataset(dataset, processing_class, args, dataset_name)
+
+        def _compute_loss(self, model: Any, inputs: dict[str, Any], return_outputs: bool) -> Any:
+            if chunked:
+                return chunked_dpo.compute_loss(self, model, inputs, return_outputs)
+            return super()._compute_loss(model, inputs, return_outputs)
+
+        def compute_ref_log_probs(self, model: Any, inputs: dict[str, Any]) -> Any:
+            if chunked:
+                return chunked_dpo.reference_logps(self, model, inputs)
+            return super().compute_ref_log_probs(model, inputs)
 
     with context.phase("runtime_initialization", {"backend": "trl"}):
         config = DPOConfig(**arguments)

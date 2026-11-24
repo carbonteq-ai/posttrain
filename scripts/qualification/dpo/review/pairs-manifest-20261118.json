@@ -1,0 +1,2575 @@
+{
+ "summary": {
+  "pairs": 322,
+  "by_type": {
+   "A": 277,
+   "B": 45
+  },
+  "by_split": {
+   "train": 288,
+   "heldout": 34
+  },
+  "tasks_with_pairs": 111,
+  "heldout_tasks": [
+   "finance.tax_prep_summary",
+   "hr.handbook_acknowledgment",
+   "hr.referral_bonus_processing",
+   "hr.rto_compliance_check",
+   "marketing.lifecycle_stage",
+   "marketing.webinar_cancellation_workflow",
+   "operations.docusign_contractor_offboard",
+   "operations.sensor_monitoring_alert",
+   "sales.format_ambiguity",
+   "sales.zoom_recording_distribution",
+   "support.freshdesk_onboarding_automation"
+  ],
+  "refused_start": 0,
+  "same_calls": 0,
+  "sha256": "f658be02b7869fffa36fa3534e1752128d2d3b96bdc146c552cdc221680ae7c3"
+ },
+ "tasks": {
+  "finance.ap_turnover_analysis": {
+   "type": "A",
+   "chosen": 6,
+   "rejected": 2,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.audit_sample_selection": {
+   "type": "A",
+   "chosen": 6,
+   "rejected": 1,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.cash_flow_forecast": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "finance.commission_calculation": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "finance.credit_card_reconciliation": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.depreciation_schedule": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.expense_split_allocation": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.gl_variance_analysis": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 6,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.grant_expense_tracking": {
+   "type": "A",
+   "chosen": 6,
+   "rejected": 2,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.intercompany_invoice": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "finance.invoice_aging_followup": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 5,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action"
+   ]
+  },
+  "finance.invoice_dispute": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.overdue_invoice_followup": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.payment_fraud_detection": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 4,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "finance.payroll_variance_check": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.po_three_way_match": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "finance.qb_bill_payment_batch": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.qb_estimate_conversion": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.qb_invoice_from_orders": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.qb_recurring_journal": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 5,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.tax_prep_summary": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "finance.timesheet_to_invoice": {
+   "type": "A",
+   "chosen": 7,
+   "rejected": 1,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.vendor_1099_prep": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.wave_client_statement": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "finance.wave_expense_categorization": {
+   "type": "A",
+   "chosen": 7,
+   "rejected": 1,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "finance.wave_freelance_invoice": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "finance.wave_product_catalog": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 5,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action"
+   ],
+   "classes_covered": [
+    "missed action"
+   ]
+  },
+  "finance.wave_tax_compliance": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.wire_transfer_approval": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 5,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.xero_bank_reconcile": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "finance.xero_batch_invoice_send": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.xero_bill_entry": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 5,
+   "candidates": 10,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "finance.xero_vendor_onboard": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "finance.year_end_audit_prep": {
+   "type": "A",
+   "chosen": 7,
+   "rejected": 1,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "hr.asana_compliance_tasks": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "missed action"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action"
+   ]
+  },
+  "hr.background_check_followup": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.benefits_enrollment_audit": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.benefits_enrollment_review": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 1,
+   "candidates": 4,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "hr.break_schedule_processing": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.candidate_pipeline_report": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.comp_adjustment_batch": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.compliance_training_enforcement": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 2,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "hr.compliance_training_enrollment": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.confluence_policy_migration": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.contractor_renewal": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.data_migration_validation": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.disciplinary_action_tracking": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.diversity_metrics_report": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.exit_interview_scheduling": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.expense_report_audit": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.handbook_acknowledgment": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "hr.i9_verification_tracking": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 4,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.interview_scheduling": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.monday_pip_tracking": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.multi_app_new_hire_setup": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "hr.performance_review_kickoff": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.probation_review_reminder": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.pto_balance_alert": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.pto_reconciliation": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.recognition_nominations": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.referral_bonus_processing": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "hr.referral_bonus_tracking": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 5,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "hr.rto_compliance_check": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 6,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "hr.safety_incident_reporting": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 3,
+   "candidates": 9,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "call never made",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "hr.standup_absence_tracking": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "hr.team_restructure_notification": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "hr.trello_internal_transfers": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "hr.zoom_orientation_sessions": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.ad_performance_review": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.analyst_briefing": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "marketing.analyst_mention_tracking": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "marketing.campaign_launch_checklist": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.campaign_roi_analysis": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "marketing.contact_data_cleanup": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.content_repurpose": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "marketing.customer_milestone": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.email_blast_suppression": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.event_registration_sync": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action"
+   ]
+  },
+  "marketing.featured_snippet": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.google_ads_high_intent_list_from_hubspot": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.guest_post_outreach": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.industry_event_tracking": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 3,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "marketing.industry_news": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.influencer_contract_reminders": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "marketing.keyword_cannibalization": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.landing_page_conversion": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.lifecycle_stage": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "marketing.linkedin_company_update": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.news_digest_dedup": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.newsletter_unsubscribe_processing": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 5,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.referral_processing": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.seasonal_campaign": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 5,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "marketing.seo_audit": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 5,
+   "candidates": 10,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "marketing.seo_competitor_gap": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.social_audit": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.social_content_calendar": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.social_roi": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "marketing.social_scheduling": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "marketing.topic_cluster": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 5,
+   "candidates": 10,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "marketing.trial_extension_processing": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 4,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "marketing.vendor_management": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "marketing.webinar_cancellation_workflow": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 3,
+   "candidates": 9,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "operations.airtable_gmail_visitor_followup": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "operations.buffer_engagement_optimization": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "operations.calendly_equipment_inspection": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "operations.canva_asset_management": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 6,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "operations.chatgpt_feedback_analysis": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "operations.chemical_inventory_safety_audit": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 2,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "operations.conference_room_booking_conflicts": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.cross_training_assignment": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 5,
+   "candidates": 5,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "operations.docusign_contractor_offboard": {
+   "type": "A",
+   "chosen": 6,
+   "rejected": 2,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ],
+   "split": "heldout"
+  },
+  "operations.docusign_lease_renewal": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "operations.energy_consumption_anomaly": {
+   "type": "A",
+   "chosen": 6,
+   "rejected": 2,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "operations.generator_load_testing_schedule": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.hazmat_shipping_compliance": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.hubspot_payment_failure": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 3,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "operations.hubspot_personalized_outreach": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 1,
+   "candidates": 1,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 1,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "operations.inventory_enrichment": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 1,
+   "candidates": 2,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "operations.loading_dock_scheduling": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.mailchimp_campaign_tracking": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "operations.monday_calendar_emergency_drill": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "call never made",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "wrong content"
+   ]
+  },
+  "operations.monday_slack_inventory": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 3,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "operations.notion_gmail_checklist_update": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.overtime_threshold_monitoring": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.parking_allocation_management": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.perishable_inventory_expiry": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 6,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "operations.pipefy_gmail_vendor_approval": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "missed action"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action"
+   ]
+  },
+  "operations.procurement_card_reconciliation": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "operations.sensor_monitoring_alert": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 2,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ],
+   "split": "heldout"
+  },
+  "operations.server_capacity_threshold_alerts": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 2,
+   "candidates": 10,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "operations.sla_breach_early_warning": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.space_utilization_analysis": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.trello_basecamp_compliance": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "operations.trello_vendor_hold_email": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action"
+   ],
+   "classes_covered": [
+    "missed action"
+   ]
+  },
+  "operations.utility_cost_allocation": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "operations.zoom_board_meeting": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.apply_project_label": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 2,
+   "candidates": 10,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "sales.calendly_meeting_prep": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 3,
+   "candidates": 3,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.calendly_multi_stakeholder_scheduling": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.calendly_reschedule_chain": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.calendly_sequential_meetings": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 2,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.calendly_sla_monitoring": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 6,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.calendly_timezone_aware_scheduling": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.chatgpt_contract_summary": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.chatgpt_email_sentiment_routing": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.chatgpt_lead_classification_pipeline": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.chatgpt_lead_summary_generator": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.chatgpt_proposal_customization": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 6,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.create_draft_reply": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.create_new_opportunity": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.create_note_on_contact": {
+   "type": "A",
+   "chosen": 6,
+   "rejected": 2,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "sales.cross_platform_account_health_score": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 6,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.cross_reference_validation": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.docusign_completion_processor": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.docusign_compliance_template": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.docusign_void_resend": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "sales.format_ambiguity": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "sales.gcal_travel_time_buffer": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.historical_context_pipeline_report": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.linkedin_event_promotion": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 2,
+   "candidates": 10,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "sales.linkedin_job_change": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 5,
+   "candidates": 10,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "sales.negative_selection": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "sales.overdue_followup_flag": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "sales.partnership_contract": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "sales.qualify_lead": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.soft_matching": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.update_contact_phone": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 2,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "sales.vendor_review_prep": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "sales.zoom_attendance_pipeline": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 3,
+   "candidates": 9,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "sales.zoom_recording_distribution": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "split": "heldout"
+  },
+  "support.freshdesk_escalation_matrix": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.freshdesk_faq_drafts": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 4,
+   "candidates": 4,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.freshdesk_journey_mapping": {
+   "type": "A",
+   "chosen": 7,
+   "rejected": 1,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.freshdesk_onboarding_automation": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 8,
+   "candidates": 8,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "missed action"
+   ],
+   "classes_covered": [
+    "call never made",
+    "missed action"
+   ],
+   "split": "heldout"
+  },
+  "support.freshdesk_zoho_migration": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action"
+   ],
+   "classes_covered": [
+    "missed action"
+   ]
+  },
+  "support.gorgias_channel_consolidation": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "support.gorgias_fraud_detection": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 6,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action"
+   ],
+   "classes_covered": [
+    "forbidden action"
+   ]
+  },
+  "support.helpcrunch_engagement_scoring": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 1,
+   "candidates": 1,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 1,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.helpcrunch_satisfaction": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.helpcrunch_usage_alerts": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 5,
+   "candidates": 5,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.helpscout_auto_categorization": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.helpscout_daily_digest": {
+   "type": "A",
+   "chosen": 7,
+   "rejected": 1,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "support.helpscout_jira_bugs": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 6,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.hiver_escalation_patterns": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.hiver_inbox_report": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.hiver_response_sla": {
+   "type": "A",
+   "chosen": 1,
+   "rejected": 7,
+   "candidates": 7,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "call never made",
+    "forbidden action",
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.hiver_workload_forecast": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.intercom_demo_scheduling": {
+   "type": "A",
+   "chosen": 3,
+   "rejected": 1,
+   "candidates": 3,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "missed action"
+   ],
+   "classes_covered": [
+    "missed action"
+   ]
+  },
+  "support.intercom_reactivation_campaign": {
+   "type": "A",
+   "chosen": 4,
+   "rejected": 4,
+   "candidates": 16,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.intercom_winback": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 6,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.reamaze_cross_platform_dedup": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 3,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "support.reamaze_intercom_migration": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.reamaze_multilanguage": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 3,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "support.zendesk_automated_responses": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 7,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.zendesk_customer_360": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "support.zendesk_data_quality": {
+   "type": "A",
+   "chosen": 2,
+   "rejected": 6,
+   "candidates": 12,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "forbidden action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "forbidden action",
+    "wrong content"
+   ]
+  },
+  "support.zendesk_escalation_waterfall": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.zendesk_freshdesk_sync": {
+   "type": "A",
+   "chosen": 5,
+   "rejected": 3,
+   "candidates": 15,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 4,
+   "classes_available": [
+    "missed action",
+    "wrong content"
+   ],
+   "classes_covered": [
+    "missed action",
+    "wrong content"
+   ]
+  },
+  "support.zendesk_hubspot_org_sync": {
+   "type": "A",
+   "chosen": 6,
+   "rejected": 1,
+   "candidates": 6,
+   "refused_start": 0,
+   "same_calls": 0,
+   "pairs": 2,
+   "classes_available": [
+    "wrong content"
+   ],
+   "classes_covered": [
+    "wrong content"
+   ]
+  },
+  "support.zendesk_sf_case_sync": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.zoho_calendar_callbacks": {
+   "type": "B",
+   "chosen": 1,
+   "rejected": 0,
+   "pairs": 0,
+   "reason": "no rejected attempt"
+  },
+  "support.zoho_desk_capacity_planning": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.zoho_desk_root_cause": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 6,
+   "pairs": 0,
+   "reason": "no chosen side"
+  },
+  "support.zoho_vendor_tickets": {
+   "type": null,
+   "chosen": 0,
+   "rejected": 8,
+   "pairs": 0,
+   "reason": "no chosen side"
+  }
+ }
+}

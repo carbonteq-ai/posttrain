@@ -1,0 +1,48 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-4b/automationbench-dpo-p9-e3
+stage: train
+description: >-
+  DPO of the Qwen3.5-4B SFT adapter on 322 preference pairs from its own attempts on the training tasks, the frozen
+  SFT adapter as reference; 61 steps, the final adapter evaluated.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-4b-automationbench-dpo-p9-e3@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.dpo
+      definition: train/trl-dpo@1
+  expected_artifacts:
+    - trained adapter
+    - per-pass adapter views
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-4b-p9-sft-v3-e3@adapter
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/qwen35-4b-ab-dpo-p9-train@1
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-4b/agent-dpo-p9-e3
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-4b-trl-lora-r16-agent-dpo-thinking@1
+enabled_optional_jobs: []
+metadata:
+  question: "Does DPO on its own preference pairs raise the SFT adapter's test120 success?"
+  labels:
+    - dpo
+    - p9
+    - thinking

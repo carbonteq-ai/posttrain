@@ -957,6 +957,26 @@ def test_model_roles_cannot_consume_another_roles_materialized_artifact(tmp_path
     assert untouched_draft is model
 
 
+def test_a_catalog_digest_pins_the_materialized_artifact(tmp_path: Path) -> None:
+    catalog = open_catalog(scope="jobs-test")
+    model = cast(ModelVariant, _selection(catalog, "model", "models/qwen3.5-2b@bf16"))
+    artifact = LocalArtifactRef((tmp_path / "adapter").resolve(), "a" * 64)
+    context = RunContext(
+        project_id="jobs-test",
+        work_package_id="train/digest-pin",
+        run_id="run-digest-pin",
+        job_kind="train.dpo",
+        job_definition_version="train/trl-dpo@1",
+        workspace=(tmp_path / "workspace").resolve(),
+        observer=NullObserver(),
+        input_artifacts={"model_adapter": artifact},
+    )
+
+    assert _materialize_selected_model_variant(context, replace(model, digest="a" * 64)).artifact is artifact
+    with pytest.raises(ValueError, match="differs from the catalog"):
+        _materialize_selected_model_variant(context, replace(model, digest="c" * 64))
+
+
 def test_judge_plugins_bind_to_services_independently_of_service_seats() -> None:
     services = {"judge/shared": ("judge_inference", 8123)}
 

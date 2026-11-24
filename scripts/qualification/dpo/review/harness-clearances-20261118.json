@@ -1,0 +1,62 @@
+{
+ "date": "2026-11-18",
+ "note": "every hit read in context: ordinary task words (brief tenure, general scoring policy, a brief message, Seasonal Hold checks, SDS expiry checks, opt-out checks, only checks high/urgent)",
+ "cleared": {
+  "dpo-w6/hr.benefits_enrollment_review/65e29b4a121e4eb9b7d30ebceb9af51c": [
+   {
+    "message": 6,
+    "words": [
+     "brief"
+    ]
+   }
+  ],
+  "dpo-w6/marketing.event_registration_sync/92a5169cd9694602950d4066e91ffe55": [
+   {
+    "message": 29,
+    "words": [
+     "scoring"
+    ]
+   }
+  ],
+  "dpo-w6/marketing.lifecycle_stage/59823d88c86b490180e51d80b89658b6": [
+   {
+    "message": 44,
+    "words": [
+     "brief"
+    ]
+   }
+  ],
+  "dpo-w6/operations.chatgpt_feedback_analysis/fef4c1af015842c9b4a06ad343805ca5": [
+   {
+    "message": 18,
+    "words": [
+     "checks"
+    ]
+   }
+  ],
+  "dpo-w6/operations.chemical_inventory_safety_audit/3efe4a777b33406abcec65f8308df646": [
+   {
+    "message": 7,
+    "words": [
+     "checks"
+    ]
+   }
+  ],
+  "dpo-w6/sales.zoom_recording_distribution/2a9e7f8fef6f45c28be3ee106b25eae0": [
+   {
+    "message": 19,
+    "words": [
+     "checks"
+    ]
+   }
+  ],
+  "dpo-w6/support.zendesk_data_quality/40a78e1d1eca448ab669bd201ffa263b": [
+   {
+    "message": 15,
+    "words": [
+     "checks"
+    ]
+   }
+  ]
+ }
+}

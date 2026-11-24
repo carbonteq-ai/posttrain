@@ -1,0 +1,96 @@
+# AutomationBench DPO of the Qwen3.5-4B SFT adapter (carbonteq/qwen3.5-4b-automationbench-dpo).
+# Pairs: 322 preference pairs on 111 training tasks (dpo/pairs.jsonl in carbonteq/automationbench-posttrain-data),
+# built by scripts/qualification/dpo. Each side keeps the SFT model's exact sampled token ids (metadata.token_ids),
+# which the job checks against its own rendering. Download the pairs to
+# .posttrain/datasets/qwen35-4b-ab-dpo-p9-train.jsonl before submitting the job.
+model:
+  # The SFT adapter (carbonteq/qwen3.5-4b-automationbench-sft); the job refuses a download with another digest.
+  models/qwen3.5-4b-p9-sft-v3-e3@adapter:
+    artifact:
+      kind: trackio
+      project: posttrain-lab
+      name: training-models-qwen3.5-4b-bf16-sft-lora-adapter
+      version: v3
+    base:
+      kind: hub
+      repo_id: Qwen/Qwen3.5-4B
+      revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+    digest: d199887816c99bd7c75970658aaf59272a715720ba91cac558fe8419a2c383bd
+    form: adapter
+    parent: models/qwen3.5-4b@bf16
+    weight_precision: bf16
+    family: qwen3.5
+    parameters: 4000000000
+    instruction_tuned: true
+    renderer_contract: qwen3.5-tools-thinking@1
+    capabilities:
+      modalities: [text, image]
+      native_context_window: 262144
+      mtp: true
+    provenance:
+      source: the 4B SFT adapter (epoch 3)
+
+dataset:
+  # Every selected pair is trained on (no held-out split).
+  datasets/qwen35-4b-ab-dpo-p9-train@1:
+    revision: "1"
+    kind: preference
+    source:
+      kind: jsonl
+      path: .posttrain/datasets/qwen35-4b-ab-dpo-p9-train.jsonl
+    format:
+      kind: trl
+
+training:
+  # Sigmoid DPO plus an SFT term on the preferred side (weight 1), beta 0.1, not length-normalised; LR 1e-5 cosine with
+  # 10% warm-up; batch 16; 61 steps (each pair seen about 3 times); the frozen SFT adapter is the reference, scored
+  # once before training; log-probabilities computed in chunks (no full-vocabulary logits).
+  qwen3.5-4b/agent-dpo-p9-e3:
+    selection_type: dpo-settings
+    revision: "1"
+    loop:
+      max_steps: 61
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.00001
+      warmup_ratio: 0.1
+      lr_scheduler_type: cosine
+      max_grad_norm: 1.0
+      logging_steps: 1
+      checkpoint_steps: 21
+      checkpoint_limit: 4
+      seed: 20261103
+      gradient_checkpointing: true
+    beta: 0.1
+    loss_kernel: chunked
+    sft_weight: 1.0
+    preference_loss: sigmoid
+    precompute_reference: true
+
+  # The SFT training binding with the DPO loss: same LoRA, renderer and image-text model class.
+  training/qwen3.5-4b-trl-lora-r16-agent-dpo-thinking@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post15
+    renderer:
+      id: qwen3.5-thinking-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: thinking
+    update:
+      kind: lora
+      rank: 16
+      alpha: 32
+      dropout: 0.0
+      target_modules: all-linear
+      exclude_modules: .*visual.*
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 16
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      model_class: image-text-to-text
+      dependency_lock: trl-fork@current

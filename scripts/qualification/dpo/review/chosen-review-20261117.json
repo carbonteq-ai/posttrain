@@ -1,0 +1,32 @@
+{
+ "date": "2026-11-17",
+ "reader": "me (no subagents)",
+ "drop": {
+  "dpo-w6/hr.contractor_renewal/d91c193b61084678ab8245e5fa2bbc47": "reasoning states a false date: a timestamp 'converts to around July 2025' (it is March 2026)",
+  "dpo-w6/sales.apply_project_label/9de5ae361c6a49908ca5415390d095b6": "reasoning states a false date: '1793145600000 ms = roughly May 2024' (it is October 2026)",
+  "dpo-w6/finance.tax_prep_summary/5f797b72174b4ce893391b2293962143": "reasoning cites an IRS revenue procedure from memory, not from the task",
+  "dpo-w6/support.intercom_demo_scheduling/f7ea14845c5d44fe9d4a9df0c5811d70": "invites invented recipients (sales@<company>.example.com) built from the policy's single address",
+  "dpo-w6/marketing.webinar_cancellation_workflow/199c941dc5ed45a1a4e9851b23818ffd": "sends an invented webinar name ('Q1 2026 Webinar') in two emails and a Slack post",
+  "dpo-w6/sales.zoom_attendance_pipeline/e72052ca92fa434b890d198db2e85dc3": "advances BlueStar on an assumed registrant count and posts '100% attendance' as fact",
+  "dpo-w6/hr.compliance_training_enforcement/5edad576d5e74c1ba9d803487317784e": "admits a wrong email sent earlier ('I incorrectly sent her a different email already'); dropped rather than masked",
+  "dpo-w6/hr.i9_verification_tracking/9e6896e538ca441abf8659fe0446fd80": "admits emailing managers by mistake ('I mistakenly emailed managers'); dropped rather than masked",
+  "dpo-w6/operations.inventory_enrichment/7421356025984dc7b809c137d0dc01ab": "wrote a wrong weight (3.6 for PRD-1004) and corrected it later; dropped rather than masked",
+  "dpo-w6/operations.inventory_enrichment/8e6c0b799ee54b66b4328d224af2e80b": "final-reply reading: writes the placeholder date '2024-01-XX' into a Notion page title",
+  "dpo-w6/operations.sensor_monitoring_alert/eea2b80d90ac4be1bf5269f0d5cdd2c6": "final-reply reading: the Slack post says a 23.0 reading is 'only 1.0 above' the 24.0 minimum it is below (false statement in an outgoing message)",
+  "dpo-w6/finance.po_three_way_match/31b607c4b1aa4cc38f1c0cfd012e0cf3": "wrong action, corrected later (in-depth reading): first marks all invoices APPROVED incl. VI-002 (4% price variance), then overwrites the statuses",
+  "dpo-w6/finance.po_three_way_match/1c1778b30c1b401599bd709dadf728e3": "wrong action, corrected later (overwrite scan): first writes generic statuses (APPROVED/FLAGGED/DISCREPANCY), then overwrites the same rows with the policy's labels",
+  "dpo-w6/finance.po_three_way_match/1e5a4f18782e43bfb357fa788f799c2b": "wrong action, corrected later (overwrite scan): first writes generic statuses (APPROVED/FLAGGED/DISCREPANCY), then overwrites the same rows with the policy's labels"
+ },
+ "drop_tasks": {
+  "sales.calendly_sequential_meetings": "the task gives no date; every attempt invents one (e.g. 'based on my knowledge cutoff', 'assume today is around mid-2025'), as the SFT row dropped 13 Nov"
+ },
+ "keep_listed_for_ali": {
+  "dpo-w6/support.gorgias_fraud_detection/9942f7c4bf28440d9940bf406fd01c06": "sender_email 'fraud.automated@company.com' on a ticket note is not in the context (sender label, not a recipient)",
+  "dpo-w6/support.reamaze_multilanguage/ed11011136dd4d8e814c0c754916e6c1": "author_email 'automation@re.amaze.io' on a staff note is not in the context (sender label)",
+  "dpo-w6/support.reamaze_cross_platform_dedup/1bd3b46a7a67486fac48a01a215dad8b": "author_email 'system@dedupbot.com' on staff notes is not in the context (sender label)",
+  "dpo-w6/operations.perishable_inventory_expiry/287c79f92ab942edb1f7c11724a3d03b": "SMS from_number '+15554001001' is a stated placeholder the task never provides (same as the SFT row kept and listed 13 Nov)"
+ },
+ "kept_after_reading": "every other years/provenance/assumption/correction flag in scans.json was read in context: worked arithmetic, read-only search queries with guessed senders, a phone number reformatted from the source, IDs built from given formats, hyphenated words and dates matched by the token/phone patterns, interpretation choices of ambiguous rules, data corrections the task asks for, apologies in cancellation emails, 'inventory' matched by the invent pattern",
+ "final_replies_read": "all 164 admitted final replies read in full (17 Nov); two dropped above, the rest accurate (arithmetic spot-checked: referral dates, energy deviations, social ROI)",
+ "overwrite_scan": "every admitted attempt scanned for a record (same tool and target id) written twice with different values: only these 3 po_three_way_match attempts"
+}

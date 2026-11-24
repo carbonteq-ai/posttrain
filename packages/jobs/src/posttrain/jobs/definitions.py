@@ -641,6 +641,9 @@ def _materialize_selected_model_variant(
             return model
         input_name = adapter_name
     local = context.input_artifact(input_name)
+    if model.digest is not None and local.digest != model.digest:
+        # A catalog digest pins the stored artifact's content (tree sha256); a different download is refused.
+        raise ValueError(f"materialized {input_name} digest {local.digest} differs from the catalog's {model.digest}")
     form = "adapter" if input_name == adapter_name else "full-finetuned"
     return replace(
         model,

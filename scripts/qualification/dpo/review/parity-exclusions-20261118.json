@@ -1,0 +1,10 @@
+{
+ "date": "2026-11-18",
+ "rule": "phase-1 parity rule: an attempt whose rendered text cannot equal P9's sampled tokens is not used",
+ "excluded": {
+  "dpo-w6/marketing.topic_cluster/fdb60f4e9b534b04ad5e3f0308fc6e93": "the chat template strips trailing whitespace at the end of reasoning ('Automation. ' -> 'Automation.'); P9's sampled tokens cannot be reproduced",
+  "dpo-w6/operations.hubspot_payment_failure/959bf930e9f44c1a98631b4d717a541b": "P9 wrote the parameter 'lifecyclestage' twice in one call; the recorded arguments (a mapping) cannot hold the duplicate",
+  "dpo-w6/sales.linkedin_event_promotion/805c17dbf7b0421d907db7382ebab737": "a string argument's stored value has a trailing newline P9's sampled parameter text lacks",
+  "dpo-w6/operations.cross_training_assignment/515758d274774da9b911964b02347c0f": "P9 closed a parameter without the newline before </parameter>; the template always renders it"
+ }
+}

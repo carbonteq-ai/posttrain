@@ -1,0 +1,24 @@
+{
+ "_note": "18 Nov gate 1b: SFT's masked-turn rule ('wrong action, corrected later'); turn = message index of the wrong action, read in full",
+ "dpo-w6/hr.compliance_training_enforcement/5edad576d5e74c1ba9d803487317784e": [
+  8
+ ],
+ "dpo-w6/hr.i9_verification_tracking/9e6896e538ca441abf8659fe0446fd80": [
+  6
+ ],
+ "dpo-w6/finance.po_three_way_match/31b607c4b1aa4cc38f1c0cfd012e0cf3": [
+  10
+ ],
+ "dpo-w6/finance.po_three_way_match/1c1778b30c1b401599bd709dadf728e3": [
+  14
+ ],
+ "dpo-w6/finance.po_three_way_match/1e5a4f18782e43bfb357fa788f799c2b": [
+  14
+ ],
+ "dpo-w6/hr.compliance_training_enforcement/9a3c2467a6a54764aa747f6ea287e296": [
+  12
+ ],
+ "dpo-w6/finance.payment_fraud_detection/1c7be635dfc5464b867377973d28770d": [
+  21
+ ]
+}

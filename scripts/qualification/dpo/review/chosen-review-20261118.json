@@ -1,0 +1,54 @@
+{
+ "date": "2026-11-18",
+ "reader": "Claude (gate 1b; Ali approved SFT's edit rules for chosen attempts, 18 Nov 17:2x)",
+ "drop": {
+  "dpo-w6/operations.inventory_enrichment/3df0257d21684cb896b1afe86b2e266c": "placeholder in created record: Notion page title 'Inventory Weight Data Update - [Date]'",
+  "dpo-w6/operations.inventory_enrichment/1f678616fd0c40cbbbf3c05a08863eb7": "placeholder in created record: Notion page title 'Inventory Weight Data Updates - [DATE]'",
+  "dpo-w6/marketing.webinar_cancellation_workflow/b1d6af779e8747dd8389cfa083877a0d": "placeholder in a sent Slack message: 'Refund ticket reference: [Link]'",
+  "dpo-w6/operations.hubspot_personalized_outreach/cc1b9a24a92e4dd28e3fadb448df8271": "placeholder sign-off in sent emails: 'Best regards, Your Name Outreach Team'",
+  "dpo-w6/operations.hubspot_personalized_outreach/0f3db8cf904f4b52b3526a159a4cccbe": "placeholder in sent emails: '[Your Name]'",
+  "dpo-w6/operations.hubspot_personalized_outreach/39ad10538b954613b986b912e6ccd326": "placeholder in sent emails: '[Your Name]'",
+  "dpo-w6/operations.hubspot_personalized_outreach/a58bc9248add443f9590f47bbb69504a": "placeholder in sent emails: '[Your Name]'",
+  "dpo-w6/operations.hubspot_personalized_outreach/ef76b8a1379142018c56fa65ada9b957": "placeholder in sent emails: '[My Name]'",
+  "dpo-w6/operations.hubspot_personalized_outreach/2386657283934ff2a4044c7a26fd768f": "placeholder sign-off in sent emails: 'Best regards, Your Team'",
+  "dpo-w6/sales.update_contact_phone/6cfe05c7fee8458793e6d53106988c62": "invented year in a trained call: Gmail search 'after:2024/01/01' (SFT year rule)",
+  "dpo-w6/sales.update_contact_phone/6f59475fd9dd40a7bb696cf03d57eb1f": "invented year in a trained call: Gmail search '-after:2024/01/01' (SFT year rule)",
+  "dpo-w6/sales.update_contact_phone/ba834648bc0f490eb531261f7c8034f5": "invented year in a trained call: Gmail search 'after:2024/01/01' (SFT year rule)",
+  "dpo-w6/operations.inventory_enrichment/88c8e68486bd4c14bd17c2ff1848ddc8": "invented date in a created record: Notion title 'Inventory Weight Data Update - 2024-01-15'",
+  "dpo-w6/operations.perishable_inventory_expiry/f1a188876f4b4f7cbd6bcc77694bcde5": "invented SMS sender number '+18005551234' (not in the data; the listed case reused a contact's own number)",
+  "dpo-w6/hr.monday_pip_tracking/871e500ffdd2464a97af9414174a251f": "invented identifier in trained calls: monday board_id '123456789' and guessed board names",
+  "dpo-w6/hr.benefits_enrollment_review/578c61513cc74c26b5bad8a363545d5f": "invented contact address in a sent email body: 'contact HR at hr@example.com'",
+  "dpo-w6/operations.cross_training_assignment/8de328d194944091830250bd428b0a96": "14 blind workspace-name guesses in trained turns, tasks created in the guessed workspace 'company-workspace'",
+  "dpo-w6/operations.cross_training_assignment/f19eda03ea854e63abaaaf34c26dbb43": "15 blind workspace-name guesses in trained turns",
+  "dpo-w6/operations.canva_asset_management/fe7c5ed3648e4e3c87e348784357c2a7": "moves files by invented references ('Q1 Banner.png') that no lookup returned",
+  "dpo-w6/operations.canva_asset_management/2eb3ec6daba64d2184a7193e85f64c74": "reply claims 'Files Moved' but no move call was made",
+  "dpo-w6/hr.compliance_training_enforcement/325515e91e8948adaf6b59b0d334de51": "wrong action never corrected: both emails sent to IT-security; final reasoning accepts it",
+  "dpo-w6/hr.i9_verification_tracking/c1dc198b075a41c5a09142d609136c0d": "wrong action never corrected: reminder sent to Esme Nakamura who was past the window",
+  "dpo-w6/operations.server_capacity_threshold_alerts/5f550ee657ec420a95df7e87d95fc072": "first alert email wrong, the CORRECTION email still incomplete (its own reasoning says so)",
+  "dpo-w6/operations.inventory_enrichment/7421356025984dc7b809c137d0dc01ab": "masking cannot fix: later trained reasoning misstates what happened ('row 5 to 0.35 - incorrect'; it was 3.6)",
+  "dpo-w6/operations.sensor_monitoring_alert/94b21c6eb2e94b6786ae480456524559": "false claim in trained final reasoning: says the posted Slack message named 'the wrong critical sensor' and announces a correction it never sends (the post was right)",
+  "dpo-w6/sales.calendly_sla_monitoring/c71784bc71f1425c8ac75f4d9dfc41ab": "wrong content sent and never corrected: Slack post said 'EXCEEDED by 40 hours', its own later reasoning finds that wrong (phase-1 miss, found by the widened corrections scan)"
+ },
+ "drop_tasks": {},
+ "keep_listed_for_ali": {
+  "dpo-w6/finance.wave_client_statement/d8768a87a5be47b39a7afb3ef684adca": "made-up sender address in from_: statements@company.example.com (Ali 18 Nov: keep what SFT kept)",
+  "dpo-w6/support.gorgias_channel_consolidation/23756d72b63e43ee87e5f42578c92765": "made-up sender label on a ticket message: automation@gorgias.example.com"
+ },
+ "masks": "masks-1b.json (5 attempts, 'wrong action, corrected later')",
+ "edits": "reply_edits_a.json + reply_edits_b.json (128 final replies, delete-only; every reply read)",
+ "kept_after_reading": {
+  "scheduling dates": "times the task leaves open, chosen in the reasoning from the data's own date and never stated as fact: intercom_demo_scheduling 6e927a5b/9ee73898/f193db0e, linkedin_job_change 7f1b1505 due date, seasonal_campaign 7009fda3 post time",
+  "lookup-only values": "addresses or titles used only in searches (gmail queries, pipefy title search) are not sent or saved",
+  "reasoning-only years": "leap-year arithmetic and max_tokens 2000 in a ChatGPT call",
+  "TBD": "'Lost Days: TBD' in safety_incident_reporting is the source data's own value"
+ },
+ "placeholder_check": "bracketed/unbracketed placeholders in trained calls and final replies over all 159 admitted + 128 edited (prompt templates sent to ChatGPT excluded; task labels such as [ESCALATION] kept)",
+ "undrop": {
+  "dpo-w6/hr.compliance_training_enforcement/5edad576d5e74c1ba9d803487317784e": "admitted in its masked form: the wrong turn [8] masked ('wrong action, corrected later'; Ali 18 Nov)",
+  "dpo-w6/hr.i9_verification_tracking/9e6896e538ca441abf8659fe0446fd80": "admitted in its masked form: the wrong turn [6] masked ('wrong action, corrected later'; Ali 18 Nov)",
+  "dpo-w6/finance.po_three_way_match/31b607c4b1aa4cc38f1c0cfd012e0cf3": "admitted in its masked form: the wrong turn [10] masked ('wrong action, corrected later'; Ali 18 Nov)",
+  "dpo-w6/finance.po_three_way_match/1c1778b30c1b401599bd709dadf728e3": "admitted in its masked form: the wrong turn [14] masked ('wrong action, corrected later'; Ali 18 Nov)",
+  "dpo-w6/finance.po_three_way_match/1e5a4f18782e43bfb357fa788f799c2b": "admitted in its masked form: the wrong turn [14] masked ('wrong action, corrected later'; Ali 18 Nov)"
+ },
+ "corrections_scan": "18 Nov: the reasoning mistake pattern widened ('made an error', 'was wrong/incorrect', 'sent ... wrong') after compliance 9a3c2467's 'I made an error' was found by reading; every new flag read: 2 drops, 2 masks (9a3c2467 turn 12, payment_fraud 1c7be635 turn 21), the rest re-checks with no wrong action"
+}

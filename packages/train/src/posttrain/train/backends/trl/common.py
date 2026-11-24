@@ -393,10 +393,48 @@ def load_trainable_model(
         raise ValueError("the host must materialize a remote adapter artifact before training")
     if not model.artifact.path.is_dir():
         raise FileNotFoundError(model.artifact.path)
-    return imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=True)
+    continued = imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=True)
+    require_loaded_adapter(continued, model.artifact.path)
+    return continued
 
 
-def load_frozen_adapter_reference(model: ModelVariant, imports: dict[str, Any]) -> Any | None:
+def require_loaded_adapter(peft_model: Any, path: Any) -> None:
+    """Refuse an adapter whose saved weights did not all attach to the model.
+
+    PEFT warns but carries on when a saved adapter's module names do not match the loaded model class (for example
+    an adapter trained on the image-text class loaded into the causal-LM class): the LoRA layers then keep their
+    initialization and the "continued" or "reference" policy is silently not the trained one. Every tensor in
+    ``adapter_model.safetensors`` must appear in the model, under the active adapter's name, with equal values."""
+
+    from pathlib import Path
+
+    import torch
+    from safetensors.torch import load_file
+
+    file = Path(path) / "adapter_model.safetensors"
+    if not file.is_file():
+        raise ValueError(f"adapter at {path} has no adapter_model.safetensors to verify")
+    adapter = peft_model.active_adapter
+    parameters = dict(peft_model.named_parameters())
+    problems = []
+    for key, saved in load_file(str(file)).items():
+        stem, _, leaf = key.rpartition(".")
+        name = f"{stem}.{adapter}.{leaf}"
+        parameter = parameters.get(name, parameters.get(key))
+        if parameter is None:
+            problems.append(f"{key}: not in the model")
+        elif not torch.equal(parameter.detach().cpu().to(saved.dtype), saved):
+            problems.append(f"{key}: values differ")
+    if problems:
+        raise ValueError(
+            f"adapter at {path} did not attach to the model ({len(problems)} tensors, e.g. {problems[0]}); "
+            "check the model class"
+        )
+
+
+def load_frozen_adapter_reference(
+    model: ModelVariant, imports: dict[str, Any], model_class: str | None = None
+) -> Any | None:
     """The adapter variant merged into its base and frozen, or None for a foundation model.
 
     When a preference update continues a trained adapter (for example DPO after SFT), the
@@ -409,7 +447,7 @@ def load_frozen_adapter_reference(model: ModelVariant, imports: dict[str, Any]) 
         raise ValueError("the host must materialize a remote adapter artifact before training")
     if not model.artifact.path.is_dir():
         raise FileNotFoundError(model.artifact.path)
-    base = trainable_model_factory(model, imports).from_pretrained(
+    base = trainable_model_factory(model, imports, model_class).from_pretrained(
         model.base.repo_id,
         revision=model.base.revision,
         device_map={"": 0},
@@ -417,7 +455,9 @@ def load_frozen_adapter_reference(model: ModelVariant, imports: dict[str, Any]) 
         attn_implementation="sdpa",
         trust_remote_code=model.provenance.get("trust_remote_code") is True,
     )
-    reference = imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=False).merge_and_unload()
+    adapted = imports["PeftModel"].from_pretrained(base, model.artifact.path, is_trainable=False)
+    require_loaded_adapter(adapted, model.artifact.path)
+    reference = adapted.merge_and_unload()
     reference.eval()
     for parameter in reference.parameters():
         parameter.requires_grad_(False)
@@ -1017,6 +1057,7 @@ __all__ = [
     "model_class_option",
     "preserve_recovery_checkpoint_after_error",
     "reject_model_class_option",
+    "require_loaded_adapter",
     "publish_checkpoint_views",
     "publish_interrupted_recovery_checkpoint",
     "trainable_model_factory",
