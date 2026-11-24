@@ -743,6 +743,7 @@ def _seat_attributes(
                 "peft_alpha": update.alpha,
                 "peft_dropout": update.dropout,
                 "peft_target_modules": update.target_modules,
+                "peft_exclude_modules": update.exclude_modules,
             }
         )
     if isinstance(update, QLoRAUpdate):

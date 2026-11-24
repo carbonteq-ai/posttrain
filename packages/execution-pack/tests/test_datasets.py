@@ -162,7 +162,7 @@ def test_typed_builder_is_materialized_and_locked_in_the_job_context(tmp_path: P
 
     lock = result.locks[0]
     assert lock.build_key
-    assert lock.materializer_schema_version == 2
+    assert lock.materializer_schema_version == 3  # rows keep source key order since schema 3
     assert lock.builder_target == "builder:build"
     assert lock.code_snapshot_digest == code_snapshot_digest
     assert lock.dependency_lock_digest == dependency_lock_digest

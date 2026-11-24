@@ -249,3 +249,150 @@ def test_nemo_source_rejects_incompatible_formats() -> None:
             },
             {},
         )
+
+
+def _agent_row() -> dict:
+    """A tool-calling SFT row whose mappings are deliberately not in sorted key order."""
+
+    return {
+        "id": "rows/agent-key-order",
+        "messages": [
+            {"role": "system", "content": "You are an agent."},
+            {"role": "user", "content": "Email the summary — café “quoted”."},
+            {
+                "role": "assistant",
+                "content": "Reading the sheet and the inbox first.",
+                "tool_calls": [
+                    {
+                        "id": "call_1_1",
+                        "type": "function",
+                        "function": {
+                            "name": "sheets_get",
+                            "arguments": {"spreadsheet": "ss_1", "includeGridData": True, "a": {"z": 1, "b": [2]}},
+                        },
+                    },
+                    {
+                        "id": "call_1_2",
+                        "type": "function",
+                        "function": {"name": "gmail_find", "arguments": {"query": "", "max_results": 20}},
+                    },
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_1_1", "name": "sheets_get", "content": '{"success": true}'},
+            {"role": "tool", "tool_call_id": "call_1_2", "name": "gmail_find", "content": '{"success": true}'},
+            {"role": "assistant", "content": "Sent."},
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "sheets_get",
+                    "description": "Get a sheet.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"spreadsheet": {"type": "string"}, "includeGridData": {"type": "boolean"}},
+                        "required": ["spreadsheet"],
+                    },
+                },
+            }
+        ],
+        "trainable_message_indices": [2, 5],
+        "metadata": {"task": "t", "source": "unit"},
+    }
+
+
+def _jsonl_plan(path: str) -> DatasetLoadPlan:
+    plan = decode_dataset_selection(
+        CatalogRef("dataset", "datasets/key-order@1"),
+        {
+            "id": "datasets/key-order@1",
+            "revision": "1",
+            "kind": "supervised",
+            "source": {"kind": "jsonl", "path": path},
+            "format": {"kind": "messages"},
+        },
+        {},
+    )
+    assert isinstance(plan, DatasetLoadPlan)
+    return plan
+
+
+def test_materialization_keeps_row_key_order_and_round_trips_byte_identically(tmp_path: Path) -> None:
+    row = _agent_row()
+    # The adapter appends exactly these two metadata fields; with them present the row is a fixed point.
+    expected = {**row, "metadata": {**row["metadata"], "source_row": 0, "source_format": "messages"}}
+    (tmp_path / "rows.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+    first = materialize_dataset(_jsonl_plan("rows.jsonl"), state_dir=tmp_path / "state", project_root=tmp_path)
+    materialized = first.path.read_text(encoding="utf-8")
+    assert materialized == json.dumps(expected) + "\n"
+    for field in ("messages", "tools", "trainable_message_indices"):
+        assert json.dumps(row[field]) in materialized
+    loaded = json.loads(materialized)
+    assert list(loaded["messages"][2]["tool_calls"][0]["function"]["arguments"]) == [
+        "spreadsheet",
+        "includeGridData",
+        "a",
+    ]
+    assert list(loaded["tools"][0]["function"]["parameters"]["properties"]) == ["spreadsheet", "includeGridData"]
+
+    # Materializing the materialized file again gives the same bytes.
+    (tmp_path / "again").mkdir()
+    (tmp_path / "again" / "rows.jsonl").write_text(materialized, encoding="utf-8")
+    second = materialize_dataset(
+        _jsonl_plan("rows.jsonl"), state_dir=tmp_path / "again" / "state", project_root=tmp_path / "again"
+    )
+    assert second.path.read_bytes() == first.path.read_bytes()
+    assert second.content_sha256 == first.content_sha256
+
+    # The loaded dataset (the training job's path) keeps the order too.
+    source = resolve_dataset_source(_jsonl_plan("rows.jsonl"), state_dir=tmp_path / "state", project_root=tmp_path)
+    assert isinstance(source, SupervisedDataset)
+    message = source.examples[0].message_records()[2]
+    assert list(message["tool_calls"][1]["function"]["arguments"]) == ["query", "max_results"]
+
+
+def test_untyped_cache_fingerprint_names_the_row_serialization(tmp_path: Path) -> None:
+    import hashlib
+
+    from posttrain.data.catalog import MATERIALIZED_ROW_SERIALIZATION, _plan_json
+
+    (tmp_path / "rows.jsonl").write_text(json.dumps(_agent_row()) + "\n", encoding="utf-8")
+    plan = _jsonl_plan("rows.jsonl")
+    identity = _plan_json(plan, project_root=tmp_path, input_root=tmp_path)
+    assert MATERIALIZED_ROW_SERIALIZATION == "json-source-key-order@1"
+    assert '"row_serialization":"json-source-key-order@1"' in identity
+    # caches written by the earlier key-sorting code live under a fingerprint without the marker: never reused
+    materialized = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    assert materialized.path.parent.name == hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def test_untyped_cache_is_content_addressed_rewrite_under_same_revision_rebuilds(tmp_path: Path) -> None:
+    """Rewriting the source file under the same selection revision must never reuse the stale materialization."""
+
+    row = _agent_row()
+    source = tmp_path / "rows.jsonl"
+    source.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    plan = _jsonl_plan("rows.jsonl")
+    first = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    cached = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    assert first.created is True and cached.created is False  # unchanged bytes: still a cache hit
+    assert cached.path == first.path
+
+    changed = json.loads(json.dumps(row))
+    changed["messages"][-1]["content"] = "A different final reply."
+    source.write_text(json.dumps(changed) + "\n", encoding="utf-8")  # same path, same selection revision
+    rebuilt = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    assert rebuilt.created is True
+    assert rebuilt.path != first.path
+    assert rebuilt.content_sha256 != first.content_sha256
+    assert "A different final reply." in rebuilt.path.read_text(encoding="utf-8")
+
+    # Restoring the original bytes finds the original cache entry again.
+    source.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    again = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    assert again.created is False and again.path == first.path
+
+
+def test_untyped_cache_identity_with_missing_source_is_a_contract_error(tmp_path: Path) -> None:
+    with pytest.raises(ContractError, match="not found"):
+        materialize_dataset(_jsonl_plan("absent.jsonl"), state_dir=tmp_path / "state", project_root=tmp_path)

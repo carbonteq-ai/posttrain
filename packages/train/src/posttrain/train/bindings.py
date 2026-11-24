@@ -40,9 +40,12 @@ class LoRAUpdate:
     dropout: float = 0.0
     target_modules: str = "all-linear"
     kind: Literal["lora"] = "lora"
+    # A PEFT ``exclude_modules`` regex: modules matching it are never adapted, even when
+    # ``target_modules`` selects them (for example a vision tower under ``all-linear``).
+    exclude_modules: str | None = None
 
     def __post_init__(self) -> None:
-        _validate_adapter(self.rank, self.alpha, self.dropout, self.target_modules)
+        _validate_adapter(self.rank, self.alpha, self.dropout, self.target_modules, self.exclude_modules)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,9 +58,10 @@ class QLoRAUpdate:
     dropout: float = 0.0
     target_modules: str = "all-linear"
     kind: Literal["qlora"] = "qlora"
+    exclude_modules: str | None = None
 
     def __post_init__(self) -> None:
-        _validate_adapter(self.rank, self.alpha, self.dropout, self.target_modules)
+        _validate_adapter(self.rank, self.alpha, self.dropout, self.target_modules, self.exclude_modules)
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,7 +229,16 @@ class QuantizationPlan:
         object.__setattr__(self, "output_quantization", MappingProxyType(dict(self.output_quantization)))
 
 
-def _validate_adapter(rank: int, alpha: int, dropout: float, target_modules: str) -> None:
+def _validate_adapter(
+    rank: int, alpha: int, dropout: float, target_modules: str, exclude_modules: str | None = None
+) -> None:
+    if exclude_modules is not None:
+        if not isinstance(exclude_modules, str) or not exclude_modules.strip():
+            raise ValueError("LoRA exclude_modules must be a non-empty regular expression")
+        try:
+            re.compile(exclude_modules)
+        except re.error as error:
+            raise ValueError(f"LoRA exclude_modules is not a valid regular expression: {error}") from error
     if (
         isinstance(rank, bool)
         or not isinstance(rank, int)
@@ -245,7 +258,11 @@ def _validate_adapter(rank: int, alpha: int, dropout: float, target_modules: str
 def parameter_update_digest(update: ParameterUpdatePlan) -> str:
     """Stable digest for resolved-run snapshots and lineage metadata."""
 
-    payload = json.dumps(asdict(update), sort_keys=True, separators=(",", ":"))
+    values = asdict(update)
+    if values.get("exclude_modules", ...) is None:
+        # Updates without an exclusion keep the digest they had before the field existed.
+        del values["exclude_modules"]
+    payload = json.dumps(values, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
 
 

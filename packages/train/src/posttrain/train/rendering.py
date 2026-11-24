@@ -180,7 +180,10 @@ def render_supervised(
         raise RuntimeError("install posttrain-train with the trl extra") from error
 
     active_renderer = create_renderer(tokenizer, model, renderer)
+    qwen_thinking_off = _qwen35_thinking_off(model, renderer)
+    qwen_thinking_on = _qwen35_thinking_on(model, renderer)
     rendered: list[RenderedSFTExample] = []
+    overlong: list[tuple[str, int]] = []
     for example in dataset.examples:
         messages = example.message_records()
         tools = example.tool_records()
@@ -192,23 +195,135 @@ def render_supervised(
             tools=cast(list[Any], tools) or None,
             ensure_final_stop=True,
         )
-        source_ids = tuple(sample.token_ids)
-        source_loss_mask = tuple(sample.loss_mask)
-        input_ids = source_ids[:max_length]
-        loss_mask = source_loss_mask[:max_length]
+        input_ids = tuple(sample.token_ids)
+        loss_mask = tuple(bool(value) for value in sample.loss_mask)
         if len(input_ids) != len(loss_mask) or not any(loss_mask):
             raise ValueError(f"supervised example {example.id!r} has no trainable tokens after rendering")
+        if qwen_thinking_off:
+            loss_mask = _mask_prefilled_empty_thinking(tokenizer, example.id, input_ids, loss_mask)
+            if not any(loss_mask):
+                raise ValueError(f"supervised example {example.id!r} has no trainable tokens after rendering")
+        if qwen_thinking_on:
+            loss_mask = _mask_prefilled_think_open(tokenizer, example.id, input_ids, loss_mask)
+        # Tokens after the last supervised token (a template's trailing newline) carry no loss and,
+        # in a causal model, cannot change the loss of any earlier token; drop them.
+        end = max(index for index, include in enumerate(loss_mask) if include) + 1
+        input_ids, loss_mask = input_ids[:end], loss_mask[:end]
+        if len(input_ids) > max_length:
+            # Never train on a silently cut conversation: a cut drops the end of the episode
+            # (its final actions and reply) while keeping the loss on what remains.
+            overlong.append((example.id, len(input_ids)))
+            continue
         labels = tuple(token if include else -100 for token, include in zip(input_ids, loss_mask, strict=True))
         rendered.append(
             RenderedSFTExample(
                 example.id,
                 input_ids,
                 labels,
-                len(source_ids),
-                sum(source_loss_mask),
+                len(input_ids),
+                sum(loss_mask),
             )
         )
+    if overlong:
+        listed = ", ".join(f"{identifier!r} ({length} tokens)" for identifier, length in overlong)
+        raise ValueError(
+            f"{len(overlong)} supervised example(s) exceed max_length={max_length} and would be truncated; "
+            f"drop or shorten them in the dataset, or raise the settings limit: {listed}"
+        )
     return tuple(rendered)
+
+
+def _qwen35_thinking_off(model: ModelVariant, renderer: TrainingRenderer) -> bool:
+    name, kwargs = renderer_config_spec(model, renderer)
+    return name == "qwen3.5" and kwargs.get("enable_thinking") is False
+
+
+def _qwen35_thinking_on(model: ModelVariant, renderer: TrainingRenderer) -> bool:
+    name, kwargs = renderer_config_spec(model, renderer)
+    return name == "qwen3.5" and kwargs.get("enable_thinking") is True
+
+
+def _mask_prefilled_think_open(
+    tokenizer: Any, example_id: str, input_ids: tuple[int, ...], loss_mask: tuple[bool, ...]
+) -> tuple[bool, ...]:
+    """Remove the opening ``<think>\\n`` from Qwen3.5 thinking-on targets.
+
+    With thinking enabled the generation prompt itself ends with ``<think>\\n``, so the model never
+    samples it; the renderer emits it at the start of every assistant turn and marks it sampled.
+    Each supervised assistant turn must start with exactly that opener, which is excluded from the
+    loss; the reasoning, ``</think>``, the visible text and the calls stay trained.
+    """
+
+    header = [
+        tokenizer.convert_tokens_to_ids("<|im_start|>"),
+        *tokenizer.encode("assistant\n", add_special_tokens=False),
+    ]
+    opener = [tokenizer.convert_tokens_to_ids("<think>"), *tokenizer.encode("\n", add_special_tokens=False)]
+    mask = list(loss_mask)
+    ids = list(input_ids)
+    index = 0
+    while index < len(ids):
+        if ids[index : index + len(header)] != header:
+            index += 1
+            continue
+        start = index + len(header)
+        if not mask[start : start + 1] or not mask[start]:
+            index = start
+            continue
+        if ids[start : start + len(opener)] != opener or not all(mask[start : start + len(opener)]):
+            raise ValueError(
+                f"supervised example {example_id!r} has an assistant turn without reasoning under Qwen3.5 "
+                "thinking-on (every trained turn must carry reasoning_content)"
+            )
+        mask[start : start + len(opener)] = [False] * len(opener)
+        index = start + len(opener)
+    if not any(mask):
+        raise ValueError(f"supervised example {example_id!r} has no trainable tokens after rendering")
+    return tuple(mask)
+
+
+def _mask_prefilled_empty_thinking(
+    tokenizer: Any, example_id: str, input_ids: tuple[int, ...], loss_mask: tuple[bool, ...]
+) -> tuple[bool, ...]:
+    """Remove the empty ``<think>\\n\\n</think>\\n\\n`` wrapper from Qwen3.5 thinking-off targets.
+
+    With thinking disabled the generation prompt itself ends with that wrapper,
+    so the model never samples it; the pinned renderer re-emits it on every
+    assistant turn and marks it sampled. Each supervised assistant turn must
+    start with exactly that wrapper (a turn carrying reasoning text under
+    thinking-off is rejected), and the wrapper is excluded from the loss.
+    """
+
+    header = [
+        tokenizer.convert_tokens_to_ids("<|im_start|>"),
+        *tokenizer.encode("assistant\n", add_special_tokens=False),
+    ]
+    newlines = tokenizer.encode("\n\n", add_special_tokens=False)
+    wrapper = [
+        tokenizer.convert_tokens_to_ids("<think>"),
+        *newlines,
+        tokenizer.convert_tokens_to_ids("</think>"),
+        *newlines,
+    ]
+    mask = list(loss_mask)
+    ids = list(input_ids)
+    index = 0
+    while index < len(ids):
+        if ids[index : index + len(header)] != header:
+            index += 1
+            continue
+        start = index + len(header)
+        if not mask[start : start + 1] or not mask[start]:
+            index = start
+            continue
+        if ids[start : start + len(wrapper)] != wrapper or not all(mask[start : start + len(wrapper)]):
+            raise ValueError(
+                f"supervised example {example_id!r} has an assistant turn without the empty thinking wrapper "
+                "under Qwen3.5 thinking-off (reasoning text in a thinking-off dataset?)"
+            )
+        mask[start : start + len(wrapper)] = [False] * len(wrapper)
+        index = start + len(wrapper)
+    return tuple(mask)
 
 
 def render_preferences(

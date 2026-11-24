@@ -29,6 +29,7 @@ from .common import (
     framework_imports,
     load_tokenizer,
     load_trainable_model,
+    reject_model_class_option,
     trainer_lifecycle,
 )
 from .policy_config import (
@@ -151,6 +152,7 @@ def _run_online_rl(
     precision = _resolved_precision(request)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.policy, imports)
+        reject_model_class_option(request.training.backend_options, "policy optimization")
         model = load_trainable_model(
             request.policy,
             request.training.update,

@@ -34,7 +34,7 @@ class TrainingLoop:
     gradient_accumulation_steps: int = 1
     learning_rate: float = 2e-4
     warmup_ratio: float = 0.0
-    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup"] = "linear"
+    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup", "cosine"] = "linear"
     max_grad_norm: float = 1.0
     logging_steps: int = 1
     checkpoint_steps: int = 1
@@ -77,13 +77,27 @@ class SFTValidationSettings:
 
 @dataclass(frozen=True, slots=True)
 class SFTSettings:
+    """Supervised fine-tuning settings.
+
+    ``epochs``, when set, makes the run exactly that many passes over the rendered
+    dataset with a checkpoint (and, for adapter updates, a loadable adapter) at
+    the end of every pass: the backend derives ``max_steps`` and
+    ``checkpoint_steps`` from the dataset size, and ``loop.max_steps`` is an upper
+    bound the derived step count must not exceed.
+    """
+
     id: str
     loop: TrainingLoop
     revision: str = "1"
     validation: SFTValidationSettings | None = None
+    epochs: int | None = None
 
     def __post_init__(self) -> None:
         _validate_settings(self.id, self.revision)
+        if self.epochs is not None and (
+            isinstance(self.epochs, bool) or not isinstance(self.epochs, int) or self.epochs < 1
+        ):
+            raise ValueError("SFT epochs must be a positive integer")
 
 
 @dataclass(frozen=True, slots=True)

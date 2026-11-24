@@ -88,7 +88,7 @@ def run(request_path: Path, result_path: Path) -> int:
                     "stdout": "".join(captured_stdout),
                     "stderr": "".join(captured_stderr),
                 },
-                sort_keys=True,
+                # no sort_keys: the parent materializes these rows, and their key order must survive
             )
             + "\n",
             encoding="utf-8",

@@ -23,6 +23,7 @@ from .common import (
     load_tokenizer,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
+    reject_model_class_option,
     trainer_arguments,
     trainer_lifecycle,
 )
@@ -70,6 +71,7 @@ def run_dpo(
     emit_runtime_versions(context, imports)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.model, imports)
+        reject_model_class_option(request.training.backend_options, "DPO")
         model = load_trainable_model(request.model, request.training.update, request.settings.loop, imports)
         # Continuing an adapter (DPO after SFT): the reference is that adapter's policy, frozen.
         reference = load_frozen_adapter_reference(request.model, imports)

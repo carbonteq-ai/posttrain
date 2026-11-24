@@ -82,7 +82,7 @@ def test_typed_builder_materializes_in_child_process_and_reuses_cache(tmp_path: 
     assert first.examples == 2
     assert first.content_sha256 == hashlib.sha256(first.path.read_bytes()).hexdigest()
     manifest = json.loads(first.manifest_path.read_text(encoding="utf-8"))
-    assert manifest["schema_version"] == 2
+    assert manifest["schema_version"] == 3
     assert manifest["build_key"] == first.build_key
     assert (
         manifest["inputs"]["raw"]["content_sha256"] == hashlib.sha256((tmp_path / "raw.jsonl").read_bytes()).hexdigest()
@@ -167,3 +167,34 @@ def test_builder_cannot_access_undeclared_inputs(tmp_path: Path) -> None:
     )
     with pytest.raises(ContractError, match="undeclared input"):
         materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+
+
+def test_typed_builder_rows_keep_their_key_order(tmp_path: Path) -> None:
+    plan = _project(tmp_path)
+    (tmp_path / "builder.py").write_text(
+        "def build(ctx):\n"
+        "    for row in ctx.records('raw'):\n"
+        "        yield {'messages': [{'role': 'user', 'content': row['value']}, {'role': 'assistant', 'content': '',"
+        " 'tool_calls': [{'id': 'c1', 'type': 'function', 'function': {'name': 'f', 'arguments': {'zeta': 1,"
+        " 'alpha': 2}}}]}, {'role': 'tool', 'tool_call_id': 'c1', 'name': 'f', 'content': 'ok'},"
+        " {'role': 'assistant', 'content': 'done'}]}\n",
+        encoding="utf-8",
+    )
+    materialized = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    first = json.loads(materialized.path.read_text(encoding="utf-8").splitlines()[0])
+    assert list(first["messages"][1]["tool_calls"][0]["function"]["arguments"]) == ["zeta", "alpha"]
+    assert '"arguments": {"zeta": 1, "alpha": 2}' in materialized.path.read_text(encoding="utf-8")
+
+
+def test_typed_builder_rebuilds_when_a_local_input_is_rewritten_under_the_same_revision(tmp_path: Path) -> None:
+    """The typed build key names inputs by path; their content must be part of the identity too."""
+
+    plan = _project(tmp_path)
+    first = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    assert materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path).created is False
+    (tmp_path / "raw.jsonl").write_text('{"value": "rewritten"}\n', encoding="utf-8")
+    rebuilt = materialize_dataset(plan, state_dir=tmp_path / "state", project_root=tmp_path)
+    assert rebuilt.created is True
+    assert rebuilt.build_key != first.build_key
+    assert "rewritten" in rebuilt.path.read_text(encoding="utf-8")
+    assert rebuilt.examples == 1

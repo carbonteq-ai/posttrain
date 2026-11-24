@@ -23,7 +23,8 @@ from .definitions import (
     ResolvedDatasetBuildInput,
 )
 
-MATERIALIZER_SCHEMA_VERSION = 2
+# 3: materialized rows keep source key order (catalog.serialize_materialized_rows); 2 sorted them.
+MATERIALIZER_SCHEMA_VERSION = 3
 
 
 def build_key(
@@ -54,6 +55,13 @@ def build_key(
     }
     if isinstance(source, BuiltDatasetSource):
         builder = source.builder
+        # Content of every local and package-resource input: rewriting an input file under the same selection
+        # revision must rebuild, never reuse rows built from the earlier bytes (the identity alone names only paths).
+        payload["input_content"] = {
+            name: identity.get("content_sha256")
+            for name, identity in sorted(input_identities(source, project_root=resolved_input_root).items())
+            if isinstance(identity, Mapping)
+        }
         payload["code_snapshot_digest"] = (
             code_snapshot_digest or builder.code_digest or source_code_digest(project_root)
         )
@@ -230,7 +238,7 @@ def _resolve_input(
     if isinstance(item, HuggingFaceDatasetInput):
         path = inputs_dir / f"{_safe_name(name)}-records.jsonl"
         rows = _load_huggingface_rows(item)
-        path.write_text("".join(json.dumps(dict(row), sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+        path.write_text("".join(json.dumps(dict(row)) + "\n" for row in rows), encoding="utf-8")
         return (
             ResolvedDatasetBuildInput(
                 name,

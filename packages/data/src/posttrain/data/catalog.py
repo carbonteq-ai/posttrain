@@ -280,6 +280,19 @@ def _decode_typed_built_source(source: Mapping[str, object], ref: CatalogRef) ->
     )
 
 
+# Materialized rows keep the key order of the source rows. Chat templates render tool schemas and tool-call
+# arguments in mapping order (Qwen3.5: `tool | tojson`, `arguments | items`), so sorting keys here would make the
+# training render differ from the evaluation render of the same conversation. The marker below is part of every
+# untyped cache fingerprint so caches written by the earlier key-sorting serialization are never reused.
+MATERIALIZED_ROW_SERIALIZATION = "json-source-key-order@1"
+
+
+def serialize_materialized_rows(rows: Iterable[Mapping[str, Any]]) -> str:
+    """One JSON line per normalized row, keys in their source order (never sorted)."""
+
+    return "".join(json.dumps(row) + "\n" for row in rows)
+
+
 def materialize_dataset(
     plan: DatasetLoadPlan,
     *,
@@ -332,7 +345,7 @@ def materialize_dataset(
     except (KeyError, TypeError, ValueError) as error:
         raise ContractError(f"dataset {plan.id!r} failed adapter validation: {error}") from error
 
-    serialized = "".join(json.dumps(row, sort_keys=True) + "\n" for row in normalized)
+    serialized = serialize_materialized_rows(normalized)
     content_sha256 = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
     destination.mkdir(parents=True, exist_ok=True)
     data_path.write_text(serialized, encoding="utf-8")
@@ -426,7 +439,7 @@ def _materialize_typed_dataset(
         except (KeyError, TypeError, ValueError) as error:
             raise ContractError(f"dataset {plan.id!r} failed adapter validation: {error}") from error
 
-        serialized = "".join(json.dumps(row, sort_keys=True) + "\n" for row in normalized)
+        serialized = serialize_materialized_rows(normalized)
         content_sha256 = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
         if source.expected_content_sha256 is not None and content_sha256 != source.expected_content_sha256:
             raise ContractError(
@@ -753,6 +766,14 @@ def _plan_json(
                 for path in sorted(set(inputs))
             },
         }
+    if plan.source_kind in _PATH_SOURCE_KINDS and project_root is not None:
+        # The cache is content-addressed: rewriting the source file under the same selection revision must never
+        # reuse rows materialized from the earlier bytes. A missing file fails here exactly as reading it would.
+        try:
+            source_bytes = _project_path(plan, project_root=input_root or project_root).read_bytes()
+        except FileNotFoundError as error:
+            raise ContractError(f"{plan.source_kind} dataset source not found: {source['path']}") from error
+        source["source_sha256"] = hashlib.sha256(source_bytes).hexdigest()
     return json.dumps(
         {
             "id": plan.id,
@@ -771,6 +792,7 @@ def _plan_json(
             },
             "source": source,
             "format": plan.format,
+            "row_serialization": MATERIALIZED_ROW_SERIALIZATION,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -865,4 +887,5 @@ __all__ = [
     "load_materialized_dataset",
     "materialize_dataset",
     "resolve_dataset_source",
+    "serialize_materialized_rows",
 ]

@@ -409,6 +409,8 @@ def _plan(
     if not isinstance(update, FullParameterUpdate | LoRAUpdate):
         raise ValueError("the qualified veRL slice supports full-parameter and LoRA updates")
     update_payload: dict[str, Any] = {"kind": update.kind}
+    if isinstance(update, LoRAUpdate) and update.exclude_modules is not None:
+        raise ValueError("the veRL backend does not implement LoRA exclude_modules; leave it unset")
     if isinstance(update, LoRAUpdate):
         update_payload.update(
             {

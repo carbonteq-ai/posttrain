@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from posttrain.common import RunContext
 from posttrain.data import SupervisedDataset
 
+from ...profiles import TrainingLoop
 from ...rendering import RenderedSFTExample, render_supervised
 from ...requests import SFTRequest
 from .common import (
@@ -22,6 +24,7 @@ from .common import (
     framework_imports,
     load_tokenizer,
     load_trainable_model,
+    model_class_option,
     preserve_recovery_checkpoint_after_error,
     trainer_arguments,
     trainer_lifecycle,
@@ -47,7 +50,13 @@ def run_sft(
     emit_runtime_versions(context, imports)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.model, imports)
-        model = load_trainable_model(request.model, request.training.update, request.settings.loop, imports)
+        model = load_trainable_model(
+            request.model,
+            request.training.update,
+            request.settings.loop,
+            imports,
+            model_class=model_class_option(request.training.backend_options),
+        )
     with context.phase("data_preparation", {"backend": "trl"}):
         samples = render_supervised(
             tokenizer,
@@ -93,7 +102,18 @@ def run_sft(
                 ]
             )
     emit_parameter_counts(context, model, request.training.update)
-    arguments = _sft_arguments(request, output_dir)
+    loop = epoch_loop(request.settings.loop, request.settings.epochs, len(samples))
+    if request.settings.epochs is not None:
+        context.event(
+            "sft_epoch_plan",
+            {
+                "epochs": request.settings.epochs,
+                "examples": len(samples),
+                "steps_per_epoch": loop.checkpoint_steps,
+                "max_steps": loop.max_steps,
+            },
+        )
+    arguments = _sft_arguments(request, output_dir, loop)
     validation = request.settings.validation
     callback = callback_type(context, imports)()
     checkpoint_callback = checkpoint_callback_type(
@@ -202,8 +222,46 @@ def _backend_option_bool(request: SFTRequest, name: str, default: bool) -> bool:
     return value
 
 
-def _sft_arguments(request: SFTRequest, output_dir: Path) -> dict[str, Any]:
-    arguments = trainer_arguments(request.settings.loop, output_dir)
+def steps_per_epoch(examples: int, loop: TrainingLoop) -> int:
+    """Optimizer steps in one pass, as the Transformers trainer counts them on one device.
+
+    A pass has ``ceil(examples / per_device_batch_size)`` micro-batches; every
+    ``gradient_accumulation_steps`` of them make one step and a shorter remainder
+    makes the pass's last step.
+    """
+
+    if examples < 1:
+        raise ValueError("an SFT epoch needs at least one example")
+    batches = math.ceil(examples / loop.per_device_batch_size)
+    return math.ceil(batches / loop.gradient_accumulation_steps)
+
+
+def epoch_loop(loop: TrainingLoop, epochs: int | None, examples: int) -> TrainingLoop:
+    """The loop that makes exactly ``epochs`` passes with a checkpoint at the end of each.
+
+    Without ``epochs`` the selected loop is used unchanged.
+    """
+
+    if epochs is None:
+        return loop
+    per_epoch = steps_per_epoch(examples, loop)
+    max_steps = epochs * per_epoch
+    if max_steps > loop.max_steps:
+        raise ValueError(
+            f"{epochs} epochs of {examples} examples need {max_steps} steps, above the settings bound "
+            f"loop.max_steps={loop.max_steps}"
+        )
+    return replace(
+        loop,
+        max_steps=max_steps,
+        checkpoint_steps=per_epoch,
+        checkpoint_limit=max(loop.checkpoint_limit, epochs),
+    )
+
+
+def _sft_arguments(request: SFTRequest, output_dir: Path, loop: TrainingLoop | None = None) -> dict[str, Any]:
+    loop = request.settings.loop if loop is None else loop
+    arguments = trainer_arguments(loop, output_dir)
     arguments.update(
         {
             "dataset_kwargs": {"skip_prepare_dataset": True},
@@ -214,6 +272,13 @@ def _sft_arguments(request: SFTRequest, output_dir: Path) -> dict[str, Any]:
             "use_liger_kernel": _backend_option_bool(request, "use_liger_kernel", False),
         }
     )
+    loss_type = request.training.backend_options.get("loss_type")
+    if loss_type is not None:
+        # chunked_nll computes the cross-entropy over the supervised tokens in chunks without materializing
+        # the full [tokens x vocabulary] logits (Qwen3.5's 248K vocabulary at 32K tokens is ~16 GB in bf16).
+        if loss_type not in {"nll", "chunked_nll"}:
+            raise ValueError("SFT backend option 'loss_type' must be 'nll' or 'chunked_nll'")
+        arguments["loss_type"] = loss_type
     validation = request.settings.validation
     if validation is not None:
         arguments.update(
@@ -221,9 +286,7 @@ def _sft_arguments(request: SFTRequest, output_dir: Path) -> dict[str, Any]:
                 "eval_strategy": "steps",
                 "eval_steps": validation.steps,
                 "eval_on_start": validation.on_start,
-                "per_device_eval_batch_size": (
-                    validation.per_device_batch_size or request.settings.loop.per_device_batch_size
-                ),
+                "per_device_eval_batch_size": (validation.per_device_batch_size or loop.per_device_batch_size),
                 "prediction_loss_only": True,
             }
         )
@@ -272,4 +335,4 @@ def _nearest_rank(values: list[int], quantile: float) -> int:
     return values[max(0, math.ceil(quantile * len(values)) - 1)]
 
 
-__all__ = ["run_sft"]
+__all__ = ["epoch_loop", "run_sft", "steps_per_epoch"]

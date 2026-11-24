@@ -30,6 +30,7 @@ from .common import (
     load_tokenizer,
     load_trainable_model,
     preserve_recovery_checkpoint_after_error,
+    reject_model_class_option,
     trainer_arguments,
     trainer_lifecycle,
     vllm_rollout_options,
@@ -70,6 +71,7 @@ def run_distillation(
     emit_runtime_versions(context, imports)
     with context.phase("model_loading", {"backend": "trl"}):
         tokenizer = load_tokenizer(request.student, imports)
+        reject_model_class_option(request.training.backend_options, "on-policy distillation")
         model = load_trainable_model(
             request.student,
             request.training.update,

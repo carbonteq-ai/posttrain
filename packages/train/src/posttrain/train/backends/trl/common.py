@@ -44,6 +44,7 @@ def framework_imports() -> dict[str, Any]:
         from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
         from transformers import (
             AutoModelForCausalLM,
+            AutoModelForImageTextToText,
             AutoModelForMultimodalLM,
             AutoTokenizer,
             BitsAndBytesConfig,
@@ -61,6 +62,7 @@ def framework_imports() -> dict[str, Any]:
         "get_peft_model": get_peft_model,
         "prepare_model_for_kbit_training": prepare_model_for_kbit_training,
         "AutoModelForCausalLM": AutoModelForCausalLM,
+        "AutoModelForImageTextToText": AutoModelForImageTextToText,
         "AutoModelForMultimodalLM": AutoModelForMultimodalLM,
         "AutoTokenizer": AutoTokenizer,
         "BitsAndBytesConfig": BitsAndBytesConfig,
@@ -285,9 +287,41 @@ def load_tokenizer(model: ModelVariant, imports: dict[str, Any]) -> Any:
     return tokenizer
 
 
-def trainable_model_factory(model: ModelVariant, imports: dict[str, Any]) -> Any:
+MODEL_CLASSES = ("causal-lm", "image-text-to-text")
+
+
+def model_class_option(backend_options: Mapping[str, JsonValue]) -> str | None:
+    """The ``backend_options.model_class`` a training binding selects, or None for the family default.
+
+    ``image-text-to-text`` loads a vision-language checkpoint (for example Qwen3.5) as its full
+    image-text model, so a saved adapter carries that model's module names (``model.language_model``)
+    and loads into an evaluation or serving runtime that builds the same class.
+    """
+
+    value = backend_options.get("model_class")
+    if value is None:
+        return None
+    if value not in MODEL_CLASSES:
+        raise ValueError(f"training backend_options.model_class must be one of {', '.join(MODEL_CLASSES)}")
+    return str(value)
+
+
+def reject_model_class_option(backend_options: Mapping[str, JsonValue], technique: str) -> None:
+    if backend_options.get("model_class") is not None:
+        raise ValueError(f"backend_options.model_class is implemented for SFT only, not for {technique}")
+
+
+def trainable_model_factory(model: ModelVariant, imports: dict[str, Any], model_class: str | None = None) -> Any:
     """Select the Transformers factory required by a supported model family."""
 
+    if model_class == "image-text-to-text":
+        if "image" not in model.capabilities.modalities:
+            raise ValueError(f"model variant {model.id!r} is not an image-text model")
+        return imports["AutoModelForImageTextToText"]
+    if model_class == "causal-lm":
+        return imports["AutoModelForCausalLM"]
+    if model_class is not None:
+        raise ValueError(f"unknown training model class {model_class!r}")
     if model.family == "gemma4":
         return imports["AutoModelForMultimodalLM"]
     return imports["AutoModelForCausalLM"]
@@ -300,6 +334,7 @@ def load_trainable_model(
     imports: dict[str, Any],
     *,
     model_dtype: str = "bfloat16",
+    model_class: str | None = None,
 ) -> Any:
     torch = imports["torch"]
     if isinstance(update, QuantizationAwareUpdate):
@@ -327,7 +362,7 @@ def load_trainable_model(
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=update.double_quant,
         )
-    base = trainable_model_factory(model, imports).from_pretrained(model.base.repo_id, **load_options)
+    base = trainable_model_factory(model, imports, model_class).from_pretrained(model.base.repo_id, **load_options)
     base.config.use_cache = False
     if isinstance(update, QLoRAUpdate):
         base = imports["prepare_model_for_kbit_training"](
@@ -339,6 +374,7 @@ def load_trainable_model(
         if update.kind == "full":
             return base
         assert isinstance(update, (LoRAUpdate, QLoRAUpdate))
+        exclusion = {} if update.exclude_modules is None else {"exclude_modules": update.exclude_modules}
         config = imports["LoraConfig"](
             r=update.rank,
             lora_alpha=update.alpha,
@@ -346,6 +382,7 @@ def load_trainable_model(
             target_modules=_peft_target_modules(update.target_modules),
             bias="none",
             task_type="CAUSAL_LM",
+            **exclusion,
         )
         return imports["get_peft_model"](base, config)
     if model.form not in {"adapter", "peft-adapter"}:
@@ -977,7 +1014,9 @@ __all__ = [
     "framework_imports",
     "load_tokenizer",
     "load_trainable_model",
+    "model_class_option",
     "preserve_recovery_checkpoint_after_error",
+    "reject_model_class_option",
     "publish_checkpoint_views",
     "publish_interrupted_recovery_checkpoint",
     "trainable_model_factory",

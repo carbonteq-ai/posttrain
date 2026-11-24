@@ -121,6 +121,7 @@ class LoRAUpdateSchema(TrainCatalogSchema):
     alpha: int = Field(default=16, gt=0)
     dropout: float = Field(default=0.0, ge=0, lt=1)
     target_modules: str = "all-linear"
+    exclude_modules: str | None = None
 
 
 class QLoRAUpdateSchema(TrainCatalogSchema):
@@ -132,6 +133,7 @@ class QLoRAUpdateSchema(TrainCatalogSchema):
     alpha: int = Field(default=16, gt=0)
     dropout: float = Field(default=0.0, ge=0, lt=1)
     target_modules: str = "all-linear"
+    exclude_modules: str | None = None
 
 
 class QATUpdateSchema(TrainCatalogSchema):
@@ -170,7 +172,7 @@ class TrainingLoopSchema(TrainCatalogSchema):
     gradient_accumulation_steps: int = Field(default=1, gt=0)
     learning_rate: float = Field(default=2e-4, gt=0)
     warmup_ratio: float = Field(default=0.0, ge=0, lt=1)
-    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup"] = "linear"
+    lr_scheduler_type: Literal["linear", "constant", "constant_with_warmup", "cosine"] = "linear"
     max_grad_norm: float = Field(default=1.0, gt=0)
     logging_steps: int = Field(default=1, gt=0)
     checkpoint_steps: int = Field(default=1, ge=0)
@@ -205,6 +207,14 @@ class SFTSettingsSchema(TrainCatalogSchema):
     revision: str = "1"
     loop: TrainingLoopSchema
     validation: SFTValidationSettingsSchema | None = None
+    epochs: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Exact passes over the dataset with a checkpoint after each; max_steps and checkpoint_steps are "
+            "derived from the dataset size and loop.max_steps is an upper bound."
+        ),
+    )
 
 
 class DPOSettingsSchema(TrainCatalogSchema):
@@ -498,6 +508,7 @@ def decode_training_selection(
             TrainingLoop(**payload.loop.model_dump()),
             payload.revision,
             validation,
+            payload.epochs,
         )
     if isinstance(payload, DPOSettingsSchema):
         return DPOSettings(
