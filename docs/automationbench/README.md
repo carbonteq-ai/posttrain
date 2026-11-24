@@ -20,6 +20,18 @@ Trained adapters (private Hugging Face repositories; each card gives its setting
 | [carbonteq/qwen3.5-4b-automationbench-sft](https://huggingface.co/carbonteq/qwen3.5-4b-automationbench-sft) | 42.4% | 78.8% |
 | [carbonteq/qwen3.5-9b-automationbench-sft](https://huggingface.co/carbonteq/qwen3.5-9b-automationbench-sft) | 46.3% | 75.0% |
 
+## Pages
+
+The four pages explaining the work are kept here as standalone HTML (open them in a browser), copied from their
+published versions on 25 Nov 2026:
+
+| Page | What it covers |
+| --- | --- |
+| [pages/handover.html](pages/handover.html) | what to load, where everything is, how to run it, pitfalls ([live](https://claude.ai/artifact/7C7CcKHGXQosEafj8zXPah)) |
+| [pages/post-training-map.html](pages/post-training-map.html) | the story: starting point, how the sets were built, scoring, SFT, DPO, SDPO, lessons ([live](https://claude.ai/artifact/DGhMxqevpwUdBCbS18azuQ)) |
+| [pages/task-deep-dive.html](pages/task-deep-dive.html) | every model on every test task ([live](https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp)) |
+| [pages/sft-story.html](pages/sft-story.html) | how the SFT data was made and checked ([live](https://claude.ai/artifact/2oCnh7zJDPNCN5iwUhnhXt)) |
+
 ## Layout
 
 | Path | What it is |

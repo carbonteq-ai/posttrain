@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>AutomationBench Post-Training Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+<style>
+/* Layout: one 72ch reading column inside a 1120px frame; the mind map, diagrams and tables use the whole frame. */
+:root{
+  /* Single dark theme by request. */
+  --bg:#0F141A; --surface:#161D25; --ink:#E4E9EF; --ink-2:#C3CCD6; --muted:#97A3B0; --rule:#29333E; --edge:#53606F;
+  --accent:#78ABE8; --accent-soft:#1A2A3D;
+  --ok:#54C89C; --ok-soft:#13302A; --warn:#E5B14F; --warn-soft:#33280F; --bad:#EC8080; --bad-soft:#3A1E1E; --hold:#9AA5B2; --hold-soft:#222A33;
+  --code:#1B232D;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 72px}
+a{color:var(--accent);text-underline-offset:2px}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+h1,h2,h3,h4{font-family:var(--f-display);line-height:1.2;text-wrap:balance;color:var(--ink)}
+h1{font-size:clamp(1.9rem,1.2rem + 2.4vw,2.7rem);font-weight:750;letter-spacing:-0.015em;margin:.25em 0 .45em}
+h2{font-size:clamp(1.45rem,1.15rem + 1vw,1.85rem);font-weight:700;margin:0}
+h3{font-size:1.2rem;font-weight:650;margin:2.4em 0 .55em}
+h4{font-size:1.04rem;font-weight:650;margin:0 0 4px}
+p{margin:0 0 1em}
+ul,ol{margin:0 0 1em;padding-left:1.25em}
+li{margin:.25em 0}
+.prose{max-width:72ch}
+.eyebrow,.kicker{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.kicker{display:block;margin-bottom:6px}
+.lead{font-size:1.16rem;color:var(--ink-2);max-width:68ch}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code);padding:.08em .35em;border-radius:4px;overflow-wrap:anywhere}
+em{font-style:italic}
+strong{font-weight:700}
+
+/* header */
+.status{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 28px;margin:26px 0 0;padding:16px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.status dt{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.status dd{margin:3px 0 0;min-width:0}
+.toc{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:16px;font-size:15px}
+.toc a{color:var(--ink-2);text-decoration:none}
+.toc a:hover{color:var(--accent);text-decoration:underline}
+
+/* sections */
+section{margin-top:72px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;border-top:2px solid var(--ink);padding-top:14px;margin-bottom:20px}
+.up{font-family:var(--f-mono);font-size:12px;white-space:nowrap;text-decoration:none}
+.up:hover{text-decoration:underline}
+
+/* chips and legend */
+.chip{display:inline-block;font-family:var(--f-mono);font-size:11.5px;font-weight:500;letter-spacing:.02em;padding:1px 9px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;vertical-align:1px}
+.chip.neg{color:var(--bad);background:var(--bad-soft)}
+.chip.inc{color:var(--warn);background:var(--warn-soft)}
+.chip.hold{color:var(--hold);background:var(--hold-soft)}
+.chip.now{color:var(--ok);background:var(--ok-soft)}
+.chip.ref{color:var(--accent);background:var(--accent-soft)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:14px;color:var(--ink-2);margin:0 0 10px;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:8px;margin:0}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.dot.neg{background:var(--bad)} .dot.inc{background:var(--warn)} .dot.hold{background:var(--hold)} .dot.now{background:var(--ok)} .dot.ref{background:var(--accent)}
+
+/* diagrams */
+.dg-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:6px 0 4px}
+.dg{display:block;width:100%;height:auto;color:var(--edge)}
+.mm{min-width:940px}
+.fig{min-width:720px}
+figure{margin:22px 0 26px}
+figcaption{font-size:14.5px;color:var(--muted);max-width:76ch;margin-top:10px}
+.hint{font-size:13px;color:var(--muted);display:none;margin-top:6px}
+@media (max-width:760px){.hint{display:block}}
+.mm-edges path{stroke:var(--edge);stroke-width:1.4;fill:none}
+.mm-root rect{fill:var(--ink)}
+.mm-root text{fill:var(--bg)}
+.mm-root .t1{font-family:var(--f-display);font-size:16px;font-weight:700}
+.mm-root .t2{font-family:var(--f-mono);font-size:12px}
+.mm-branch rect{fill:var(--surface);stroke-width:1.6}
+.mm-branch text{font-family:var(--f-display);font-size:15px;font-weight:650;fill:var(--ink)}
+.b-ref rect{stroke:var(--accent)}
+.b-mixed rect{stroke:var(--ink)}
+.b-hold rect{stroke:var(--hold);stroke-dasharray:5 4}
+.b-now rect{stroke:var(--ok);stroke-width:2.4}
+.mm-leaf text{font-family:var(--f-body);font-size:13px;fill:var(--ink-2)}
+.mm a:hover text,.mm a:focus-visible text{fill:var(--accent);text-decoration:underline}
+.mm a:focus{outline:none}
+.mm a:focus-visible rect{stroke-width:3.2}
+.d-ref{fill:var(--accent)} .d-neg{fill:var(--bad)} .d-inc{fill:var(--warn)} .d-hold{fill:var(--hold)} .d-now{fill:var(--ok)}
+.bx{fill:var(--surface);stroke:var(--edge);stroke-width:1.3}
+.bx-scored{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.3}
+.bx-added{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.3}
+.bx-result{fill:var(--surface);stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3}
+.bx-hold{fill:var(--hold-soft);stroke:var(--hold);stroke-width:1.3;stroke-dasharray:5 4}
+.bx-now{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.6}
+.bx-out{fill:var(--surface);stroke:var(--ink);stroke-width:1.6}
+.tt{font-family:var(--f-body);font-size:13px;font-weight:600;fill:var(--ink)}
+.ts{font-family:var(--f-body);font-size:11.5px;fill:var(--muted)}
+.th{font-family:var(--f-display);font-size:14px;font-weight:650;fill:var(--ink)}
+.tl{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;fill:var(--muted)}
+.ln{stroke:var(--edge);stroke-width:1.4;fill:none}
+.lab{font-family:var(--f-mono);font-size:10.5px;fill:var(--muted)}
+
+/* example and callouts */
+.example{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:18px 20px;margin:16px 0 8px;max-width:80ch}
+.example p:last-child{margin-bottom:0}
+.question{background:var(--surface);border:1.5px solid var(--ok);border-radius:12px;padding:20px 22px;margin:0 0 8px}
+.question .q{font-family:var(--f-display);font-size:1.22rem;font-weight:600;line-height:1.35;max-width:62ch;text-wrap:pretty}
+.question p:last-child{margin-bottom:0}
+.checked{background:var(--surface);border:1px solid var(--edge);border-radius:12px;padding:20px 22px;margin-top:28px}
+.checked h3{margin:0 0 10px}
+.checked ul{margin:0;max-width:78ch}
+
+/* term lists */
+.terms{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr);gap:10px 24px;margin:8px 0 0;max-width:900px}
+.terms dt{font-weight:700}
+.terms dd{margin:0;color:var(--ink-2)}
+@media (max-width:640px){.terms{grid-template-columns:1fr;gap:2px}.terms dd{margin-bottom:10px}}
+
+/* tried entries */
+.entry{display:grid;grid-template-columns:190px minmax(0,1fr);gap:8px 28px;padding:24px 0;border-bottom:1px solid var(--rule)}
+.entry:first-of-type{border-top:1px solid var(--rule)}
+.entry .meta{font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.entry .when{font-family:var(--f-mono);font-size:12.5px;color:var(--ink-2)}
+.entry h3{margin:0 0 10px}
+.entry dl{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px 16px;margin:0}
+.entry dt{font-family:var(--f-mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-top:4px}
+.entry dd{margin:0;min-width:0}
+.entry > div,.stage > div,.question,.example{min-width:0}
+table.mini td.num{white-space:normal}
+.entry dd ul{margin:0}
+.src{font-family:var(--f-mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+@media (max-width:760px){.entry{grid-template-columns:1fr}.entry .meta{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 12px}.entry dl{grid-template-columns:1fr;gap:2px}.entry dt{padding-top:8px}}
+
+/* lessons */
+.lessons{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.lesson{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);border:1px solid var(--rule);border-radius:10px;background:var(--surface);overflow:hidden;margin:0}
+.lesson .l-main{padding:16px 18px;min-width:0}
+.lesson .l-do{padding:16px 18px;background:var(--accent-soft);min-width:0}
+.lesson h3{margin:0 0 6px;font-size:1.06rem}
+.lesson p{margin:0;color:var(--ink-2);font-size:15px}
+.lesson .num{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);display:block;margin-bottom:3px;letter-spacing:.05em}
+.lesson .l-do .kicker{color:var(--accent)}
+.lesson .l-do p{color:var(--ink)}
+@media (max-width:760px){.lesson{grid-template-columns:1fr}}
+
+/* tables */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 10px}
+table{border-collapse:collapse;width:100%;font-size:15px;min-width:680px}
+table.mini{min-width:0;max-width:640px;font-size:14.5px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--rule)}
+thead th{font-family:var(--f-mono);font-size:11.5px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1.5px solid var(--ink)}
+tbody th{font-weight:700;font-family:var(--f-body);font-size:15px}
+td.num,th.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td code,th code{font-size:.84em}
+
+/* message blocks */
+pre.msg{font-family:var(--f-mono);font-size:13px;line-height:1.6;background:var(--code);border:1px solid var(--rule);border-radius:8px;padding:14px 16px;white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0 14px;max-width:96ch;color:var(--ink)}
+.msg .s{color:var(--accent);font-weight:500}
+.msg .f{color:var(--ok);font-weight:500}
+.msg .d{color:var(--muted)}
+
+/* stages */
+.stages{list-style:none;margin:0;padding:0}
+.stage{display:grid;grid-template-columns:64px minmax(0,1fr);gap:0 18px;padding:18px 0;border-bottom:1px solid var(--rule);margin:0}
+.stage:first-child{border-top:1px solid var(--rule)}
+.stage .n{font-family:var(--f-display);font-size:30px;font-weight:700;color:var(--muted);line-height:1;padding-top:2px;font-variant-numeric:tabular-nums}
+.stage.review .n{color:var(--accent);font-size:22px;padding-top:6px}
+.stage .where{font-family:var(--f-mono);font-size:12px;color:var(--muted);margin-left:8px;display:inline-block}
+.stage p{margin:4px 0 0;max-width:76ch}
+.stage .rule{margin-top:8px;font-size:15px}
+.stage .rule b{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--warn);margin-right:6px}
+.stage .done b{color:var(--muted)}
+
+.gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:12px 0}
+.gate{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;min-width:0}
+.gate h4{margin-bottom:6px}
+.gate .tag{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ok);display:block;margin-bottom:4px}
+.gate p,.gate ul{font-size:15px;color:var(--ink-2)}
+.gate ul{margin:6px 0 0}
+.gate p:last-child,.gate ul:last-child{margin-bottom:0}
+
+.twocol{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px 32px}
+.twocol > *{min-width:0}
+
+footer{margin-top:80px;padding-top:16px;border-top:1px solid var(--rule);font-size:13.5px;color:var(--muted)}
+
+
+.prose p,.prose li{max-width:76ch}
+.figure-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin:14px 0}
+.figure-row > *{min-width:0}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;min-width:0}
+.panel h4{margin:0 0 8px}
+.panel p{font-size:15px;color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.funnel{display:grid;gap:8px;margin:10px 0 6px}
+.fstep{display:grid;grid-template-columns:minmax(0,1fr);gap:2px;border-left:3px solid var(--accent);padding:6px 0 6px 12px}
+.fstep b{font-family:var(--f-display);font-size:15.5px}
+.fstep span{font-size:14.5px;color:var(--ink-2)}
+.stack{display:flex;height:16px;border-radius:4px;overflow:hidden;min-width:0}
+.stack i{display:block;height:100%}
+.s-never{background:#4a5563} .s-hard{background:#c9853a} .s-medium{background:#d9b84f} .s-easy{background:#54c89c}
+table.comp{min-width:560px}
+table.comp td.bar{width:38%}
+.keys{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13.5px;color:var(--ink-2);margin:8px 0 0;padding:0;list-style:none}
+.keys li{display:flex;align-items:center;gap:6px;margin:0}
+.keys i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.feedback{background:var(--code);border:1px solid var(--rule);border-radius:8px;padding:14px 16px;font-family:var(--f-mono);font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+.feedback .lbl{color:var(--muted)}
+.feedback .fb{color:var(--ok)}
+.why{display:grid;grid-template-columns:minmax(150px,230px) minmax(0,1fr) minmax(0,1.3fr);gap:0;border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:12px 0}
+.why > div{padding:10px 14px;border-bottom:1px solid var(--rule);font-size:14.5px;min-width:0}
+.why .h{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--surface)}
+.why .s{font-weight:700}
+@media (max-width:760px){.why{grid-template-columns:1fr}.why .h{display:none}.why .s{border-bottom:0;padding-bottom:0}}
+.runs{list-style:none;margin:10px 0;padding:0;display:grid;gap:8px}
+.runs li{display:grid;grid-template-columns:110px minmax(0,1fr);gap:4px 14px;border-bottom:1px solid var(--rule);padding:0 0 8px;margin:0}
+.runs .d{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);padding-top:2px}
+@media (max-width:560px){.runs li{grid-template-columns:1fr}}
+.next{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.next a{display:inline-block;padding:8px 12px;border:1px solid var(--accent);border-radius:8px;text-decoration:none;font-size:14.5px}
+
+caption.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+<div class="wrap">
+<header id="top">
+  <p class="eyebrow">Research map · Qwen3.5 on AutomationBench · final, 25 November 2026</p>
+  <h1>Post-training a 4B model on AutomationBench: what we did and why</h1>
+  <p class="lead">The goal: make Qwen3.5-4B better at multi-step business workflows without reinforcement learning, measured on 120 test tasks it never trains on. It went from 28.3% to 42.4% with SFT and to 50.6% with one round of SDPO on top, level with Qwen3.5-397B (49.6%). This page explains how the tests were built, how models were scored, and why each method was run the way it was.</p>
+  <dl class="status">
+    <div><dt>Results, task by task</dt><dd><a href="https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp">Task deep dive</a></dd></div>
+    <div><dt>How the SFT data was made</dt><dd><a href="https://claude.ai/artifact/2oCnh7zJDPNCN5iwUhnhXt">The 4B SFT story</a></dd></div>
+    <div><dt>Code, models, data, access</dt><dd><a href="https://claude.ai/artifact/7C7CcKHGXQosEafj8zXPah">Handover page</a></dd></div>
+  </dl>
+  <nav class="toc" aria-label="Sections"><a href="#map">Map</a><a href="#start">Starting point</a><a href="#sets">How the sets were built</a><a href="#scoring">How models were scored</a><a href="#sft">SFT</a><a href="#dpo">DPO</a><a href="#sdpo">SDPO</a><a href="#lessons">Lessons</a><a href="#open">Open questions</a></nav>
+</header>
+
+<section id="map" aria-labelledby="map-h">
+  <div class="sec-head"><h2 id="map-h">The map</h2></div>
+  <ul class="legend"><li><span class="dot now"></span>Worked</li><li><span class="dot neg"></span>Did not help</li><li><span class="dot hold"></span>Open</li><li><span class="dot ref"></span>Setup and reference</li></ul>
+  <div class="dg-wrap"><svg class="dg mm" viewBox="0 0 1240 640" role="group" aria-labelledby="mm-title"><title id="mm-title">Mind map: the goal and test, the starting point, fixing the measurement, SFT, SDPO, DPO, open questions and where everything is</title><g class="mm-edges"><path d="M486 330 C 468 330 468 90 450 90"/><path d="M280 90 C 256 90 256 51 236 51"/><path d="M280 90 C 256 90 256 77 236 77"/><path d="M280 90 C 256 90 256 103 236 103"/><path d="M280 90 C 256 90 256 129 236 129"/><path d="M486 330 C 468 330 468 250 450 250"/><path d="M280 250 C 256 250 256 211 236 211"/><path d="M280 250 C 256 250 256 237 236 237"/><path d="M280 250 C 256 250 256 263 236 263"/><path d="M280 250 C 256 250 256 289 236 289"/><path d="M486 330 C 468 330 468 410 450 410"/><path d="M280 410 C 256 410 256 371 236 371"/><path d="M280 410 C 256 410 256 397 236 397"/><path d="M280 410 C 256 410 256 423 236 423"/><path d="M280 410 C 256 410 256 449 236 449"/><path d="M486 330 C 468 330 468 570 450 570"/><path d="M280 570 C 256 570 256 531 236 531"/><path d="M280 570 C 256 570 256 557 236 557"/><path d="M280 570 C 256 570 256 583 236 583"/><path d="M280 570 C 256 570 256 609 236 609"/><path d="M754 330 C 772 330 772 90 790 90"/><path d="M960 90 C 984 90 984 51 1004 51"/><path d="M960 90 C 984 90 984 77 1004 77"/><path d="M960 90 C 984 90 984 103 1004 103"/><path d="M960 90 C 984 90 984 129 1004 129"/><path d="M754 330 C 772 330 772 250 790 250"/><path d="M960 250 C 984 250 984 211 1004 211"/><path d="M960 250 C 984 250 984 237 1004 237"/><path d="M960 250 C 984 250 984 263 1004 263"/><path d="M960 250 C 984 250 984 289 1004 289"/><path d="M754 330 C 772 330 772 410 790 410"/><path d="M960 410 C 984 410 984 371 1004 371"/><path d="M960 410 C 984 410 984 397 1004 397"/><path d="M960 410 C 984 410 984 423 1004 423"/><path d="M960 410 C 984 410 984 449 1004 449"/><path d="M754 330 C 772 330 772 570 790 570"/><path d="M960 570 C 984 570 984 531 1004 531"/><path d="M960 570 C 984 570 984 557 1004 557"/><path d="M960 570 C 984 570 984 583 1004 583"/><path d="M960 570 C 984 570 984 609 1004 609"/></g><g class="mm-root"><rect x="486" y="290" width="268" height="80" rx="14"/><text class="t1" x="620" y="325" text-anchor="middle">Qwen3.5-4B on AutomationBench</text><text class="t2" x="620" y="349" text-anchor="middle">26 Oct to 24 Nov 2026</text></g><a href="#sets" class="mm-branch b-ref"><rect x="280" y="68" width="170" height="44" rx="10"/><text x="365" y="95" text-anchor="middle">Goal and test</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="51" r="5"/><text x="218" y="55" text-anchor="end">AutomationBench business workflows</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="77" r="5"/><text x="218" y="81" text-anchor="end">test120 + guard10, never trained</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="103" r="5"/><text x="218" y="107" text-anchor="end">train204, split into H1 and H2</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="129" r="5"/><text x="218" y="133" text-anchor="end">Untrained 4B: 28.3%</text></a><a href="#start" class="mm-branch b-mixed"><rect x="280" y="228" width="170" height="44" rx="10"/><text x="365" y="255" text-anchor="middle">Starting point</text></a><a href="#start" class="mm-leaf"><circle class="d-neg" cx="230" cy="211" r="5"/><text x="218" y="215" text-anchor="end">Handover gain came from 1 try</text></a><a href="#start" class="mm-leaf"><circle class="d-neg" cx="230" cy="237" r="5"/><text x="218" y="241" text-anchor="end">Retrained at 48 tries: no gain</text></a><a href="#start" class="mm-leaf"><circle class="d-neg" cx="230" cy="263" r="5"/><text x="218" y="267" text-anchor="end">No weights in the handover</text></a><a href="#start" class="mm-leaf"><circle class="d-neg" cx="230" cy="289" r="5"/><text x="218" y="293" text-anchor="end">Teacher saw expected answers</text></a><a href="#sets" class="mm-branch b-ref"><rect x="280" y="388" width="170" height="44" rx="10"/><text x="365" y="415" text-anchor="middle">Building the sets</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="371" r="5"/><text x="218" y="375" text-anchor="end">364 never-run tasks screened</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="397" r="5"/><text x="218" y="401" text-anchor="end">Hard tasks proven solvable</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="423" r="5"/><text x="218" y="427" text-anchor="end">Broken tasks fixed, not dropped</text></a><a href="#sets" class="mm-leaf"><circle class="d-ref" cx="230" cy="449" r="5"/><text x="218" y="453" text-anchor="end">Balanced by domain and level</text></a><a href="#scoring" class="mm-branch b-ref"><rect x="280" y="548" width="170" height="44" rx="10"/><text x="365" y="575" text-anchor="middle">Scoring models</text></a><a href="#scoring" class="mm-leaf"><circle class="d-ref" cx="230" cy="531" r="5"/><text x="218" y="535" text-anchor="end">8 attempts, task by task</text></a><a href="#scoring" class="mm-leaf"><circle class="d-ref" cx="230" cy="557" r="5"/><text x="218" y="561" text-anchor="end">Thinking on, card sampling</text></a><a href="#scoring" class="mm-leaf"><circle class="d-ref" cx="230" cy="583" r="5"/><text x="218" y="587" text-anchor="end">50 turns, long replies</text></a><a href="#scoring" class="mm-leaf"><circle class="d-ref" cx="230" cy="609" r="5"/><text x="218" y="613" text-anchor="end">World clock and tasks pinned</text></a><a href="#sft" class="mm-branch b-now"><rect x="790" y="68" width="170" height="44" rx="10"/><text x="875" y="95" text-anchor="middle">SFT</text></a><a href="#sft" class="mm-leaf"><circle class="d-now" cx="1010" cy="51" r="5"/><text x="1022" y="55">97 solved 397B attempts</text></a><a href="#sft" class="mm-leaf"><circle class="d-now" cx="1010" cy="77" r="5"/><text x="1022" y="81">4B: 28.3% to 42.4%</text></a><a href="#sft" class="mm-leaf"><circle class="d-now" cx="1010" cy="103" r="5"/><text x="1022" y="107">9B: 35.5% to 46.3%</text></a><a href="#sft" class="mm-leaf"><circle class="d-now" cx="1010" cy="129" r="5"/><text x="1022" y="133">Data v4 ready, never trained</text></a><a href="#sdpo" class="mm-branch b-now"><rect x="790" y="228" width="170" height="44" rx="10"/><text x="875" y="255" text-anchor="middle">SDPO</text></a><a href="#sdpo" class="mm-leaf"><circle class="d-now" cx="1010" cy="211" r="5"/><text x="1022" y="215">Feedback at the first mistake</text></a><a href="#sdpo" class="mm-leaf"><circle class="d-now" cx="1010" cy="237" r="5"/><text x="1022" y="241">One round: 42.4% to 50.6%</text></a><a href="#sdpo" class="mm-leaf"><circle class="d-now" cx="1010" cy="263" r="5"/><text x="1022" y="267">Later rounds added less</text></a><a href="#sdpo" class="mm-leaf"><circle class="d-now" cx="1010" cy="289" r="5"/><text x="1022" y="293">guard10 fell to 66.3%</text></a><a href="#dpo" class="mm-branch b-mixed"><rect x="790" y="388" width="170" height="44" rx="10"/><text x="875" y="415" text-anchor="middle">DPO</text></a><a href="#dpo" class="mm-leaf"><circle class="d-neg" cx="1010" cy="371" r="5"/><text x="1022" y="375">322 pairs from its own attempts</text></a><a href="#dpo" class="mm-leaf"><circle class="d-neg" cx="1010" cy="397" r="5"/><text x="1022" y="401">42.4% to 43.3%</text></a><a href="#dpo" class="mm-leaf"><circle class="d-neg" cx="1010" cy="423" r="5"/><text x="1022" y="427">Learned habits, not decisions</text></a><a href="#dpo" class="mm-leaf"><circle class="d-neg" cx="1010" cy="449" r="5"/><text x="1022" y="453">Closed on 20 Nov</text></a><a href="#open" class="mm-branch b-hold"><rect x="790" y="548" width="170" height="44" rx="10"/><text x="875" y="575" text-anchor="middle">Open questions</text></a><a href="#open" class="mm-leaf"><circle class="d-hold" cx="1010" cy="531" r="5"/><text x="1022" y="535">A second SDPO seed</text></a><a href="#open" class="mm-leaf"><circle class="d-hold" cx="1010" cy="557" r="5"/><text x="1022" y="561">SFT on data v4</text></a><a href="#open" class="mm-leaf"><circle class="d-hold" cx="1010" cy="583" r="5"/><text x="1022" y="587">SDPO on the 9B</text></a><a href="#open" class="mm-leaf"><circle class="d-hold" cx="1010" cy="609" r="5"/><text x="1022" y="613">Feedback that says why</text></a></svg></div>
+  <p class="hint">Scroll the map sideways on a narrow screen.</p>
+</section>
+
+<section id="start" aria-labelledby="start-h">
+  <div class="sec-head"><h2 id="start-h">The starting point: why the handover's gain did not hold</h2><a class="up" href="#map">↑ Map</a></div>
+  <div class="prose">
+    <p>The handover's best study trained SDPO on a pool of 124 tasks and reported 51.6% to 58.1% on a 62-task heldout set. Reading its records showed why that could not be relied on:</p>
+    <ul>
+      <li><b>One greedy attempt per task.</b> Its 5 repeat runs were identical, so the gain was 4 of 62 tasks flipping.</li>
+      <li><b>The step was picked after seeing the test scores</b>, and the run crashed after 38 updates.</li>
+      <li><b>The heldout set was half "simple" tasks</b> (30 of 62), which the benchmark's own score leaves out, and its environment had known task defects.</li>
+      <li><b>Training attempts were cut at 8 turns</b> while the prompt promises about 50, so many "mistakes" were attempts that ran out of turns.</li>
+      <li><b>The teacher saw the grader's expected answers</b>, and often the same attempt shown as the "correct solution".</li>
+      <li><b>No weights, and results only on the workstation.</b></li>
+    </ul>
+    <p>Retrained twice under the handover's own protocol, the recipe gave 58.1% and 54.0%. At 48 sampled attempts per task, every variant scored slightly below the untrained model (55.8%). Our own SDPO recipes on the same set lowered harmful actions by about 3 points but did not raise success. That is what started the work below.</p>
+  </div>
+</section>
+
+<section id="sets" aria-labelledby="sets-h">
+  <div class="sec-head"><h2 id="sets-h">How the test and training sets were built</h2><a class="up" href="#map">↑ Map</a></div>
+  <p class="prose">Three frozen sets, built once from tasks no model had been run on, with no task in two sets. Their task names and the hash of every task's prompt, data, tools and checks are recorded in <code>fixtures/automationbench/sets-phase2-frozen.json</code> on the SFT branch.</p>
+  <div class="funnel">
+    <div class="fstep"><b>1 · The pool: 364 domain tasks no model had been run on</b><span>AutomationBench has 600 domain tasks in six areas plus 200 short "simple" ones; the benchmark's score counts only the domain tasks, so simple tasks were left out. Tasks already used by earlier work were set aside for training at most.</span></div>
+    <div class="fstep"><b>2 · Screened: how often does the untrained 4B solve each task?</b><span>4 untrained attempts per task gave each task a level: never, sometimes (low, middle, high) or always solved. Always-solved tasks were excluded from every set: they cannot show a gain.</span></div>
+    <div class="fstep"><b>3 · Proven solvable: no task the model fails because the task is broken</b><span>Every never-solved candidate had to be solved by a stronger model (Haiku first, then Sonnet or Opus) working through the environment's own tools and grader, never shown the checks or expected values. Tasks no model could solve were read; real defects were fixed in the environment (information the checks need but the task never gave, or a check contradicting the task's own text), never dropped. Each fixed task needed a correct solution that replays at full score. 93 tasks were fixed by 10 Nov; every fix is a commit in the environment pull request.</span></div>
+    <div class="fstep"><b>4 · Split, balanced by domain and by level</b><span>Per domain: the test took half of the sometimes-solved tasks (at most 6) plus proven-hard tasks to make 10; a second test-sized set took a quarter (at most 3) plus hard tasks; training got the rest. Near-duplicate tasks (the same workflow in two domains; 9 such pairs) were handled so that no test task has a near-copy in training.</span></div>
+    <div class="fstep"><b>5 · Frozen</b><span><b>test120</b> = the two 60-task sets (10 Nov), 20 tasks per domain; two tasks found always-solved were swapped for same-domain proven-solvable tasks, and 46 test tasks got information-only fixes. <b>guard10</b> = a fixed-seed draw (seed text "sdpo-ab-20261105-guard:" + domain) of up to 2 never-used, always-solved tasks per domain (sales and support had one each): a warning set, never trained on and never used to choose. <b>train204</b> = 34 tasks per domain (11 Nov), each proven solvable, 33 of the 84 new ones needing a fix.</span></div>
+  </div>
+  <div class="figure-row">
+    <div class="panel"><h4>test120: difficulty for the untrained 4B, by domain</h4><div class="table-wrap"><table class="comp"><caption class="sr">test120 by domain and difficulty</caption><thead><tr><th>Domain</th><th class="num">Tasks</th><th class="num">Never</th><th class="num">Hard</th><th class="num">Medium</th><th class="num">Easy</th><th>Mix</th></tr></thead><tbody><tr><th>Finance</th><td class="num">20</td><td class="num">8</td><td class="num">4</td><td class="num">2</td><td class="num">6</td><td class="bar"><span class="stack"><i class="s-never" style="width:40.0%"></i><i class="s-hard" style="width:20.0%"></i><i class="s-medium" style="width:10.0%"></i><i class="s-easy" style="width:30.0%"></i></span></td></tr><tr><th>Hr</th><td class="num">20</td><td class="num">7</td><td class="num">4</td><td class="num">3</td><td class="num">6</td><td class="bar"><span class="stack"><i class="s-never" style="width:35.0%"></i><i class="s-hard" style="width:20.0%"></i><i class="s-medium" style="width:15.0%"></i><i class="s-easy" style="width:30.0%"></i></span></td></tr><tr><th>Marketing</th><td class="num">20</td><td class="num">14</td><td class="num">5</td><td class="num">1</td><td class="num">0</td><td class="bar"><span class="stack"><i class="s-never" style="width:70.0%"></i><i class="s-hard" style="width:25.0%"></i><i class="s-medium" style="width:5.0%"></i></span></td></tr><tr><th>Operations</th><td class="num">20</td><td class="num">9</td><td class="num">3</td><td class="num">4</td><td class="num">4</td><td class="bar"><span class="stack"><i class="s-never" style="width:45.0%"></i><i class="s-hard" style="width:15.0%"></i><i class="s-medium" style="width:20.0%"></i><i class="s-easy" style="width:20.0%"></i></span></td></tr><tr><th>Sales</th><td class="num">20</td><td class="num">7</td><td class="num">4</td><td class="num">5</td><td class="num">4</td><td class="bar"><span class="stack"><i class="s-never" style="width:35.0%"></i><i class="s-hard" style="width:20.0%"></i><i class="s-medium" style="width:25.0%"></i><i class="s-easy" style="width:20.0%"></i></span></td></tr><tr><th>Support</th><td class="num">20</td><td class="num">9</td><td class="num">6</td><td class="num">3</td><td class="num">2</td><td class="bar"><span class="stack"><i class="s-never" style="width:45.0%"></i><i class="s-hard" style="width:30.0%"></i><i class="s-medium" style="width:15.0%"></i><i class="s-easy" style="width:10.0%"></i></span></td></tr><tr><th>All</th><td class="num">120</td><td class="num">54</td><td class="num">26</td><td class="num">18</td><td class="num">22</td><td></td></tr></tbody></table></div><ul class="keys"><li><i class="s-never"></i>never solved (0 of 8)</li><li><i class="s-hard"></i>hard (1–2)</li><li><i class="s-medium"></i>medium (3–5)</li><li><i class="s-easy"></i>easy (6–8)</li></ul>
+      <p style="margin-top:8px">Measured with the final scoring (8 attempts, thinking on). Marketing is the hardest domain; 22 tasks are easy under thinking, though the screening (thinking off) found none always solved.</p></div>
+    <div class="panel"><h4>train204: difficulty for the untrained 4B, by domain</h4><div class="table-wrap"><table class="comp"><caption class="sr">train204 by domain and difficulty</caption><thead><tr><th>Domain</th><th class="num">Tasks</th><th class="num">Never</th><th class="num">Hard</th><th class="num">Medium</th><th class="num">Easy</th><th>Mix</th></tr></thead><tbody><tr><th>Finance</th><td class="num">34</td><td class="num">21</td><td class="num">4</td><td class="num">4</td><td class="num">5</td><td class="bar"><span class="stack"><i class="s-never" style="width:61.8%"></i><i class="s-hard" style="width:11.8%"></i><i class="s-medium" style="width:11.8%"></i><i class="s-easy" style="width:14.7%"></i></span></td></tr><tr><th>Hr</th><td class="num">34</td><td class="num">22</td><td class="num">8</td><td class="num">2</td><td class="num">2</td><td class="bar"><span class="stack"><i class="s-never" style="width:64.7%"></i><i class="s-hard" style="width:23.5%"></i><i class="s-medium" style="width:5.9%"></i><i class="s-easy" style="width:5.9%"></i></span></td></tr><tr><th>Marketing</th><td class="num">34</td><td class="num">26</td><td class="num">6</td><td class="num">2</td><td class="num">0</td><td class="bar"><span class="stack"><i class="s-never" style="width:76.5%"></i><i class="s-hard" style="width:17.6%"></i><i class="s-medium" style="width:5.9%"></i></span></td></tr><tr><th>Operations</th><td class="num">34</td><td class="num">16</td><td class="num">8</td><td class="num">6</td><td class="num">4</td><td class="bar"><span class="stack"><i class="s-never" style="width:47.1%"></i><i class="s-hard" style="width:23.5%"></i><i class="s-medium" style="width:17.6%"></i><i class="s-easy" style="width:11.8%"></i></span></td></tr><tr><th>Sales</th><td class="num">34</td><td class="num">24</td><td class="num">7</td><td class="num">3</td><td class="num">0</td><td class="bar"><span class="stack"><i class="s-never" style="width:70.6%"></i><i class="s-hard" style="width:20.6%"></i><i class="s-medium" style="width:8.8%"></i></span></td></tr><tr><th>Support</th><td class="num">34</td><td class="num">19</td><td class="num">9</td><td class="num">5</td><td class="num">1</td><td class="bar"><span class="stack"><i class="s-never" style="width:55.9%"></i><i class="s-hard" style="width:26.5%"></i><i class="s-medium" style="width:14.7%"></i><i class="s-easy" style="width:2.9%"></i></span></td></tr><tr><th>All</th><td class="num">204</td><td class="num">128</td><td class="num">42</td><td class="num">22</td><td class="num">12</td><td></td></tr></tbody></table></div><ul class="keys"><li><i class="s-never"></i>never solved (0 of 8)</li><li><i class="s-hard"></i>hard (1–2)</li><li><i class="s-medium"></i>medium (3–5)</li><li><i class="s-easy"></i>easy (6–8)</li></ul>
+      <p style="margin-top:8px">128 of 204 never solved: the untrained model cannot learn from its own successes here, which is why SFT came first.</p></div>
+  </div>
+  <div class="prose">
+    <p><b>The two halves of train204.</b> For SDPO, train204 was split once (13 Nov, seed 20261027) into H1 and H2, 102 tasks each, stratified by domain and by whether the task has an SFT example (48 and 49). H1 is for training; H2 is never trained on and decides between SDPO versions and rounds, so test120 never chooses anything.</p>
+    <p><b>Size of a test task.</b> A test120 task has a median of 11 grader checks (3 to 63) and 9 tools; train204 is the same (median 12 checks, 9 tools).</p>
+  </div>
+</section>
+
+<section id="scoring" aria-labelledby="scoring-h">
+  <div class="sec-head"><h2 id="scoring-h">How a model is scored, and why this way</h2><a class="up" href="#map">↑ Map</a></div>
+  <div class="why">
+    <div class="h">Setting</div><div class="h">Value</div><div class="h">Why</div>
+    <div class="s">Success</div><div>An attempt succeeds when every grader check of its task passes</div><div>The benchmark's own definition of finishing a task.</div>
+    <div class="s">Attempts</div><div>8 per task, sampled, compared task by task before and after training</div><div>Resampling real runs showed 8 attempts on 120 tasks measures a change more precisely than 24 attempts on the earlier 60-task test, at 35% less GPU time. A gain is called measured only when the task-by-task comparison rules out chance.</div>
+    <div class="s">Thinking</div><div>On</div><div>Decided with the SFT plan (12 Nov): Qwen reports thinking helps tool use, and the 397B teacher writes its reasoning, which the student learns from.</div>
+    <div class="s">Sampling</div><div>temperature 1.0, top_p 0.95, top_k 20, presence penalty 1.5</div><div>The Qwen3.5 model card's settings for thinking mode.</div>
+    <div class="s">Limits</div><div>50 turns, 32,768-token replies, 131,072-token context</div><div>The task prompt promises about 50 turns; thinking replies are long, and shorter limits cut correct attempts.</div>
+    <div class="s">World clock</div><div>Pinned to 28 Oct 2026, UTC</div><div>Many tasks build their world from the real date; without the pin, recorded solutions stop replaying from one day to the next.</div>
+    <div class="s">Environment</div><div>Task fixes version 1.1, pinned by commit</div><div>Every evaluation from 13 Nov uses the same tasks; version 1.1 changed one training task's check only.</div>
+  </div>
+</section>
+
+<section id="sft" aria-labelledby="sft-h">
+  <div class="sec-head"><h2 id="sft-h">SFT: the main gain</h2><a class="up" href="#map">↑ Map</a></div>
+  <div class="prose">
+    <p>Qwen3.5-397B solved the training tasks inside the 4B's own evaluation loop, with the same tools, prompt, limits and thinking. Code checked every solved attempt for grounding, exact values and forbidden actions; 97 rows (one per task) became the data. LoRA SFT on it took the 4B from 28.3% to 42.4% on test120, and the same data and recipe took the 9B from 35.5% to 46.3%. Test tasks closest to a training example gained most.</p>
+    <p>How the data was made, the first attempt that failed, every check and the training recipe: <a href="https://claude.ai/artifact/2oCnh7zJDPNCN5iwUhnhXt">The 4B SFT story</a>.</p>
+  </div>
+</section>
+
+<section id="dpo" aria-labelledby="dpo-h">
+  <div class="sec-head"><h2 id="dpo-h">DPO: tried and closed</h2><a class="up" href="#map">↑ Map</a></div>
+  <div class="prose">
+    <p>Pairs of the SFT model's own passed and failed attempts at the same task (322 pairs on 111 tasks, on the exact tokens it sampled), with the SFT model as the frozen reference. It added 0.9 points. A passed and a failed attempt differ in dozens of ways, so DPO learned habits every passed attempt shared, such as shorter final replies, rather than the decision that failed the task. Published work agrees that DPO on long agent tasks needs thousands of short, single-difference pairs. Closed on 20 Nov; the analysis is chapter 9 of the <a href="https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp">deep dive</a>.</p>
+  </div>
+</section>
+
+<section id="sdpo" aria-labelledby="sdpo-h">
+  <div class="sec-head"><h2 id="sdpo-h">SDPO: how it works here, and why each setting</h2><a class="up" href="#map">↑ Map</a></div>
+  <div class="prose">
+    <p>SDPO (Hübotter et al., 2026, <a href="https://arxiv.org/pdf/2601.20802">arXiv 2601.20802</a>) trains the model toward a teacher that is the same model with extra information in its prompt. The student makes an attempt; the teacher re-reads exactly those tokens with the feedback, and wherever it would have chosen differently, the student is pulled toward its choice. No stronger model is involved, so everything rests on the feedback. The paper only covers single-turn tasks; on AutomationBench the feedback has to say at which turn the attempt went wrong.</p>
+  </div>
+  <div class="figure-row">
+    <div class="panel"><h4>The feedback engine</h4>
+      <p>A separate library reads one attempt and its task and writes the teacher's feedback:</p>
+      <ol style="font-size:15px;color:var(--ink-2)"><li><b>Record</b> every call, every value the attempt saw, and each grader check that failed, tied to the call and turn where it went wrong.</li><li><b>Check</b> every line: it must be true of the attempt, and must not show a value the attempt never saw.</li><li><b>Write</b> plain lines: what the task forbids, what it still requires, why a tool call failed and which tool finds the right ID.</li><li><b>Place</b> each line as a note at the turn of the first wrong decision; the teacher's first message says only that the attempt failed.</li></ol>
+      <p>Code and known gaps: <a href="https://github.com/carbonteq-ai/automationbench-context-engine">automationbench-context-engine</a>.</p></div>
+    <div class="panel"><h4>Real feedback from the run that reached 50.6%</h4>
+      <div class="feedback"><span class="lbl">Task (shortened):</span> There's a seasonal campaign coming up… get social posts scheduled on the right channels. Double-check any channel guidelines before scheduling.
+
+<span class="lbl">Teacher's first message, after the task:</span>
+<span class="fb">The following are results from your unsuccessful earlier attempt:
+Its mistake is noted at the step where it happened.
+Correctly solve the original question.</span>
+
+<span class="lbl">Note before turn 3:</span>
+<span class="fb">Note on your next action: This task forbids buffer_add_to_queue producing a buffer post in channel "ch_linkedin", not every buffer_add_to_queue call.</span>
+
+<span class="lbl">Other kinds of note in the run:</span>
+<span class="fb">google_sheets_find_worksheet returned an error: Worksheet not found in spreadsheet. Use an exact worksheet title or ID. google_sheets_get_spreadsheet_by_id returns a spreadsheet with its worksheets.</span>
+<span class="fb">wave_update_product can change a wave product with id "wp_002"; its field "unit_price" has to stay "4500".</span></div>
+      <p style="margin-top:8px">The notes also tell the teacher never to refer to them in any message or record it writes, so the student does not learn to quote feedback it will not have.</p></div>
+  </div>
+  <div class="why"><div class="h">Setting</div><div class="h">Why</div><div class="h">What it meant in the run</div><div class="s">Start from the SFT model</div><div>SDPO from the untrained 4B (13% of held-out training tasks solved) has too few successes and too little skill for the teacher to read feedback well.</div><div>From the SFT model, the first held-out SDPO gain appeared (+4.2 points on H2, 15 Nov); from the untrained model it stayed far lower.</div><div class="s">Train on sometimes-solved tasks, plus never-solved ones the teacher solved with feedback</div><div>Tasks the model always solves give no signal; tasks nobody solves give the teacher nothing correct to pull toward.</div><div>78 H1 tasks: 48 the SFT model solved in 1 to 7 of 8 attempts, and 30 it never solved but its teacher solved when given the feedback.</div><div class="s">8 fresh attempts per task each round</div><div>On-policy: the student learns from its own current mistakes, sampled exactly as it is evaluated.</div><div>624 attempts in round 1, 183 of them solved.</div><div class="s">Feedback located at the first wrong decision, values the attempt never saw hidden</div><div>Feedback that quoted answers taught only the trained tasks (2 to 10 Nov: 835 of 838 failed checks quoted their expected value, and nothing carried to new tasks).</div><div>The teacher is told where it went wrong and what the task requires, never an answer it could not have found itself.</div><div class="s">Train a failed attempt only up to that first wrong decision</div><div>After the first mistake the attempt continues from a wrong state; training those turns pushes on steps that are not the problem.</div><div>A failed attempt&#x27;s median first mistake is at turn 5 of 8, so about 70% of its turns are trained.</div><div class="s">Train reasoning, tool calls and the act-or-reply token</div><div>Most failures are missing work; a loss on calls alone cannot teach &#x27;take one more action&#x27;. The act-or-reply token is where the model decides to stop.</div><div>Free text inside tool calls is skipped: training it made the model drop required wording (seen in the 20 Nov pilot).</div><div class="s">Teacher = running average of the student, 1% per update; top-20 reverse KL, importance weight capped at 2</div><div>The settings of the published SDPO method.</div><div>Kept unchanged so that only the feedback differs from the method as published.</div><div class="s">Learning rate 3e-5, 16 attempts per update, LoRA rank 16</div><div>The paper&#x27;s full-model rate (1e-6) needs about 10 times more with LoRA; our earlier runs trained stably at 3e-5. 16 per update matches the SFT batch.</div><div>39 updates in round 1; the loss fell from 0.026 to 0.015.</div><div class="s">Pick the round on held-out training tasks, before test120</div><div>test120 must never choose anything; H2 (102 training tasks never trained on) does.</div><div>Round 1 scored 34.4% on H2, rounds 2 and 3 31.7% and 29.9%: round 1 was taken, then test120 was run once.</div></div>
+  <h3>Every SDPO run, in order</h3>
+  <ul class="runs"><li><span class="d">2–10 Nov</span><span>Two SDPO runs (R0, R1) on the first fixed test: gains only on the trained tasks; the feedback quoted the answers.</span></li><li><span class="d">11 Nov</span><span>A guarded run: no gain; SDPO paused, SFT started.</span></li><li><span class="d">14–15 Nov</span><span>Three arms on the 204-task pool: from SFT, the first held-out gain (+4.2 on H2); from the untrained model, much lower.</span></li><li><span class="d">16–17 Nov</span><span>Two full runs from SFT: test120 43.7% and 45.3% (+1.3 and +2.9 over SFT).</span></li><li><span class="d">20 Nov</span><span>A pilot with rewritten feedback: +5.2 on H2, but guard10 fell 13.75 points, so its gate failed.</span></li><li><span class="d">20–22 Nov</span><span>15 rounds of feedback rewriting against explicit requirements (useful to a 4B teacher, true, never forbidding what the task needs, easy to act on), each screened by how often the teacher then solved the task.</span></li><li><span class="d">22–23 Nov</span><span>Three rounds with that feedback: round 3 reached 45.4%; round 1, picked on H2, reached 50.6% (+8.2, measured).</span></li><li><span class="d">24 Nov</span><span>One more feedback version, one round: 31.7% on H2, below round 1&#x27;s 34.4%, so it stopped there.</span></li></ul>
+  <p class="prose">What the 50.6% model does differently, task by task: chapters 8 and 10 of the <a href="https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp">deep dive</a>.</p>
+</section>
+
+<section id="lessons" aria-labelledby="lessons-h">
+  <div class="sec-head"><h2 id="lessons-h">What the results taught</h2><a class="up" href="#map">↑ Map</a></div>
+  <ol class="lessons"><li class="lesson"><div class="l-main"><span class="num">LESSON 1</span><h3>Measure with many attempts, compared task by task</h3><p>One greedy attempt per task gives one yes or no per task; the handover&#x27;s gain was 4 tasks.</p></div><div class="l-do"><span class="kicker">What to keep doing</span><p>8 attempts per task on 120 frozen test tasks, the same tasks before and after.</p></div></li><li class="lesson"><div class="l-main"><span class="num">LESSON 2</span><h3>Fix the tasks before training on them</h3><p>Many never-solved tasks were broken: information missing, or checks that contradicted the task.</p></div><div class="l-do"><span class="kicker">What to keep doing</span><p>Fix every defect with a replayed proof; never drop a task to raise a score.</p></div></li><li class="lesson"><div class="l-main"><span class="num">LESSON 3</span><h3>Data must look like the student&#x27;s own work</h3><p>Examples without planning text made the 4B worse; the same tasks solved in its own loop with reasoning made it better.</p></div><div class="l-do"><span class="kicker">What to keep doing</span><p>Generate data inside the student&#x27;s evaluation loop and check every row by code.</p></div></li><li class="lesson"><div class="l-main"><span class="num">LESSON 4</span><h3>Feedback that quotes answers teaches only those tasks</h3><p>Early SDPO gains stayed on the trained tasks.</p></div><div class="l-do"><span class="kicker">What to keep doing</span><p>Hide values the attempt never saw; say where the value lives instead.</p></div></li><li class="lesson"><div class="l-main"><span class="num">LESSON 5</span><h3>Judge feedback by what training does with it</h3><p>For over a week feedback was judged by how often the teacher then solved the task; that did not predict training gains.</p></div><div class="l-do"><span class="kicker">What to keep doing</span><p>Pick feedback and rounds by a held-out training result fixed in advance.</p></div></li><li class="lesson"><div class="l-main"><span class="num">LESSON 6</span><h3>Check that the adapter is really loaded</h3><p>Two framework paths silently dropped every LoRA weight (wrong model class); results looked like the base model.</p></div><div class="l-do"><span class="kicker">What to keep doing</span><p>Load Qwen3.5 adapters with the image-text class and check that scores change.</p></div></li></ol>
+</section>
+
+<section id="open" aria-labelledby="open-h">
+  <div class="sec-head"><h2 id="open-h">Open questions</h2><a class="up" href="#map">↑ Map</a></div>
+  <div class="gates"><div class="gate"><h4>A second SDPO seed</h4><p>50.6% is one run. A second run of the same recipe shows how much of the 8.2 points is the recipe.</p></div><div class="gate"><h4>SFT on data version 4</h4><p>102 rows, accepted and never trained; the natural next SFT run.</p></div><div class="gate"><h4>SDPO on the 9B</h4><p>The SFT gain carried to the 9B; SDPO from the 9B SFT adapter is untested.</p></div><div class="gate"><h4>The guard10 drop</h4><p>SDPO&#x27;s warning-set score fell from 78.8% to 66.3%; which tasks fell, and why, was not traced.</p></div><div class="gate"><h4>Feedback that says why</h4><p>The grader&#x27;s checks name what is missing, not why. Some teacher retries did the named thing and skipped the step the task needed.</p></div></div>
+  <div class="next"><a href="https://claude.ai/artifact/7C7CcKHGXQosEafj8zXPah">Handover page: code, models, data, access</a><a href="https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp">Task deep dive</a><a href="https://claude.ai/artifact/2oCnh7zJDPNCN5iwUhnhXt">The 4B SFT story</a></div>
+</section>
+
+<footer>Every number comes from the recorded runs; the raw records are in the Hugging Face dataset carbonteq/automationbench-posttrain-data. Final version, 25 November 2026.</footer>
+</div>
+
+</body></html>

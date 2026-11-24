@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>The 4B SFT Story</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column of chapters; each chapter = story text + one visual; lessons as amber notes. */
+:root{
+  --bg:#F2F6F5; --surface:#FFFFFF; --ink:#13272A; --muted:#566D6E; --line:#D5E0DE;
+  --accent:#0E6E68; --accent-soft:#DDEFEC;
+  --lesson:#A9530A; --lesson-soft:#FBEEDC;
+  --bad:#B3261E; --bad-soft:#FBE4E1; --good:#1C7C3A; --good-soft:#E0F2E5;
+  --code-bg:#EEF3F2; --ref:#5B5F97;
+  --f-display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1918; --surface:#152423; --ink:#E2ECEA; --muted:#9AB1AE; --line:#294140;
+  --accent:#3CC7B8; --accent-soft:#173D3A;
+  --lesson:#F2A541; --lesson-soft:#3A2A14;
+  --bad:#F28B82; --bad-soft:#3B1D1B; --good:#6FD08E; --good-soft:#163323;
+  --code-bg:#1B2D2C; --ref:#A9ADE8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1918; --surface:#152423; --ink:#E2ECEA; --muted:#9AB1AE; --line:#294140;
+  --accent:#3CC7B8; --accent-soft:#173D3A;
+  --lesson:#F2A541; --lesson-soft:#3A2A14;
+  --bad:#F28B82; --bad-soft:#3B1D1B; --good:#6FD08E; --good-soft:#163323;
+  --code-bg:#1B2D2C; --ref:#A9ADE8; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding-block:40px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:56px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2.1rem,5vw,3.2rem);font-weight:700;letter-spacing:-.01em}
+h2{font-size:clamp(1.5rem,3.2vw,2rem);font-weight:700}
+h3{font-size:1.15rem;font-weight:700}
+p{margin:0;max-width:66ch}
+a{color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.eyebrow{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.chapter{display:grid;gap:18px}
+.chap-head{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.chap-num{font-family:var(--f-display);font-weight:700;font-size:1rem;color:var(--surface);background:var(--accent);border-radius:999px;min-width:2rem;height:2rem;display:inline-grid;place-items:center;flex:none}
+.muted{color:var(--muted)}
+.small{font-size:.9rem}
+.hero{display:grid;gap:18px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.hero .lead{font-size:1.2rem;max-width:60ch}
+.facts{display:flex;flex-wrap:wrap;gap:10px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:grid;gap:2px;min-width:0}
+.fact b{font-family:var(--f-display);font-size:1.35rem;font-variant-numeric:tabular-nums}
+.fact span{font-size:.85rem;color:var(--muted)}
+.fact.hl{border:2px solid var(--accent)}
+.fact.hl b{color:var(--accent)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;gap:14px;min-width:0}
+.lesson{background:var(--lesson-soft);border-radius:12px;padding:16px 18px;display:grid;gap:6px}
+.lesson .tag{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--lesson);font-weight:600}
+.lesson p{color:var(--ink)}
+.evid{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.evid.ver{color:var(--good);border-color:var(--good)}
+.evid.inf{color:var(--lesson);border-color:var(--lesson)}
+.evid.rec{color:var(--accent);border-color:var(--accent)}
+.funnel{display:grid;gap:8px}
+.frow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.fbar{height:30px;border-radius:6px;background:var(--accent);display:flex;align-items:center;padding-left:10px;color:var(--surface);font-family:var(--f-display);font-weight:700;font-size:.95rem;min-width:44px}
+.frow small{color:var(--muted);font-size:.85rem;max-width:30ch}
+figure{margin:0;display:grid;gap:8px}
+figcaption{font-size:.9rem;color:var(--muted)}
+.chart{overflow-x:auto}
+.chart svg{width:100%;min-width:520px;height:auto;display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.convo{display:grid;gap:8px;min-width:0}
+.convo-title{font-family:var(--f-display);font-weight:700;font-size:.98rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.msg{border-radius:10px;padding:9px 12px;font-size:.88rem;line-height:1.45;min-width:0;overflow-wrap:anywhere}
+.msg .who{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px}
+.m-user{background:var(--code-bg)}
+.m-tool{background:var(--code-bg);font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
+.m-asst{background:var(--surface);border:1px solid var(--line)}
+.m-trained{border:2px solid var(--accent)}
+.m-empty{border:2px dashed var(--bad);color:var(--bad);font-style:italic}
+.think{display:block;background:var(--accent-soft);border-radius:6px;padding:6px 9px;margin-bottom:6px;font-size:.85rem}
+.think::before{content:"thinking  ";font-family:var(--f-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.del{display:block;margin-top:6px;text-decoration:line-through;color:var(--bad);background:var(--bad-soft);border-radius:6px;padding:4px 8px}
+.call{font-family:var(--f-mono);font-size:.78rem;background:var(--code-bg);border-radius:6px;padding:4px 8px;margin-top:6px;display:block;overflow-wrap:anywhere}
+.note{font-style:normal}
+.flag{color:var(--bad);font-weight:700}
+.okc{color:var(--good);font-weight:700}
+.meters{display:grid;gap:14px}
+.meter{display:grid;gap:4px}
+.meter-label{display:flex;justify-content:space-between;gap:10px;font-size:.92rem;flex-wrap:wrap}
+.track{position:relative;height:14px;background:var(--code-bg);border-radius:7px}
+.track i{position:absolute;top:0;bottom:0;left:0;border-radius:7px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:8px;align-content:start;min-width:0}
+.card h3{font-size:1.02rem}
+.card p{font-size:.93rem}
+.card .src{font-size:.82rem;color:var(--muted)}
+.flow{display:grid;gap:0}
+.step{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;position:relative}
+.step .dot{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);border:2px solid var(--accent);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:.85rem;color:var(--accent);margin-left:7px;z-index:1}
+.step:not(:last-child)::before{content:"";position:absolute;left:21px;top:30px;bottom:0;width:2px;background:var(--line)}
+.step .body{padding-bottom:20px;display:grid;gap:6px;min-width:0}
+.step h3{font-size:1.02rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.step ul,.plain{margin:0;padding-left:1.1rem;display:grid;gap:3px;font-size:.93rem}
+.plain{font-size:.95rem;gap:6px;max-width:70ch}
+.chip{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;font-weight:600}
+.c-done{background:var(--good-soft);color:var(--good)}
+.c-now{background:var(--accent-soft);color:var(--accent)}
+.c-next{background:var(--code-bg);color:var(--muted)}
+.verdicts{display:flex;gap:10px;flex-wrap:wrap}
+.vbox{flex:1 1 150px;border-radius:12px;padding:14px;display:grid;gap:2px;min-width:0}
+.vbox b{font-family:var(--f-display);font-size:1.8rem;line-height:1}
+.vbox span{font-size:.88rem}
+.v-ok{background:var(--good-soft);color:var(--good)}
+.v-amb{background:var(--lesson-soft);color:var(--lesson)}
+.v-bad{background:var(--bad-soft);color:var(--bad)}
+.v-ok span,.v-amb span,.v-bad span{color:var(--ink)}
+.promise{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.promise ul{margin:0;padding-left:1.1rem;display:grid;gap:4px;font-size:.95rem}
+.keyline{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+.part{display:grid;gap:6px;padding:18px 0 0;border-top:2px solid var(--accent)}
+.part .eyebrow{font-size:.85rem}
+.part p{color:var(--muted)}
+.guide{display:grid;gap:6px;font-size:.95rem}
+.guide div{display:grid;grid-template-columns:7.5rem minmax(0,1fr);gap:10px}
+.guide b{font-family:var(--f-mono);font-size:.8rem;color:var(--accent);padding-top:2px}
+.hbars{display:grid;gap:12px}
+.hb{display:grid;gap:4px}
+.hb-label{display:flex;justify-content:space-between;gap:10px;font-size:.93rem;flex-wrap:wrap}
+.hb-label b{font-family:var(--f-display);font-variant-numeric:tabular-nums}
+.hb-track{position:relative;height:26px;background:var(--code-bg);border-radius:6px}
+.hb-track i{position:absolute;top:0;bottom:0;left:0;border-radius:6px}
+.hb-axis{display:grid;grid-template-columns:repeat(5,1fr);font-family:var(--f-mono);font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);padding-top:4px}
+.hb-axis span:last-child{text-align:right}
+.tbl-wrap{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:.92rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right;white-space:nowrap}
+td.win{color:var(--good);font-weight:700}
+td.lose{color:var(--bad);font-weight:700}
+td small{color:var(--muted);display:block;font-size:.82rem}
+.split{display:flex;height:30px;border-radius:6px;overflow:hidden;font-family:var(--f-display);font-weight:700;font-size:.9rem}
+.split span{display:flex;align-items:center;justify-content:center;color:var(--surface);min-width:0}
+.mono{font-family:var(--f-mono);font-size:.85em;overflow-wrap:anywhere}
+@media (prefers-reduced-motion:no-preference){.fbar,.track i,.hb-track i{transition:width .6s ease}}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Supervised fine-tuning · result of 13 Nov 2026 · updated 24 Nov 2026</div>
+  <h1>Teaching a 4B model to do office work by showing it how</h1>
+  <p class="lead">We wanted Qwen3.5-4B to solve more AutomationBench office tasks (emails, sheets, CRM, Slack) without reinforcement learning. Supervised fine-tuning (SFT) is the simplest way: show the model correct worked examples and let it learn to copy them. The first try made the model worse. The second try, with a thinking teacher and strictly checked data, worked.</p>
+  <div class="facts">
+    <div class="fact hl"><b>42.4%</b><span>4B after SFT, test120</span></div>
+    <div class="fact"><b>28.3%</b><span>same 4B untrained</span></div>
+    <div class="fact hl"><b>+14.1 pts</b><span>measured, 960 paired attempts</span></div>
+    <div class="fact"><b>49.6%</b><span>the 397B teacher itself</span></div>
+    <div class="fact"><b>97</b><span>training examples</span></div>
+  </div>
+  <p>The gain closes about two thirds of the gap between the untrained 4B and its teacher. It is measured: 8 attempts on each of the 120 tasks, compared task by task. <span class="evid ver">verified</span></p>
+  <div class="panel guide">
+    <div><b>Chapters 1–7</b><span>The first try on 12 Nov, why it failed, and the lessons.</span></div>
+    <div><b>Chapters 8–15</b><span>The method that worked on 13 Nov, step by step, and the result.</span></div>
+    <div><b>Chapters 16–17</b><span>Data v4, what the result does not show, and where things stand.</span></div>
+  </div>
+  <p class="small muted">Labels: <span class="evid ver">verified</span> we measured or checked it ourselves (by script or by reading); <span class="evid rec">from record</span> copied from our run logs and reports; <span class="evid inf">inference</span> our judgement, not measured; <span class="evid">reported</span> from published research. A gain is called <b>measured</b> only when a task-by-task comparison of the same tasks rules out chance.</p>
+</header>
+
+<div class="part"><span class="eyebrow">Part one · 12 November</span><h2>The first try</h2><p>Settings in this part: thinking off, tasks before the fixes, old limits. Its numbers are not comparable with Part two.</p></div>
+
+<section class="chapter" aria-labelledby="c1">
+  <div class="chap-head"><span class="chap-num">1</span><h2 id="c1">The first plan: one correct example per task</h2></div>
+  <p>For each training task we collected one solution that really works: it replays in the benchmark and passes every check. Most came from Claude (Sonnet and Opus) solving the task; 26 came from the 4B's own successful attempts. We held 24 tasks back to measure whether training helps on tasks the model never saw.</p>
+  <div class="panel">
+    <div class="funnel" role="img" aria-label="204 training tasks, 180 with a verified solution, 179 after a length limit, 155 used for the first training run">
+      <div class="frow"><div class="fbar" style="width:100%">204</div><small>training tasks</small></div>
+      <div class="frow"><div class="fbar" style="width:88.2%">180</div><small>with a verified solution (24 unsolved, no data)</small></div>
+      <div class="frow"><div class="fbar" style="width:87.7%">179</div><small>one example too long for the model</small></div>
+      <div class="frow"><div class="fbar" style="width:76%">155</div><small>trained on; 24 held back to measure</small></div>
+    </div>
+    <p class="small muted">Every one of the 180 solutions was correct in outcome. <span class="evid ver">verified</span></p>
+  </div>
+</section>
+
+<section class="chapter" aria-labelledby="c2">
+  <div class="chap-head"><span class="chap-num">2</span><h2 id="c2">Night one: the model got worse</h2></div>
+  <p>We trained for up to 5 passes over the data (epochs) and measured after passes 1, 2, 3 and 5. Every reading was far below the untrained model. Our stop rule worked: nothing went on to the final test, so no test result was spent on a bad model.</p>
+  <figure class="panel">
+    <div class="chart">
+      <svg viewBox="0 0 640 290" role="img" aria-label="Success rate: untrained held-out 14.6% and guard10 76.3%; after training, held-out falls to 0.5 to 4.2% and guard10 to 10 to 28.8%">
+        <g font-family="JetBrains Mono, monospace" font-size="11" fill="var(--muted)">
+          <line x1="60" x2="620" y1="230" y2="230" stroke="var(--line)"/>
+          <line x1="60" x2="620" y1="180" y2="180" stroke="var(--line)" stroke-dasharray="3 4"/>
+          <line x1="60" x2="620" y1="130" y2="130" stroke="var(--line)" stroke-dasharray="3 4"/>
+          <line x1="60" x2="620" y1="80" y2="80" stroke="var(--line)" stroke-dasharray="3 4"/>
+          <line x1="60" x2="620" y1="30" y2="30" stroke="var(--line)" stroke-dasharray="3 4"/>
+          <text x="52" y="234" text-anchor="end">0%</text>
+          <text x="52" y="184" text-anchor="end">20%</text>
+          <text x="52" y="134" text-anchor="end">40%</text>
+          <text x="52" y="84" text-anchor="end">60%</text>
+          <text x="52" y="34" text-anchor="end">80%</text>
+        </g>
+        <g>
+          <rect x="76" y="193.5" width="36" height="36.5" rx="3" fill="var(--accent)"/>
+          <rect x="120" y="39.25" width="36" height="190.75" rx="3" fill="var(--lesson)"/>
+          <rect x="188" y="228.75" width="36" height="1.25" rx="1" fill="var(--accent)"/>
+          <rect x="232" y="205" width="36" height="25" rx="3" fill="var(--lesson)"/>
+          <rect x="300" y="221" width="36" height="9" rx="2" fill="var(--accent)"/>
+          <rect x="344" y="158" width="36" height="72" rx="3" fill="var(--lesson)"/>
+          <rect x="412" y="219.5" width="36" height="10.5" rx="2" fill="var(--accent)"/>
+          <rect x="456" y="164.25" width="36" height="65.75" rx="3" fill="var(--lesson)"/>
+          <rect x="524" y="224.75" width="36" height="5.25" rx="2" fill="var(--accent)"/>
+          <rect x="568" y="158" width="36" height="72" rx="3" fill="var(--lesson)"/>
+        </g>
+        <g font-family="Familjen Grotesk, sans-serif" font-size="12" font-weight="700" fill="var(--ink)" text-anchor="middle">
+          <text x="94" y="187">14.6</text><text x="138" y="33">76.3</text>
+          <text x="206" y="222">0.5</text><text x="250" y="199">10.0</text>
+          <text x="318" y="215">3.6</text><text x="362" y="152">28.8</text>
+          <text x="430" y="213">4.2</text><text x="474" y="158">26.3</text>
+          <text x="542" y="218">2.1</text><text x="586" y="152">28.8</text>
+        </g>
+        <g font-family="Atkinson Hyperlegible, sans-serif" font-size="13" fill="var(--ink)" text-anchor="middle">
+          <text x="116" y="252">Untrained</text><text x="228" y="252">Pass 1</text><text x="340" y="252">Pass 2</text><text x="452" y="252">Pass 3</text><text x="564" y="252">Pass 5</text>
+        </g>
+      </svg>
+    </div>
+    <div class="legend"><span><i class="sw" style="background:var(--accent)"></i>24 held-back tasks × 8 tries</span><span><i class="sw" style="background:var(--lesson)"></i>guard10 regression set × 8 tries</span></div>
+    <figcaption>Success rate (%). <span class="evid ver">verified</span> No infrastructure failures. We also proved the trained weights were really applied: the trained model's habits are ones the untrained model never shows. Training loss kept falling (0.28 to 0.10) while success fell, so loss cannot pick a good model.</figcaption>
+  </figure>
+</section>
+
+<section class="chapter" aria-labelledby="c3">
+  <div class="chap-head"><span class="chap-num">3</span><h2 id="c3">Looking inside one training example</h2></div>
+  <p>Take the training task <b>vendor onboarding checklist</b>. The inbox has three updates for that checklist. The newest one says <i>"DRAFT, do not publish until approved."</i> So the right update to use is the one from 4 February. It adds a "badge request", which is security related, so the security team must also be told. Those two judgements are the whole point of the task.</p>
+  <div class="two">
+    <div class="panel convo">
+      <div class="convo-title">What the 4B was trained on <span class="chip" style="background:var(--bad-soft);color:var(--bad)">night one</span></div>
+      <div class="msg m-tool"><span class="who">tool result</span>3 emails: 7 Feb "…DRAFT, do not publish", 4 Feb "…badge request", 2 Feb</div>
+      <div class="msg m-asst m-empty"><span class="who">assistant · trained</span>(no text at all)<span class="call">notion_create_page(content="…2026-02-04…")</span></div>
+      <div class="msg m-asst m-empty"><span class="who">assistant · trained</span>(no text at all)<span class="call">gmail_send_email(…)</span></div>
+      <div class="msg m-asst m-empty"><span class="who">assistant · trained</span>(no text at all)<span class="call">slack_send_channel_message("#security-team", …)</span></div>
+      <div class="msg m-asst m-trained"><span class="who">assistant · trained</span>Done: gmail_find_email, notion_create_page, gmail_send_email, slack_send_channel_message.</div>
+    </div>
+    <div class="panel convo">
+      <div class="convo-title">How the 4B succeeds on its own <span class="chip c-done">another task, its own style</span></div>
+      <div class="msg m-asst"><span class="who">assistant</span>I found the latest NDA email… visitor Chen signed the NDA on 2026-01-28 with record ID rec_105. Now I need to: 1. add a comment to the Airtable record, 2. email the host. Let me add the comment first.<span class="call">airtable_add_comment(…)</span></div>
+      <div class="msg m-asst"><span class="who">assistant</span>The comment has been added. Now I need to send the email… with the values verbatim.<span class="call">gmail_send_email(…)</span></div>
+      <div class="msg m-asst"><span class="who">assistant</span>Both tasks have been completed successfully: 1. Airtable update… 2. Email notification…</div>
+    </div>
+  </div>
+  <p class="small muted">Excerpts copied from the real files, trimmed with "…". The left side is the real training row; Claude's thinking happened out of sight, so only its actions were recorded. <span class="evid ver">verified</span> 0 of 1,893 Claude turns had any text before the action.</p>
+  <div class="lesson"><span class="tag">Lesson 1</span><h3>A small model copies the shape, not just the answers</h3><p>The answers were correct, but the examples showed actions with no reasoning. The 4B learned to act without thinking. With thinking switched off, the text it writes before each action is its only place to plan.</p></div>
+</section>
+
+<section class="chapter" aria-labelledby="c4">
+  <div class="chap-head"><span class="chap-num">4</span><h2 id="c4">What the trained model then did</h2></div>
+  <p>On a held-back task (flag departments over their office-supply budget, using a spend tab, a budget tab and a policy tab), the untrained 4B read all three tabs, planned out loud and got it right. After 5 passes, the trained model wrote no text, never opened the policy tab, alerted the one department that was exempt, missed the three that were over, and signed off with the copied "Done:" line.</p>
+  <div class="panel meters" role="img" aria-label="Habits before and after training">
+    <div class="meter"><div class="meter-label"><span>Writes text before acting</span><span><b>93%</b> → <b class="flag">3%</b></span></div><div class="track"><i style="width:93%;background:var(--line)"></i><i style="width:3%;background:var(--bad)"></i></div></div>
+    <div class="meter"><div class="meter-label"><span>Ends with the "Done: tool names" line</span><span><b>0%</b> → <b class="flag">41%</b></span></div><div class="track"><i style="width:41%;background:var(--bad)"></i></div></div>
+    <div class="meter"><div class="meter-label"><span>Writes tool arguments in alphabetical order</span><span><b>27%</b> → <b class="flag">97%</b></span></div><div class="track"><i style="width:97%;background:var(--bad)"></i><i style="width:27%;background:var(--line)"></i></div></div>
+    <p class="small muted">Untrained → after 5 passes, on held-back tasks (guard10 for the "Done:" line). <span class="evid ver">verified</span> Each habit traces straight back to the training file.</p>
+  </div>
+</section>
+
+<section class="chapter" aria-labelledby="c5">
+  <div class="chap-head"><span class="chap-num">5</span><h2 id="c5">Digging deeper: four more lessons</h2></div>
+  <div class="cards">
+    <div class="lesson"><span class="tag">Lesson 2</span><h3>Don't convert examples after the fact</h3><p>Claude often did several independent actions at once (419 of its 811 action turns). Our conversion split them into one action per turn, so the 4B lost that too. Generate examples directly in the 4B's own format instead.</p><span class="evid ver">verified</span></div>
+    <div class="lesson"><span class="tag">Lesson 3</span><h3>Every word we train on gets copied</h3><p>Where we filled in a placeholder ending ("Done: …"), the model learned to say it. 37 of 99 endings written by the untrained 4B also broke the system prompt's rules. Only train on text we actually want the model to say.</p><span class="evid ver">verified</span></div>
+    <div class="lesson"><span class="tag">Lesson 4</span><h3>Check the exact file you train on</h3><p>The training framework re-wrote every example with its keys sorted alphabetically, so training prompts no longer matched what the model sees in a test. Our format check had looked at the data one step earlier and missed it.</p><span class="evid ver">verified</span></div>
+    <div class="lesson"><span class="tag">Lesson 5</span><h3>"Correct" is not the same as "teaches the right thing"</h3><p>Our checks asked whether each example was correct. None asked whether it showed the behaviour we want the model to learn. Every future check asks both.</p></div>
+  </div>
+</section>
+
+<section class="chapter" aria-labelledby="c6">
+  <div class="chap-head"><span class="chap-num">6</span><h2 id="c6">Are the training tasks themselves right?</h2></div>
+  <p>24 tasks never got a verified solution. We studied each one by hand and proved every one can be solved. But some have a problem in the task itself: the request can be read two ways and the checker accepts only one, or the checker is simply wrong.</p>
+  <div class="verdicts">
+    <div class="vbox v-ok"><b>9</b><span>fine; the model just missed a policy sheet or a note</span></div>
+    <div class="vbox v-amb"><b>12</b><span>ambiguous: the checker accepts only one valid reading</span></div>
+    <div class="vbox v-bad"><b>3</b><span>broken: the checker or a tool has a bug</span></div>
+  </div>
+  <div class="panel">
+    <p class="small"><b>Example of a broken task:</b> the request asks for conversion rates with two decimals ("1.50%"), but the checker looks for "1.5%", and its text cleaner only tidies "1.0%"-style numbers. A model that follows the request exactly fails. <span class="evid ver">verified</span></p>
+    <p class="small"><b>All 204 tasks:</b> doing nothing passes none of them. The untrained 4B never solves 119, sometimes solves 82, always solves 3. <span class="evid ver">verified</span></p>
+  </div>
+  <div class="lesson"><span class="tag">Lesson 6</span><h3>Fix the tasks, don't skip them</h3><p>A bad task teaches a bad habit to every method that uses it later (SFT, DPO and beyond). So every flagged task gets a proper fix. Chapter 9 shows how that was done.</p></div>
+</section>
+
+<section class="chapter" aria-labelledby="c7">
+  <div class="chap-head"><span class="chap-num">7</span><h2 id="c7">What published research told us</h2></div>
+  <p>We read the research on training small agent models from examples. No paper matches our exact setup, so these guide the design rather than promise a result.</p>
+  <div class="cards">
+    <div class="card"><h3>Reasoning text in the examples matters</h3><p>Agent models trained with the reasoning kept generalise better to new tasks than those trained on actions alone.</p><p class="src"><a href="https://arxiv.org/abs/2410.07706" target="_blank" rel="noopener">AgentBank</a> · <a href="https://arxiv.org/abs/2604.07776" target="_blank" rel="noopener">Lù &amp; Reddy 2026</a> <span class="evid">reported</span></p></div>
+    <div class="card"><h3>Make examples in the student's own world</h3><p>Strong pipelines run the teacher inside the same environment and format as the student, then keep only runs that pass an outcome check.</p><p class="src"><a href="https://arxiv.org/abs/2504.03601" target="_blank" rel="noopener">APIGen-MT</a> · <a href="https://arxiv.org/abs/2412.21139" target="_blank" rel="noopener">SWE-Gym</a> · <a href="https://arxiv.org/abs/2504.21798" target="_blank" rel="noopener">SWE-smith</a> <span class="evid">reported</span></p></div>
+    <div class="card"><h3>Small students like short, simple reasoning</h3><p>Small models learn worse from long, expert reasoning than from shorter, simpler explanations.</p><p class="src"><a href="https://arxiv.org/abs/2502.12143" target="_blank" rel="noopener">Li et al. 2025, "Small Models Struggle to Learn from Strong Reasoners"</a> <span class="evid">reported</span></p></div>
+    <div class="card"><h3>Don't give the teacher hints</h3><p>When the teacher sees information the student won't have, the student learns shortcuts it can't reproduce. Hints belong with the grader, not the teacher.</p><p class="src"><a href="https://arxiv.org/abs/2607.05184" target="_blank" rel="noopener">Kaur et al. 2026</a> (maths, indirect evidence) <span class="evid">reported</span></p></div>
+    <div class="card"><h3>Don't train on mistakes</h3><p>In one study, leaving failed steps out of the training target worked better than training on them. Earlier work found mixed results, so we simply keep failed actions out.</p><p class="src"><a href="https://arxiv.org/abs/2501.01702" target="_blank" rel="noopener">AgentRefine</a> <span class="evid">reported</span></p></div>
+    <div class="card"><h3>Agent-only data can hurt general skill</h3><p>Training only on agent examples has been reported to damage general ability, which fits the drop we saw on guard10.</p><p class="src"><a href="https://arxiv.org/abs/2310.12823" target="_blank" rel="noopener">AgentTuning</a> <span class="evid">reported</span></p></div>
+    <div class="card"><h3>Tools we evaluated: NeMo Data Designer</h3><p>NVIDIA's open-source generator runs a teacher model against tools and records each run. It needs API access to the teacher, so we build the same loop on our own replay tool, with our stricter checker.</p><p class="src"><a href="https://github.com/NVIDIA-NeMo/DataDesigner" target="_blank" rel="noopener">DataDesigner on GitHub</a></p></div>
+  </div>
+</section>
+
+<div class="part"><span class="eyebrow">Part two · 12–13 November</span><h2>The method that worked</h2><p>Plan v4, approved by Ali late on 12 Nov. Each step below is what actually ran.</p></div>
+
+<section class="chapter" aria-labelledby="c8">
+  <div class="chap-head"><span class="chap-num">8</span><h2 id="c8">A new plan: a thinking teacher from the same family</h2></div>
+  <p>The new teacher is <b>Qwen3.5-397B-A17B</b>, a much larger model from the 4B's own family, called through OpenRouter with one provider (Alibaba) pinned. Thinking is switched on, so the teacher's reasoning is recorded inside <span class="mono">&lt;think&gt;</span> tags. That is exactly where the 4B does its own thinking, so the 4B can learn the reasoning, not just the actions (Lesson 1). The teacher runs inside the same loop, tools and format the 4B uses in a test (Lesson 2).</p>
+  <div class="panel flow">
+    <div class="step"><span class="dot">1</span><div class="body"><h3>Fix the tasks <span class="chip c-done">done</span></h3><ul><li>38 defect tasks fixed; every fix proven by a replay at 1.0.</li></ul></div></div>
+    <div class="step"><span class="dot">2</span><div class="body"><h3>Measure both models untrained <span class="chip c-done">done</span></h3><ul><li>4B and 397B on test120 and guard10, same settings.</li></ul></div></div>
+    <div class="step"><span class="dot">3</span><div class="body"><h3>The teacher writes examples, code checks them <span class="chip c-done">done</span></h3><ul><li>Up to 3 attempts per training task; only fully checked attempts can enter.</li></ul></div></div>
+    <div class="step"><span class="dot">4</span><div class="body"><h3>Careful edits, then a full review <span class="chip c-done">done</span></h3><ul><li>Delete-only fixes for one common habit; every edit audited. Data v3: 97 rows.</li></ul></div></div>
+    <div class="step"><span class="dot">5</span><div class="body"><h3>Train the 4B <span class="chip c-done">done</span></h3><ul><li>Fixed recipe, 3 passes, no choosing by test score.</li></ul></div></div>
+    <div class="step"><span class="dot">6</span><div class="body"><h3>Evaluate on test120 and guard10 <span class="chip c-done">done</span></h3><ul><li>Same settings and random seeds as the untrained baseline.</li></ul></div></div>
+  </div>
+  <p class="small muted">Other choices in plan v4: no held-back training tasks and no epoch ladder; train exactly 3 passes and evaluate only the end of pass 3, because picking the best pass by test120 score would make the test score look better than it is. Before every paid or GPU launch a written pass/fail checklist is shown to Ali. <span class="evid rec">from record</span></p>
+</section>
+
+<section class="chapter" aria-labelledby="c9">
+  <div class="chap-head"><span class="chap-num">9</span><h2 id="c9">Step 1: fix the tasks and prove they can be solved</h2></div>
+  <p>A task counts as correct when a solution replays at 1.0 (full score), doing nothing fails, no check contradicts the request or the data, no tool bug blocks the right action, and no wrong answer passes. Ali set this standard on 12 Nov.</p>
+  <div class="panel">
+    <div class="verdicts">
+      <div class="vbox v-ok"><b>38</b><span>defect tasks fixed (70 edits in 15 files), approved by Ali</span></div>
+      <div class="vbox v-amb"><b>0 / 204</b><span>tasks pass if the model does nothing</span></div>
+      <div class="vbox v-ok"><b>24 / 24</b><span>earlier hand proofs still score 1.0</span></div>
+    </div>
+    <p class="small">The fixed tasks became the pinned environment <span class="mono">86994309</span>. Every replay, baseline, training row and evaluation in Part two uses it. Some fixes were in shared code (for example the number cleaner that turns "1.50%" and "1.5%" into the same value), which also touches some test120 tasks. That is why the untrained baseline was measured again on the fixed environment. <span class="evid ver">verified</span></p>
+    <p class="small">"The old wrong solution now fails" does not prove a fixed task can be solved. So for each fixed task we required a correct solution that replays at 1.0. 11 fixed tasks lacked one at first. 6 were then proven by teacher runs that scored 1.0, and 5 by hand-written proofs (kept as proof only, never as training data). Two more never-solved tasks got hand proofs on 13 Nov. No fix made a task unsolvable. <span class="evid ver">verified</span></p>
+  </div>
+</section>
+
+<section class="chapter" aria-labelledby="c10">
+  <div class="chap-head"><span class="chap-num">10</span><h2 id="c10">Step 2: measure before training</h2></div>
+  <p>Before any training, both models were measured untrained, with thinking on and the settings from each model's own card. test120 is the final test (120 tasks never used for training). guard10 is a small set of 10 tasks that warns us if training breaks something.</p>
+  <div class="panel tbl-wrap">
+    <table>
+      <thead><tr><th>Model, untrained</th><th class="num">test120 success</th><th class="num">guard10 success</th><th>Attempts per task</th></tr></thead>
+      <tbody>
+        <tr><td>Qwen3.5-4B (the student)</td><td class="num">28.3%</td><td class="num">71.2%</td><td>8</td></tr>
+        <tr><td>Qwen3.5-397B (the teacher)</td><td class="num">49.6%</td><td class="num">80.0%</td><td>2 (cost), so noisier</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted">Limits for every run: 50 turns, 32,768 tokens per reply, 131,072 tokens of context. 397B answers from test120 and guard10 are locked away and never used as training data. <span class="evid ver">verified</span></p>
+  </div>
+  <div class="lesson"><span class="tag">Problem solved on the way</span><h3>Why the teacher's test run kept crashing</h3><p>The 397B test120 run was killed twice by its own 10 GB memory limit, at the same 15 tasks. Our first guess, that the runner keeps every attempt in memory, was wrong. The real cause was one task, <span class="mono">sales.docusign_bulk_nda_sender</span>. The benchmark's guard checks create one scoring run for each pair of (data row × action the agent took). With about 45 envelopes and 45 contact updates that is about 20,000 scoring runs in one attempt, each loading a 2.7 MB view of the data. One attempt peaked at 9.3 to 10.2 GB. The fix was to run the 14 light tasks in small groups and that one task alone with a 16 GB limit. The reference then finished: 120 tasks, 240 attempts, 0 errors. <span class="evid rec">from record</span></p></div>
+</section>
+
+<section class="chapter" aria-labelledby="c11">
+  <div class="chap-head"><span class="chap-num">11</span><h2 id="c11">Step 3: the teacher writes examples, code checks every one</h2></div>
+  <p>The 397B tried every one of the 204 training tasks, up to 3 times each, in rounds. An attempt can only enter the training data if it passes every automatic check below (the <span class="mono">validate_row</span> gates). Passing the benchmark is necessary but not enough.</p>
+  <div class="panel">
+    <ul class="plain">
+      <li><b>Replay to 1.0:</b> replayed in the benchmark on the fixed environment, it scores full marks with every check passing.</li>
+      <li><b>Same results:</b> every tool result in the example is byte for byte what the replay returns.</li>
+      <li><b>Reasoning on every turn:</b> each turn the 4B is trained on has thinking before its actions.</li>
+      <li><b>Grounding:</b> every number in written text appears earlier in the conversation or is worked out on the page.</li>
+      <li><b>Zero tool errors:</b> no failed calls in trained turns.</li>
+      <li><b>Reply rule:</b> the final reply follows the system prompt, which says to list only items acted on and never name skipped ones.</li>
+      <li><b>No tooling words:</b> nothing that mentions our own harness.</li>
+      <li><b>No loops:</b> no identical call made 5 times.</li>
+      <li><b>Length:</b> at most 32,768 tokens and 50 turns.</li>
+      <li><b>Exact request:</b> the recorded conversation is exactly what was sent to the teacher.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <div class="funnel" role="img" aria-label="559 teacher attempts; 151 correct by the benchmark; 34 passed every gate unchanged">
+      <div class="frow"><div class="fbar" style="width:100%">559</div><small>teacher attempts on 204 tasks</small></div>
+      <div class="frow"><div class="fbar" style="width:27%">151</div><small>correct by the benchmark</small></div>
+      <div class="frow"><div class="fbar" style="width:6.1%">34</div><small>also passed every gate, unchanged</small></div>
+    </div>
+    <p class="small muted">Of the 117 correct attempts our gates rejected, 85 failed only the reply rule. The teacher's main bad habit was narrating left-out items ("Excluded: Dave Kim's Juniper Pilot deal") in replies and messages, which the system prompt forbids. Every rejection was read; the few false alarms led to gate fixes with tests, never to a looser gate. Cost of all generation: $27.63 of a $60 cap. <span class="evid ver">verified</span></p>
+  </div>
+</section>
+
+<section class="chapter" aria-labelledby="c12">
+  <div class="chap-head"><span class="chap-num">12</span><h2 id="c12">Step 4: careful edits, with an audit</h2></div>
+  <p>Many correct attempts were good except for one sentence naming a skipped item. Ali approved a small set of edit rules. Each rule only removes or narrowly corrects what the teacher's own reasoning already got right. Nothing new is invented.</p>
+  <div class="cards">
+    <div class="card"><h3>Delete only</h3><p>Remove words from the reply or a message; never add any. Only where the reasoning already made the right decision. The edited example must still replay to 1.0 with every check.</p></div>
+    <div class="card"><h3>Verbatim value fix</h3><p>For a one-check near miss, a value may be put in only if the teacher's own reasoning already decided it, copied word for word. Of 23 near misses, none qualified.</p></div>
+    <div class="card"><h3>Narrow phrase fix</h3><p>Swap in a phrase that appears in both the request and that turn's reasoning. Used once (a DocuSign lease email in data v4).</p></div>
+    <div class="card"><h3>Masked turns</h3><p>A turn stays in the conversation, so the model sees it, but it gets no training weight. Allowed only with a recorded reason: a failed call, a message whose text was deleted, or a wrong action corrected later.</p></div>
+  </div>
+  <div class="panel">
+    <p class="small"><b>The edit audit</b> compares every row with the teacher's original attempt. A row may differ only by logged deletions and masked turns. Reasoning, requests, call names, call order and unedited tool results must be byte for byte the same. A test that tampers with rows in 4 different ways is caught every time. <span class="evid ver">verified</span></p>
+  </div>
+</section>
+
+<section class="chapter" aria-labelledby="c13">
+  <div class="chap-head"><span class="chap-num">13</span><h2 id="c13">The data v3 rebuild: what we missed and fixed</h2></div>
+  <p>The edits gave data v2 (100 rows), and training started on it at 17:15 on 13 Nov. Ali then asked whether everything had been checked first. It had not: one flagged row was still unresolved, and the launch checklist had not been shown. Training was stopped at pass 2.3 and the data was reviewed again from end to end. <span class="evid rec">from record</span></p>
+  <div class="panel tbl-wrap">
+    <table>
+      <thead><tr><th>Oversight</th><th>Fix in v3</th></tr></thead>
+      <tbody>
+        <tr><td>A calendar row's reasoning invents "today is 2025-01-15" and claims the system prompt said so<small>an invented fact in the reasoning counted as its own evidence</small></td><td>Row dropped. New check: no year in a trained turn unless the context has it.</td></tr>
+        <tr><td>A row emails an invented address (user@company.com)<small>no check looked at where call arguments came from</small></td><td>Row dropped. New scan: every email, phone and ID in trained calls traced to the context.</td></tr>
+        <tr><td>Two rows do a wrong action and correct it later<small>the benchmark does not check it</small></td><td>Wrong turns masked, with the reason recorded.</td></tr>
+        <tr><td>Two rows' reasoning drafts text that was later deleted from the email<small>the check matched word for word only</small></td><td>One row dropped, one email turn masked.</td></tr>
+        <tr><td>4 replies still named items that got no action</td><td>Delete-only edits; all 97 replies re-read in full.</td></tr>
+        <tr><td>Counts reported to Ali were not recomputed</td><td>Edit audit now produces them.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <div class="split" role="img" aria-label="97 rows: 28 unchanged, 69 edited">
+      <span style="flex:28;background:var(--accent)">28</span><span style="flex:69;background:var(--lesson)">69</span>
+    </div>
+    <div class="legend"><span><i class="sw" style="background:var(--accent)"></i>28 rows exactly as the teacher wrote them</span><span><i class="sw" style="background:var(--lesson)"></i>69 rows with logged edits</span></div>
+    <p class="small muted">Edit kinds (a row can have several): reply deletions 67, message deletions 21, rows with masked turns 18. Data v3: 97 rows, one per task, sha256 <span class="mono">b7cbc7e9…</span>, longest row 30,578 tokens, 523,158 trained tokens. Every row passed every gate again with a fresh replay; the training file renders token for token as the 4B sees it in a test (Lesson 4). <span class="evid ver">verified</span></p>
+  </div>
+  <div class="lesson"><span class="tag">Lesson 7</span><h3>Resolve every flag before a launch</h3><p>A row flagged in our own report went into training. Now every flagged row is fixed, dropped or accepted by Ali before launch, the review scans run as well as the gates, and the written checklist is shown to Ali every time.</p></div>
+</section>
+
+<section class="chapter" aria-labelledby="c14">
+  <div class="chap-head"><span class="chap-num">14</span><h2 id="c14">One real training example</h2></div>
+  <p>Task <b>finance.cash_flow_forecast</b>, a row in data v3. Compare it with chapter 3: now every judgement is written down where the 4B can learn it, independent searches run together, and the reply is real. Excerpts copied from the training file, trimmed with "…".</p>
+  <div class="panel convo">
+    <div class="convo-title">Training row <span class="chip c-done">in data v3</span></div>
+    <div class="msg m-user"><span class="who">user</span>Build a single-period cash flow forecast for the next 30 days. Start from the Operating Account balance. For each AR row with Status 'Include', compute the Expected Inflow as Amount * (Collection Probability / 100)… Skip any row with Status 'Do Not Include'. Email the forecast to cfo@company.example.com…</div>
+    <div class="msg m-asst m-trained"><span class="who">assistant · trained</span><span class="think">I need to build a cash flow forecast… First, I need to find the relevant spreadsheet.</span><span class="call">google_drive_find_multiple_files(title="cash flow")</span><span class="call">google_drive_find_multiple_files(title="operating account")</span><span class="call">google_drive_find_multiple_files(title="AR AP")</span></div>
+    <div class="msg m-tool"><span class="who">tool result</span>1 match: "Cash Flow Data" (ss_cashflow); the other two searches: none</div>
+    <div class="msg m-asst m-trained"><span class="who">assistant · trained</span><span class="think">Good, I found a spreadsheet called "Cash Flow Data". Let me get its details…</span><span class="call">google_sheets_get_spreadsheet_by_id(spreadsheet="ss_cashflow", includeGridData=True)</span></div>
+    <div class="msg m-tool"><span class="who">tool result</span>Bank Balance $200,000; AR Due: 4 rows; AP Due: 4 rows (one of each marked "Do Not Include")</div>
+    <div class="msg m-asst m-trained"><span class="who">assistant · trained</span><span class="think">Dispute Holdings: $45,000… Status: Do Not Include (SKIP)… Meridian Corp: $30,000 * (50/100) = $15,000… Total Outflow: $22,000 + $85,000 + $9,600 = $116,600… Ending Balance: $200,000 + $70,000 - $116,600 = $153,400</span><span class="call">gmail_send_email(to="cfo@company.example.com", subject="Single-Period Cash Flow Forecast (Next 30 Days)", …)</span></div>
+    <div class="msg m-asst m-trained"><span class="who">assistant · trained</span>Cash flow forecast completed and emailed to cfo@company.example.com. … Ending Cash Balance: $153,400<span class="del">Rows with Status "Do Not Include" (Dispute Holdings AR $45,000 and Cancelled Lease AP $18,000) were excluded from the forecast.</span></div>
+  </div>
+  <p class="small muted">Outlined boxes carry training weight: thinking, actions and reply. The struck-through line was in the teacher's reply and was deleted before training, because the system prompt says not to name skipped items. Its reasoning was checked by hand against the tool results: 40,000 + 15,000 + 15,000 in, 116,600 out, 153,400 at the end. <span class="evid ver">verified</span></p>
+</section>
+
+<section class="chapter" aria-labelledby="c15">
+  <div class="chap-head"><span class="chap-num">15</span><h2 id="c15">Steps 5 and 6: train, then test</h2></div>
+  <div class="two">
+    <div class="panel tbl-wrap">
+      <h3>Training recipe (plan v4)</h3>
+      <table>
+        <tbody>
+          <tr><td>Method</td><td>LoRA (small add-on weights), rank 16, alpha 32, dropout 0, all linear layers except the vision part</td></tr>
+          <tr><td>Learning rate</td><td>1e-4, cosine decay, 5% warm-up</td></tr>
+          <tr><td>Batch</td><td>16 examples per step</td></tr>
+          <tr><td>Passes</td><td>3 (21 steps), fixed in advance</td></tr>
+          <tr><td>Seed</td><td>20261103</td></tr>
+          <tr><td>Max length</td><td>32,768 tokens; long rows reported, never cut</td></tr>
+          <tr><td>Loss on</td><td>assistant tokens only: thinking, text, calls, reply</td></tr>
+          <tr><td>Data</td><td>v3: 97 rows, sha256 <span class="mono">b7cbc7e9…</span></td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">Training loss stayed finite and ended lower (first three steps 0.195, 0.200, 0.221; last three 0.170, 0.180, 0.198). A sanity check only. <span class="evid rec">from record</span></p>
+    </div>
+    <div class="panel">
+      <h3>How it was tested</h3>
+      <ul class="plain">
+        <li>The adapter from the end of pass 3, nothing else.</li>
+        <li>test120 × 8 attempts and guard10 × 8 attempts.</li>
+        <li>Thinking on, the 4B card's sampling, the same limits and the same random-seed salts as the untrained baseline, so each task is compared with itself.</li>
+        <li>Ranges: paired by task, bootstrap with 10,000 resamples (re-drawing tasks at random to see how much the result could move).</li>
+      </ul>
+      <p class="small muted"><span class="evid rec">from record</span></p>
+    </div>
+  </div>
+
+  <figure class="panel">
+    <h3>Result: test120 success</h3>
+    <div class="hbars" role="img" aria-label="test120 success: untrained 4B 28.3%, 4B after SFT 42.4%, 397B teacher 49.6%">
+      <div class="hb"><div class="hb-label"><span>Qwen3.5-4B, untrained</span><b>28.3%</b></div><div class="hb-track"><i style="width:28.3%;background:var(--muted)"></i></div></div>
+      <div class="hb"><div class="hb-label"><span>Qwen3.5-4B after SFT</span><b style="color:var(--accent)">42.4%</b></div><div class="hb-track"><i style="width:42.4%;background:var(--accent)"></i></div></div>
+      <div class="hb"><div class="hb-label"><span>Qwen3.5-397B teacher (2 attempts per task)</span><b>49.6%</b></div><div class="hb-track"><i style="width:49.6%;background:var(--ref)"></i></div></div>
+      <div class="hb-axis"><span>0%</span><span>20%</span><span>40%</span><span>60%</span><span>80%</span></div>
+    </div>
+    <figcaption>Gain +14.1 points: measured. Task by task, 57 tasks went up, 18 went down and 45 stayed the same. <span class="evid ver">verified</span></figcaption>
+  </figure>
+
+  <div class="panel tbl-wrap">
+    <h3>Everything else we measure (test120)</h3>
+    <table>
+      <thead><tr><th>Measure</th><th class="num">Untrained 4B</th><th class="num">4B + SFT</th><th class="num">397B</th></tr></thead>
+      <tbody>
+        <tr><td>Partial credit<small>share of a task's checks passed</small></td><td class="num">69.6%</td><td class="num win">77.5%</td><td class="num">81.3%</td></tr>
+        <tr><td>Harm share<small>attempts where the benchmark recorded a harmful effect</small></td><td class="num">36.1%</td><td class="num win">25.1%</td><td class="num">–</td></tr>
+        <tr><td>Tool errors per attempt</td><td class="num">0.93</td><td class="num win">0.46</td><td class="num">–</td></tr>
+        <tr><td>Stopped by the 50-turn limit</td><td class="num">10</td><td class="num win">1</td><td class="num">–</td></tr>
+        <tr><td>Runaways<small>reply text over 8,000 characters, or thinking never closed</small></td><td class="num">3</td><td class="num lose">4</td><td class="num">–</td></tr>
+        <tr><td>Average assistant turns</td><td class="num">11.0</td><td class="num">9.3</td><td class="num">–</td></tr>
+        <tr><td>Attempts scored</td><td class="num">958 of 960</td><td class="num">960 of 960</td><td class="num">240</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted">Partial credit gain +8.0 points, measured. The untrained run lost 2 attempts to infrastructure (the tool server was not ready), which the measure leaves out. <span class="evid ver">verified</span></p>
+  </div>
+
+  <div class="panel">
+    <h3>guard10 (the warning set)</h3>
+    <div class="hbars" role="img" aria-label="guard10 success: untrained 4B 71.2%, 4B after SFT 78.8%">
+      <div class="hb"><div class="hb-label"><span>Untrained 4B</span><b>71.2%</b></div><div class="hb-track"><i style="width:71.2%;background:var(--muted)"></i></div></div>
+      <div class="hb"><div class="hb-label"><span>4B after SFT</span><b style="color:var(--accent)">78.8%</b></div><div class="hb-track"><i style="width:78.8%;background:var(--accent)"></i></div></div>
+      <div class="hb-axis"><span>0%</span><span>20%</span><span>40%</span><span>60%</span><span>80%</span></div>
+    </div>
+    <p class="small muted">+7.5 points: not measured, because 10 tasks are too few. What matters here: no drop. In the first try guard10 fell to 10–29%. <span class="evid ver">verified</span></p>
+  </div>
+
+  <div class="panel">
+    <h3>How we know the result is real</h3>
+    <ul class="plain">
+      <li>A second script recomputed every number from the raw per-attempt outcome files and got the same numbers. <span class="evid rec">from record</span></li>
+      <li>The adapter was really loaded and really changes the model: all 248 of its weight blocks are non-zero, and at load time it moved the model's output scores (log-probability change 0.184 on guard10, above the 0.001 bar). The test120 run records which adapter it used. <span class="evid rec">from record</span></li>
+      <li>No test120 or guard10 task appears in the training data, checked by code at every launch. <span class="evid ver">verified</span></li>
+      <li>The comparison uses the same environment, settings and seed salts as the frozen untrained baseline. <span class="evid rec">from record</span></li>
+    </ul>
+  </div>
+</section>
+
+<div class="part"><span class="eyebrow">Part three · 13 November, evening</span><h2>After the result</h2></div>
+
+<section class="chapter" aria-labelledby="c16">
+  <div class="chap-head"><span class="chap-num">16</span><h2 id="c16">The 107 tasks not covered, and data v4</h2></div>
+  <p>Data v3 covers 97 of the 204 training tasks. Every one of the other 107 was read in full: the request, every check in all 3 attempts, and the best attempt's reasoning. All 107 can be solved, so each miss is the teacher's limit, strict wording, or our own quality rule. <span class="evid ver">verified</span></p>
+  <div class="panel tbl-wrap">
+    <table>
+      <thead><tr><th>Why the teacher failed</th><th class="num">Tasks</th></tr></thead>
+      <tbody>
+        <tr><td>Read the rule but applied it wrongly</td><td class="num">59</td></tr>
+        <tr><td>Never opened the source that had the rule</td><td class="num">29</td></tr>
+        <tr><td>Value or format not copied exactly</td><td class="num">6</td></tr>
+        <tr><td>Named left-out items in a message</td><td class="num">5</td></tr>
+        <tr><td>Invented a fact or a recipient</td><td class="num">4</td></tr>
+        <tr><td>Strict wording the benchmark expects</td><td class="num">3</td></tr>
+        <tr><td>Incomplete or a sum wrong</td><td class="num">1</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <p class="small"><b>Data v4 = v3 + 5 rows = 102 rows</b>, sha256 <span class="mono">30553842…</span>. The 5 rows came from:</p>
+    <ul class="plain">
+      <li><b>Task fix v1.1</b> for <span class="mono">operations.docusign_contractor_offboard</span>: an old check wanted an exact page title that nothing in the task asks for; it now wants a title that contains the contractor's name. Proven: the teacher's 3 attempts go from 0.0 to 1.0, doing nothing scores 0, a page for the wrong contractor scores 0. No other task changed.</li>
+      <li><b>A phrase fix</b> (DocuSign lease renewal) and <b>one row</b> made usable under existing rules (team restructure notification, with the embargoed names removed).</li>
+      <li><b>Continuing from the error point</b>: the teacher's own earlier turns are replayed exactly, and it tries again from just before its mistake. 7 tasks, up to 3 tries each, $0.61; 2 rows admitted.</li>
+    </ul>
+    <p class="small">Every v4 row passed every gate with a fresh replay and the edit audit. Found on the way: the record of frozen task hashes had been computed against the wrong code copy. The runs themselves all used the right environment, so no result changes; the record was corrected. <span class="evid ver">verified</span></p>
+    <p class="small"><b>Ali's decision (13 Nov):</b> v4 is final, but it gets no separate training and test run. The v3 result above stands as the SFT measurement. v4 is the starting data for later work. <span class="evid rec">from record</span></p>
+  </div>
+</section>
+
+<section class="chapter" aria-labelledby="c17">
+  <div class="chap-head"><span class="chap-num">17</span><h2 id="c17">What this shows, and what it doesn't</h2></div>
+  <div class="promise">
+    <div class="panel"><h3 class="okc">What it shows</h3><ul><li>SFT on correct, checked, thinking-on examples from a same-family teacher raised the 4B's test120 success from 28.3% to 42.4%, on tasks it never trained on.</li><li>Partial credit, harm share, tool errors and turn-limit cuts all moved the right way.</li><li>guard10 did not drop.</li><li>The spend for teacher calls stayed small: $13.64 for the 397B baselines, $27.63 for data. <span class="evid rec">from record</span></li></ul></div>
+    <div class="panel"><h3 class="flag">What it doesn't show</h3><ul><li>One training run with one seed. How much the result moves with another seed was not measured. <span class="evid inf">inference</span></li><li>guard10 is too small to measure a change either way. <span class="evid inf">inference</span></li><li>The result holds for test120 at these settings (thinking on, these limits and sampling). Other settings or tests may differ. <span class="evid inf">inference</span></li><li>Runaways went from 3 to 4; too few to call. <span class="evid inf">inference</span></li><li>The 397B reference uses 2 attempts per task, so "two thirds of the gap" is approximate. <span class="evid inf">inference</span></li></ul></div>
+  </div>
+  <p class="keyline">Status, 13 November 2026: the SFT measurement is done. Data v3 (97 rows) gave +14.1 points on test120. Data v4 (102 rows) is final and kept for later work without a separate run.</p>
+</section>
+
+<section class="chapter" aria-labelledby="c18">
+  <div class="chap-head"><span class="chap-num">18</span><h2 id="c18">What came after, and where it lives</h2></div>
+  <p>This SFT adapter became the starting point of the DPO and SDPO runs, and the same data and recipe were repeated on Qwen3.5-9B. Their results, task by task, are in the <a href="https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp">deep dive</a>; why each was run the way it was is in the <a href="https://claude.ai/artifact/DGhMxqevpwUdBCbS18azuQ">post-training map</a>.</p>
+  <div class="panel">
+    <ul class="plain">
+      <li><b>Adapters:</b> <span class="mono">carbonteq/qwen3.5-4b-automationbench-sft</span> and <span class="mono">carbonteq/qwen3.5-9b-automationbench-sft</span> on Hugging Face.</li>
+      <li><b>Data:</b> versions 3 and 4 and every 397B attempt, in <span class="mono">carbonteq/automationbench-posttrain-data</span>.</li>
+      <li><b>Code:</b> posttrain branch <span class="mono">feat/automationbench-sft</span>, folder <span class="mono">scripts/qualification/sftgen</span>.</li>
+    </ul>
+  </div>
+  <p class="keyline">Data v4 (102 rows) was never trained. It is the natural next SFT run.</p>
+</section>
+
+
+</div>
+
+</body></html>

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>AutomationBench Handover</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f5f6f3; --surface:#ffffff; --surface-2:#eceee8; --ink:#16191d; --muted:#5b636b; --line:#d6dad2;
+  --accent:#1f6f5c; --accent-soft:#dcefe8; --sft:#2a78d6; --sdpo:#d95926; --dpo:#b8467a; --base:#8a93a1; --ref:#6250d6;
+  --f-display:"Space Grotesk","Segoe UI",system-ui,sans-serif; --f-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101315; --surface:#171b1e; --surface-2:#20262a; --ink:#e6eaec; --muted:#9aa6ad; --line:#2c3439;
+  --accent:#5cc7a8; --accent-soft:#14302a; --sft:#4f97ee; --sdpo:#ec7a4a; --dpo:#e07aa8; --base:#8a93a1; --ref:#9a8cf0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101315; --surface:#171b1e; --surface-2:#20262a; --ink:#e6eaec; --muted:#9aa6ad; --line:#2c3439;
+  --accent:#5cc7a8; --accent-soft:#14302a; --sft:#4f97ee; --sdpo:#ec7a4a; --dpo:#e07aa8; --base:#8a93a1; --ref:#9a8cf0; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.page{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 80px}
+a{color:var(--accent);text-underline-offset:2px}
+h1,h2,h3{font-family:var(--f-display);line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:clamp(2rem,1.3rem + 2.6vw,3rem);letter-spacing:-.02em}
+h2{font-size:1.6rem;margin-bottom:6px}
+h3{font-size:1.08rem}
+p{margin:0 0 .8em}
+code{font-family:var(--f-mono);font-size:.85em;background:var(--surface-2);padding:.05em .35em;border-radius:4px;overflow-wrap:anywhere}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+.lede{font-size:1.15rem;max-width:66ch;margin:14px 0 22px}
+section{border-top:1px solid var(--line);padding-block:34px;display:grid;gap:16px}
+.intro{color:var(--muted);max-width:70ch;margin:0}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.stat b{display:block;font-family:var(--f-display);font-size:1.7rem;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.hl{border-color:var(--sdpo);box-shadow:inset 4px 0 0 var(--sdpo)}
+.bars{display:grid;gap:9px}
+.bar{display:grid;grid-template-columns:minmax(120px,210px) minmax(0,1fr) 58px;gap:12px;align-items:center}
+.bar .n{font-size:14px}
+.bar .t{height:16px;background:var(--surface-2);border-radius:4px;overflow:hidden;min-width:0}
+.bar .f{display:block;height:100%;border-radius:4px}
+.bar .v{font-family:var(--f-mono);font-size:13.5px;text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:560px){.bar{grid-template-columns:minmax(0,1fr) 52px}.bar .t{grid-column:1 / -1;grid-row:2}}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:6px;align-content:start;min-width:0}
+.card .k{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.card .num{font-family:var(--f-display);font-size:1.25rem}
+.card p{margin:0;font-size:14px;color:var(--muted)}
+.card code{font-size:12px}
+.card.c-sft{border-top:4px solid var(--sft)} .card.c-sdpo{border-top:4px solid var(--sdpo)} .card.c-dpo{border-top:4px solid var(--dpo)} .card.c-ref{border-top:4px solid var(--ref)}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;counter-reset:s}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.step h3{font-size:1rem;margin-bottom:4px}
+.step p{margin:0;font-size:14px;color:var(--muted)}
+.step .when{font-family:var(--f-mono);font-size:11.5px;color:var(--accent)}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+ol.find{margin:0;padding-left:20px;display:grid;gap:8px;max-width:78ch}
+ol.find b{font-weight:600}
+ul.plain{margin:0;padding-left:18px;display:grid;gap:6px;max-width:80ch}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.grid2 > *{min-width:0}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.box h3{margin-bottom:8px}
+.pages{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.pagecard{display:block;background:var(--accent-soft);border-radius:10px;padding:14px 16px;text-decoration:none;color:var(--ink)}
+.pagecard b{display:block;font-family:var(--f-display);font-size:1.05rem;color:var(--accent)}
+.pagecard span{font-size:14px}
+footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+
+<div class="page">
+<header>
+  <p class="eyebrow">Handover · AutomationBench post-training · 25 November 2026</p>
+  <h1>Qwen3.5-4B on AutomationBench: what was done, what to use, where it is</h1>
+  <p class="lede">The goal was to make Qwen3.5-4B better at multi-step business workflows without reinforcement learning, measured on 120 AutomationBench test tasks it never trains on. Supervised fine-tuning on 97 checked examples was the main gain. One round of SDPO on its own attempts, with written feedback on its failures, added 8.2 points more and brought it level with Qwen3.5-397B. This page is about using the work: what to load, where everything is, how to run it, what to watch for. Why each step was taken is on the <a href="https://claude.ai/artifact/DGhMxqevpwUdBCbS18azuQ">post-training map</a>; results task by task are in the <a href="https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp">deep dive</a>.</p>
+</header>
+
+<section aria-labelledby="h-models">
+  <h2 id="h-models">The models to use</h2>
+  <p class="intro">Four LoRA adapters, private on Hugging Face under <code>carbonteq</code>. Each card there gives the exact training settings and the code to load it.</p>
+  <div class="cards">
+    <div class="card c-sdpo"><span class="k">Best 4B</span><span class="num">SFT + SDPO</span><p>test120 50.6%, guard10 66.3%</p><a href="https://huggingface.co/carbonteq/qwen3.5-4b-automationbench-sdpo"><code>carbonteq/qwen3.5-4b-automationbench-sdpo</code></a></div>
+    <div class="card c-sft"><span class="k">Starting point of DPO and SDPO</span><span class="num">4B + SFT</span><p>test120 42.4%, guard10 78.8%</p><a href="https://huggingface.co/carbonteq/qwen3.5-4b-automationbench-sft"><code>carbonteq/qwen3.5-4b-automationbench-sft</code></a></div>
+    <div class="card c-sft"><span class="k">Same SFT, larger model</span><span class="num">9B + SFT</span><p>test120 46.3%, guard10 75.0%</p><a href="https://huggingface.co/carbonteq/qwen3.5-9b-automationbench-sft"><code>carbonteq/qwen3.5-9b-automationbench-sft</code></a></div>
+    <div class="card c-dpo"><span class="k">Closed line</span><span class="num">4B + SFT + DPO</span><p>test120 43.3%, guard10 77.5%</p><a href="https://huggingface.co/carbonteq/qwen3.5-4b-automationbench-dpo"><code>carbonteq/qwen3.5-4b-automationbench-dpo</code></a></div>
+  </div>
+  <div class="box"><h3>Loading them correctly</h3><ul class="plain">
+    <li>Base models: <code>Qwen/Qwen3.5-4B</code> at revision <code>851bf6e8</code>, and <code>Qwen/Qwen3.5-9B</code> at <code>c2022362</code>.</li>
+    <li>The adapter weights are named for Qwen3.5's image-text class (<code>Qwen3_5ForConditionalGeneration</code>). Loaded onto the text-only class, every LoRA weight is silently skipped and you get the base model. In vLLM, use <code>enable_lora=True</code> with <code>max_lora_rank=64</code>.</li>
+    <li>Score them the way they were scored (why each setting: <a href="https://claude.ai/artifact/DGhMxqevpwUdBCbS18azuQ#scoring">map</a>): thinking on, temperature 1.0, top_p 0.95, top_k 20, presence_penalty 1.5, 50 turns, 32,768-token replies, a 131,072-token context, and 8 attempts per task. The 9B needs a 32 GiB KV cache; 48 GiB runs out of memory.</li>
+  </ul></div>
+</section>
+
+<section aria-labelledby="h-where">
+  <h2 id="h-where">Where the code and data are</h2>
+  <p class="intro">The same pattern as the handover this work started from: branches on the team's repositories, each with one README describing its code. The frozen task lists (test120, guard10, the SDPO halves H1 and H2, and the hashes of every task) are in <code>scripts/qualification/fixtures/automationbench/</code> on the SFT and SDPO branches.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>What</th><th>Where</th><th>Read first</th></tr></thead>
+    <tbody><tr><td>Evaluation runner, frozen task lists, SFT</td><td><a href="https://github.com/carbonteq-ai/posttrain/tree/feat/automationbench-sft">posttrain <code>feat/automationbench-sft</code></a></td><td><a href="https://github.com/carbonteq-ai/posttrain/blob/feat/automationbench-sft/docs/automationbench/README.md">docs/automationbench/README.md</a></td></tr><tr><td>DPO (built on SFT)</td><td><a href="https://github.com/carbonteq-ai/posttrain/tree/feat/automationbench-dpo">posttrain <code>feat/automationbench-dpo</code></a></td><td><a href="https://github.com/carbonteq-ai/posttrain/blob/feat/automationbench-dpo/docs/automationbench/dpo.md">docs/automationbench/dpo.md</a></td></tr><tr><td>SDPO (built on SFT), with the engine copy it trained with</td><td><a href="https://github.com/carbonteq-ai/posttrain/tree/feat/automationbench-sdpo">posttrain <code>feat/automationbench-sdpo</code></a></td><td><a href="https://github.com/carbonteq-ai/posttrain/blob/feat/automationbench-sdpo/docs/automationbench/sdpo.md">docs/automationbench/sdpo.md</a></td></tr><tr><td>Feedback engine (maintained version, gives identical feedback on the 50.6% run's 624 training attempts)</td><td><a href="https://github.com/carbonteq-ai/automationbench-context-engine">automationbench-context-engine</a> (<code>main</code>, <code>develop</code>)</td><td><a href="https://github.com/carbonteq-ai/automationbench-context-engine/blob/main/README.md">README.md</a></td></tr><tr><td>AutomationBench environment with the task fixes (version 1.1)</td><td><a href="https://github.com/carbonteq-ai/verifiers-environments/pull/7">verifiers-environments pull request 7</a></td><td>the pull request text</td></tr><tr><td>Benchmark data fix the environment vendors</td><td><a href="https://github.com/carbonteq-ai/AutomationBench/tree/fix/six-task-scored-requirements">AutomationBench <code>fix/six-task-scored-requirements</code></a></td><td>the commit message</td></tr><tr><td>SFT data, 397B attempts, DPO pairs, raw evaluation records</td><td><a href="https://huggingface.co/datasets/carbonteq/automationbench-posttrain-data">carbonteq/automationbench-posttrain-data</a></td><td>the dataset card</td></tr></tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="h-run">
+  <h2 id="h-run">Run it again</h2>
+  <div class="grid2">
+    <div class="box"><h3>Commands</h3><ul class="plain">
+      <li><b>Evaluate:</b> <code>scripts/qualification/sdpo_ab_launch.sh</code> submits <code>sdpo_ab_runner.py --phase collect</code> to the GPU workstation through dstack (SFT README).</li>
+      <li><b>SFT and DPO:</b> <code>posttrain job run</code> with the work packages in <code>apps/lab/.posttrain/work_packages/</code> (SFT README, DPO README).</li>
+      <li><b>SDPO:</b> the same launcher with <code>--phase online-train</code> and the arguments in the SDPO README.</li>
+    </ul></div>
+    <div class="box"><h3>Durations on one RTX PRO 6000</h3><ul class="plain">
+      <li>test120 read (960 attempts): 2.8 h for the 4B, 3.1 h for the 9B; guard10: 18 minutes.</li>
+      <li>SDPO: 2.8 h per round; a held-out read of 102 tasks: 2.4 h.</li>
+      <li>SFT: 21 steps of 97 rows at 32,768 tokens.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section aria-labelledby="h-runtime">
+  <h2 id="h-runtime">Runtime, lineage and access</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Item</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>GPU</td><td>the carbonteq AI workstation (one RTX PRO 6000, 96 GB) through dstack fleet <code>local-gpu-workers</code></td></tr>
+      <tr><td>Job image</td><td><code>registry.lan/carbonteq/posttrain-lab/posttrain-lab/posttrain-job@sha256:e976e727…</code></td></tr>
+      <tr><td>Run outputs on the workstation</td><td><code>/var/lib/posttrain/qualifications/sdpo-ab-runs/</code> (mounted as <code>/evidence</code> in jobs); the four adapters are also kept there</td></tr>
+      <tr><td>Environment</td><td>verifiers-environments <code>28146f9</code> (task fixes 1.1); test120 and guard10 are identical to 1.0</td></tr>
+      <tr><td>Access you need</td><td>dstack and posttrain credentials, the Hugging Face <code>carbonteq</code> organisation, and OpenRouter only to generate new teacher data. No credentials are stored in any branch.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="box"><h3>Pitfalls that cost time</h3><ul class="plain">
+    <li>A Qwen3.5 adapter loaded with the text-only class is silently ignored. Check that scores change with the adapter; every evaluation writes <code>adapter-check.json</code>.</li>
+    <li><code>posttrain job run</code> packs the framework of the checkout that holds the <code>posttrain</code> command, not the current folder.</li>
+    <li>dstack refuses uploaded files over 2 MB. The launcher ships the environment in parts.</li>
+    <li>Framework jobs can hang in the tracking upload after training while holding the GPU. Cancel the run once the adapter is saved.</li>
+    <li>The feedback engine reads task contracts from <code>ABCE_ENVIRONMENT</code>. If that points at the wrong checkout, every contract is silently empty.</li>
+  </ul></div>
+</section>
+
+<section aria-labelledby="h-next">
+  <h2 id="h-next">Pending</h2>
+  <div class="cards">
+    <div class="card"><span class="k">Needs a reviewer</span><p>Pull request 7 on verifiers-environments has to be reviewed and merged by someone with push rights. It comes from the fork <code>alisafdar-carbonteq/verifiers-environments</code>; keep that fork until the merge.</p></div>
+    <div class="card"><span class="k">Ready to run</span><p>SFT on data version 4 (102 rows, on Hugging Face, never trained).</p></div>
+    <div class="card"><span class="k">Open questions</span><p>A second SDPO seed, SDPO on the 9B, the guard10 drop, feedback that says why: see the <a href="https://claude.ai/artifact/DGhMxqevpwUdBCbS18azuQ#open">map</a>.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="h-pages">
+  <h2 id="h-pages">Read next</h2>
+  <div class="pages">
+    <a class="pagecard" href="https://claude.ai/artifact/DGhMxqevpwUdBCbS18azuQ"><b>Post-training map</b><span>The whole programme on one page.</span></a>
+    <a class="pagecard" href="https://claude.ai/artifact/4L3YcbakSzDMGQsDiDc4Dp"><b>Task deep dive</b><span>Every model on every test task, and why each method helped.</span></a>
+    <a class="pagecard" href="https://claude.ai/artifact/2oCnh7zJDPNCN5iwUhnhXt"><b>The 4B SFT story</b><span>How the SFT data was made and checked.</span></a>
+  </div>
+</section>
+
+<footer>Every number comes from the recorded runs; the raw records are in the dataset repository. 8 attempts per task on test120 and guard10.</footer>
+</div>
+
+</body></html>

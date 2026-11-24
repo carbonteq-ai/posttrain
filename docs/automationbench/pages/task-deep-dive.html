@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>AutomationBench Task Deep Dive</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column told as chapters; each chapter = a question, a one-line answer, one visual */
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --fg: #18202c; --muted: #5a6474; --faint: #8d96a5; --line: #dde2e9; --grid: #eceff3;
+  --m-4b: #9aa1ad; --m-sft: #2a78d6; --m-sdpo: #eb6834; --m-9b: #1baf7a; --m-9bsft: #eda100; --m-397: #6250d6; --m-dpo: #e87ba4;
+  --seq: #2a78d6; --heat0: #e9edf2; --up: #1d8a4e; --down: #c8423b;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151b; --panel: #192029; --fg: #e7eaf0; --muted: #a2abba; --faint: #737d8d; --line: #2a323e; --grid: #222a34;
+  --m-4b: #8a93a1; --m-sft: #3987e5; --m-sdpo: #d95926; --m-9b: #199e70; --m-9bsft: #c98500; --m-397: #9085e9; --m-dpo: #d55181;
+  --seq: #3987e5; --heat0: #222a35; --up: #3cbf75; --down: #ec6a60; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151b; --panel: #192029; --fg: #e7eaf0; --muted: #a2abba; --faint: #737d8d; --line: #2a323e; --grid: #222a34;
+  --m-4b: #8a93a1; --m-sft: #3987e5; --m-sdpo: #d95926; --m-9b: #199e70; --m-9bsft: #c98500; --m-397: #9085e9; --m-dpo: #d55181;
+  --seq: #3987e5; --heat0: #222a35; --up: #3cbf75; --down: #ec6a60; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.5; }
+.wrap { max-width: 940px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; display: grid; gap: 40px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(1.9rem, 4.5vw, 2.7rem); line-height: 1.1; margin: 6px 0 10px; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 1.45rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+h3 { font-family: var(--display); font-weight: 600; font-size: 1rem; margin: 0 0 6px; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-family: var(--mono); font-size: .72rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.05rem; color: var(--muted); }
+.chapter { display: grid; gap: 14px; min-width: 0; }
+.chapter > header { display: grid; gap: 6px; border-top: 2px solid var(--fg); padding-top: 12px; }
+.answer { font-size: 1.02rem; }
+.answer b { font-weight: 600; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; overflow-x: auto; }
+svg.wide { min-width: 640px; }
+svg.mid { min-width: 320px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.grid2 > * { min-width: 0; }
+.note { font-size: .8rem; color: var(--muted); }
+.big { font-family: var(--display); font-weight: 700; font-size: 2.6rem; line-height: 1; font-variant-numeric: tabular-nums; }
+svg { display: block; width: 100%; height: auto; max-width: 100%; overflow: visible; }
+svg text { fill: var(--fg); font-family: var(--body); font-size: 12px; }
+svg .mut { fill: var(--muted); }
+svg .num { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+svg .gridl { stroke: var(--grid); }
+svg .axis { stroke: var(--line); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .82rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.legend i.pend { background: repeating-linear-gradient(45deg, var(--faint) 0 2px, transparent 2px 4px); border: 1px solid var(--faint); }
+/* task card */
+.task { display: grid; gap: 10px; }
+.bubble { background: var(--bg); border-radius: 8px; padding: 12px 14px; font-size: .92rem; }
+.bubble .who { font-family: var(--mono); font-size: .72rem; color: var(--muted); margin-bottom: 4px; letter-spacing: .04em; }
+.flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 8px; align-items: stretch; }
+.flow .step { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.flow .arrow { align-self: center; color: var(--faint); font-family: var(--mono); }
+.flow .step b { display: block; font-family: var(--display); font-size: 1.05rem; margin-bottom: 4px; }
+.flow .step p { font-size: .86rem; color: var(--muted); }
+@media (max-width: 640px) { .flow { grid-template-columns: 1fr; } .flow .arrow { justify-self: center; transform: rotate(90deg); } }
+/* models */
+.models { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.model { border-left: 4px solid var(--c); padding: 4px 0 4px 10px; }
+.model b { font-family: var(--display); font-size: 1.02rem; display: block; }
+.model span { font-size: .85rem; color: var(--muted); }
+.model.pending { border-left-style: dashed; }
+.chip { font-family: var(--mono); font-size: .68rem; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; color: var(--muted); margin-left: 6px; vertical-align: 2px; }
+/* heat strip */
+.heatwrap { overflow-x: auto; }
+.tip { position: fixed; pointer-events: none; z-index: 20; background: var(--fg); color: var(--bg); font-size: .78rem; padding: 6px 9px; border-radius: 6px; max-width: 280px; line-height: 1.35; opacity: 0; transition: opacity .08s; }
+.tip b { font-weight: 600; }
+.statrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.stat .big { font-size: 2.1rem; }
+.stat span { display: block; font-size: .84rem; color: var(--muted); }
+.pairs { display: grid; gap: 14px; }
+/* chapter 10 tables and list */
+table.dd { border-collapse: collapse; width: 100%; min-width: 520px; font-size: .84rem; }
+table.dd th { text-align: left; font-family: var(--mono); font-weight: 500; font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; }
+table.dd td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+table.dd td.n { font-family: var(--mono); font-size: .8rem; font-variant-numeric: tabular-nums; }
+table.dd tr.ours td { font-weight: 600; border-top: 1px solid var(--line); }
+table.dd td .sub { display: block; color: var(--muted); font-size: .78rem; font-weight: 400; }
+ol.ddlist { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: .9rem; max-width: 68ch; }
+ol.ddlist b { font-weight: 600; }
+/* 20 Nov: chapters 8-9 rebuilt visual-first */
+.recipe { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 0 8px 8px 0; padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+.recipe b { font-family: var(--display); font-size: 1.1rem; }
+.recipe span { font-size: .9rem; }
+.recipe .facts { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
+details.more { border: 1px dashed var(--line); border-radius: 8px; padding: 10px 14px; min-width: 0; }
+details.more > summary { cursor: pointer; font-size: .9rem; color: var(--muted); list-style: none; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: "▸ "; }
+details.more[open] > summary::before { content: "▾ "; }
+details.more > * + * { margin-top: 12px; }
+.sm { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.sm h4 { margin: 0 0 2px; font-family: var(--display); font-size: .95rem; }
+.ddcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ddcard { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.ddcard h4 { margin: 0; font-family: var(--display); font-size: .98rem; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ddrow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: .88rem; border-top: 1px solid var(--grid); padding-top: 7px; }
+.ddrow .v { font-family: var(--mono); font-size: .8rem; }
+.ddrow .v b { font-weight: 600; }
+.ddrow .d { flex-basis: 100%; font-size: .76rem; color: var(--muted); }
+.tag { font-family: var(--mono); font-size: .66rem; letter-spacing: .04em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; color: var(--muted); font-weight: 500; }
+.tag.on { border-color: var(--fg); color: var(--fg); }
+.decision { margin-top: 12px; font-size: .9rem; border-left: 3px solid var(--fg); padding-left: 10px; }
+ul.ddfacts { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: .86rem; max-width: 76ch; }
+footer { font-size: .78rem; color: var(--muted); display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 14px; }
+footer dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+footer dt { font-weight: 600; color: var(--fg); }
+footer dd { margin: 0; }
+@media (max-width: 520px) { footer dl { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Post-training Qwen3.5 · AutomationBench · results to 24 Nov 2026</div>
+    <h1>How a 4B model went from 28% to 51% on unseen tasks</h1>
+    <p class="lede">We trained a small model to do office-automation work. This page shows what moved, task by task, and which training data moved it.</p>
+  </header>
+
+  <section class="chapter" aria-labelledby="c1">
+    <header><div class="eyebrow">1 · The test</div><h2 id="c1">An agent gets a business request and a set of app tools</h2>
+      <p class="answer">It passes a task only if <b>every</b> required check passes: right records changed, right people contacted, nothing forbidden done.</p></header>
+    <div class="flow">
+      <div class="step"><b>Request</b><p>“Send DocuSign renewal agreements for contracts expiring soon, then send procurement a summary.”</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Agent works</b><p>Reads sheets, email and CRM records, calls tools over many turns, then writes a final reply.</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Graded</b><p>All required checks pass and no forbidden action = success. Anything less = failure.</p></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h3>Two separate task sets, never mixed</h3><svg id="sets" viewBox="0 0 420 120" role="img" aria-label="204 training tasks and 120 test tasks, 6 business domains each"></svg></div>
+      <div class="panel"><h3>8 attempts per task</h3><p class="note">Every model tries each test task 8 times with the same seeds, so a task scores 0–8. The headline is the average success over all 960 attempts. The 397B was run twice per task through an API.</p></div>
+    </div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c2">
+    <header><div class="eyebrow">2 · The models</div><h2 id="c2">One small model, trained two ways, against bigger ones</h2>
+      <p class="answer">Two sizes untrained, the big model whose solutions we copied, and the trained 4B.</p></header>
+    <div class="models" id="models"></div>
+    <div class="panel"><h3>How the trained 4B was made</h3><svg class="wide" id="pipeline" viewBox="0 0 900 150" role="img" aria-label="The 397B solved training tasks; 97 checked solutions trained the 4B (SFT); the SFT model's own attempts, with written feedback on its failures, trained it further (SDPO)"></svg></div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c3">
+    <header><div class="eyebrow">3 · The result</div><h2 id="c3">Training on 97 good examples beat a model 2.4× larger</h2>
+      <p class="answer" id="c3a"></p></header>
+    <div class="panel"><svg class="wide" id="headline" viewBox="0 0 1000 296" role="img" aria-label="test120 success per model"></svg></div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c4">
+    <header><div class="eyebrow">4 · Task by task</div><h2 id="c4">Who solves which of the 120 test tasks</h2>
+      <p class="answer" id="c4a"></p></header>
+    <div class="panel"><div class="legend" id="heatlegend"></div><div class="heatwrap"><svg id="heat" role="img" aria-label="Solve count of 8 for each test task and model"></svg></div>
+      <p class="note">Each column is one test task, sorted by how often the untrained 4B solves it. Hover a cell for the task. On a phone, swipe sideways inside a chart.</p></div>
+    <div class="statrow" id="solvestats"></div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c5">
+    <header><div class="eyebrow">5 · Where the gains landed</div><h2 id="c5">Training lifted the hard tasks, not the easy ones</h2>
+      <p class="answer" id="c5a"></p></header>
+    <div class="panel"><div class="legend" id="bandlegend"></div><svg class="wide" id="bands" viewBox="0 0 860 300" role="img" aria-label="Success by difficulty band and model"></svg>
+      <p class="note">Difficulty band = how many of 8 attempts the untrained 4B solves: easy 6–8, medium 3–5, hard 1–2, never 0. Our definition; the benchmark has no labels.</p></div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c6">
+    <header><div class="eyebrow">6 · Why SFT helped</div><h2 id="c6">It learned the workflows in its 97 examples, and reused them on similar test tasks</h2>
+      <p class="answer">Test tasks that resemble a training example gained about <b>twice as much</b> as tasks that resemble none. Tasks unlike every example gained least.</p></header>
+    <div class="grid2">
+      <div class="panel"><h3>The training set: 204 tasks, 97 with an SFT example</h3><svg id="waffle" viewBox="0 0 420 260" role="img" aria-label="204 training tasks by difficulty, coloured by whether the SFT data had an example"></svg>
+        <div class="legend"><span><i style="background:var(--m-sft)"></i>in SFT data (97)</span><span><i style="background:var(--heat0);border:1px solid var(--line)"></i>no example (107)</span></div>
+        <p class="note">An example exists only where the 397B produced a checked, correct solution. It could not on most tasks the 4B never solves.</p></div>
+      <div class="panel"><h3>On the training tasks themselves</h3><svg class="mid" id="slope" viewBox="0 0 420 260" role="img" aria-label="Training-task success before and after SFT"></svg>
+        <p class="note">Tasks with an example were also easier to begin with (Inference: part of the gap is difficulty).</p></div>
+    </div>
+    <div class="panel task"><h3>One test task and its closest SFT example</h3>
+      <div class="grid2">
+        <div class="bubble"><div class="who" id="extest"></div>“Check our contracts tracker for anything that needs attention soon … renewal policy sheet defines our renewal window … Send DocuSign renewal agreements to the vendor contacts … loop in procurement with a summary.”</div>
+        <div class="bubble"><div class="who" id="extrain"></div>“Send renewal reminders to influencers whose contracts are expiring soon. Use the ‘Influencer Contracts’ sheet … Only remind rows with Status = ‘Active’ … Update Reminder_Sent = ‘Yes’.”</div>
+      </div>
+      <svg class="mid" id="exbars" viewBox="0 0 364 200" style="max-width:520px" role="img" aria-label="How many of 8 attempts each model solved on the example test task"></svg>
+      <p class="note">Different domain, same pattern: find what is expiring in a sheet, apply a policy, send renewals, notify a team.</p></div>
+    <div class="panel"><h3>All 120 test tasks, grouped by their link to the SFT data</h3><svg class="wide" id="linkbars" viewBox="0 0 860 330" role="img" aria-label="SFT gain on test tasks grouped by similarity to the SFT data"></svg>
+      <p class="note">Gain = success with SFT minus the untrained 4B, in points. Similarity = overlap of the task request’s words with the closest training task.</p></div>
+    <div class="grid2">
+      <div class="panel"><h3>Domains with more examples tended to gain more (a weak link)</h3><svg class="mid" id="domains" viewBox="0 0 420 240" role="img" aria-label="SFT examples per domain against test gain per domain"></svg></div>
+      <div class="panel"><h3>Other explanations, checked</h3><svg class="mid" id="rho" viewBox="0 0 420 240" role="img" aria-label="Rank correlation of test gain with several task properties"></svg>
+        <p class="note">Rank correlation with each test task’s gain; 0 = no relation, 1 = perfect. Sharing apps explains nothing because nearly every task uses Gmail, Sheets and Slack. Whether the 397B can solve a task does not predict the gain either.</p></div>
+    </div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c7">
+    <header><div class="eyebrow">7 · How behaviour changed</div><h2 id="c7">Fewer forbidden actions, fewer missed steps, fewer tool errors</h2>
+      <p class="answer">SFT fixed the habits behind failures. SDPO trimmed missed steps further but wrote longer and made more tool errors.</p></header>
+    <div class="panel"><div class="grid2" id="behaviour"></div><p class="note">Per attempt on test120. Lower is better for the first three; length is shown as a cost.</p></div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c8">
+    <header><div class="eyebrow">8 · Training on its own attempts</div><h2 id="c8">SDPO added 8.2 points on top of SFT; DPO added little</h2>
+      <p class="answer" id="c8a"></p></header>
+    <div class="grid2">
+      <div class="recipe" style="--c:var(--m-sdpo)"><b>SDPO</b><span>Learns from its own attempts; each failed one gets written feedback on what went wrong.</span><span class="facts" id="sdpofacts"></span></div>
+      <div class="recipe" style="--c:var(--m-dpo)"><b>DPO</b><span>Learns to prefer its own passed attempt over its own failed attempt at the same task.</span><span class="facts" id="dpofacts"></span></div>
+    </div>
+    <div class="grid2">
+    <div class="panel"><h3>Points added on test120</h3>
+      <svg class="mid" id="gains" viewBox="0 0 420 180" role="img" aria-label="Change in test120 success from SFT, SDPO and DPO"></svg>
+      <p class="note">Each dot is the change in test120 success, in points.</p></div>
+    <div class="panel"><h3>How many test tasks clearly moved</h3>
+      <svg class="mid" id="churn" viewBox="0 0 420 160" role="img" aria-label="Test tasks that moved up or down by 2 or more of 8 tries"></svg>
+      <p class="note">A task counts when its solve count moves by 2 or more of 8 tries.</p></div>
+    </div>
+    <details class="more"><summary>More detail: where the change landed, and how each was trained</summary>
+      <div class="grid2">
+        <div class="panel"><h3>Change by how often the SFT model already solved the task</h3><div class="sm" id="lvl"></div>
+          <p class="note">Grouped fairly (see the footer).</p></div>
+        <div class="panel"><h3>SDPO’s change, by whether a similar SFT example existed</h3><svg class="mid" id="sdpolink" viewBox="0 0 420 120" role="img" aria-label="SDPO change by whether the closest training task had an SFT example"></svg>
+          <p class="note" id="sdpolinknote"></p></div>
+      </div>
+      <div class="panel"><p class="note" id="trainsettings"></p></div>
+    </details>
+    <div class="models" id="pending"></div>
+  </section>
+
+  <section class="chapter" aria-labelledby="c9" id="ch9">
+    <header><div class="eyebrow">9 · Why DPO gave so little</div><h2 id="c9">DPO learned habits, not the decisions that fail tasks</h2>
+      <p class="answer" id="c9a"></p></header>
+    <div class="panel"><h3>A typical training pair, turn by turn</h3>
+      <svg class="wide" id="pairdiag" viewBox="0 0 880 240" role="img" aria-label="A passed and a failed attempt at the same task split at turn 1; the failed attempt's mistake comes about 4 turns later; DPO pushes down the whole failed attempt"></svg>
+      <p class="note" id="pairnote"></p></div>
+    <div class="grid2">
+      <div class="panel"><h3 id="wafflet"></h3><svg class="mid" id="waffle2" viewBox="0 0 406 154" role="img" aria-label="Pairs that split at the mistake, out of all pairs with a located mistake"></svg>
+        <div class="legend" id="wafflelegend" style="margin-top:10px"></div></div>
+      <div class="panel"><h3>About half of the push-down hit steps that were fine</h3><svg class="mid" id="ddshare" viewBox="0 0 420 84" role="img" aria-label="Share of the failed attempt's training text before, on and after the mistake turn"></svg>
+        <p class="note">Share of the failed attempt’s training text, by where it sits relative to the mistake (average over the pairs).</p></div>
+    </div>
+    <div class="panel"><h3>What changed in the model on test120</h3><div class="ddcards" id="ddcards"></div>
+      <p class="note" style="margin-top:8px">SFT model → DPO model, per attempt, over all 120 test tasks.</p></div>
+    <div class="grid2">
+      <div class="panel"><h3 id="ddacct"></h3><svg class="mid" id="ddacc" viewBox="0 0 420 150" role="img" aria-label="Share of each batch's pairs ranked the right way round, by training step"></svg>
+        <p class="note">Share of each batch’s pairs the model ranks the right way round. After that, training mostly repeated the passed attempts (plain SFT).</p></div>
+      <div class="panel"><h3 id="ddgapt"></h3><svg class="mid" id="ddgapsplit" viewBox="0 0 412 90" role="img" aria-label="The 397B's lead over the SFT model, split by how often the SFT model solves the task"></svg>
+        <p class="note">Tasks grouped fairly by how often the SFT model solves them. DPO can only make the model prefer a choice it already makes, so it can’t reach tasks it almost never solves.</p></div>
+    </div>
+    <div class="panel"><h3>What we take away</h3><ol class="ddlist" id="ddlessons"></ol>
+      <p class="decision" id="dddecision"></p></div>
+    <details class="more"><summary>More detail: the numbers behind this chapter, and what published work says</summary>
+      <div class="grid2">
+        <div class="panel"><h3>Where the two attempts first act differently</h3><svg class="mid" id="ddgap" viewBox="0 0 420 170" role="img" aria-label="Pairs by how many turns before the mistake the two attempts first act differently"></svg></div>
+        <div class="panel"><h3>What the first difference was</h3><svg class="mid" id="ddkind" viewBox="0 0 420 150" role="img" aria-label="Pairs by the kind of their first differing action"></svg></div>
+      </div>
+      <div class="panel"><ul class="ddfacts" id="ddfacts"></ul></div>
+      <div class="panel"><h3>What published work says about DPO</h3><table class="dd" id="ddlit"></table>
+        <p class="note" style="margin-top:8px">Read in full on 17 and 20 Nov. “Step-level” = pairs that share everything up to one step and differ only there.</p></div>
+    </details>
+  </section>
+
+  <section class="chapter" aria-labelledby="c10" id="ch10">
+    <header><div class="eyebrow">10 · What SDPO did</div><h2 id="c10">SDPO learned from its own mistakes, and one round was enough</h2>
+      <p class="answer">One round on its own attempts, each failed attempt read with written feedback, took the SFT model from <b>42.4% to 50.6%</b> on test120. More rounds, and the other SDPO runs, added less.</p></header>
+
+    <div class="panel"><h3>A training attempt, turn by turn</h3>
+      <svg class="wide" viewBox="0 0 880 250" role="img" aria-label="A failed attempt is trained up to the turn the feedback points at; a solved attempt is trained in full">
+        <text x="0" y="22" font-size="13" fill="var(--muted)" font-family="var(--mono)">FAILED ATTEMPT (441 of 624)</text>
+        <g font-size="12" font-family="var(--mono)">
+          <rect x="0" y="34" width="150" height="44" rx="6" fill="var(--panel)" stroke="var(--line)"/><text x="75" y="61" text-anchor="middle" fill="var(--fg)">task</text>
+          <rect x="160" y="34" width="70" height="44" rx="6" fill="var(--m-sdpo)" opacity=".85"/><text x="195" y="61" text-anchor="middle" fill="#fff">turn 1</text>
+          <rect x="236" y="34" width="70" height="44" rx="6" fill="var(--m-sdpo)" opacity=".85"/><text x="271" y="61" text-anchor="middle" fill="#fff">2</text>
+          <rect x="312" y="34" width="70" height="44" rx="6" fill="var(--m-sdpo)" opacity=".85"/><text x="347" y="61" text-anchor="middle" fill="#fff">3</text>
+          <rect x="388" y="34" width="70" height="44" rx="6" fill="var(--m-sdpo)" opacity=".85"/><text x="423" y="61" text-anchor="middle" fill="#fff">4</text>
+          <rect x="464" y="34" width="70" height="44" rx="6" fill="var(--m-sdpo)" stroke="var(--fg)" stroke-width="2.5"/><text x="499" y="61" text-anchor="middle" fill="#fff">5 ✗</text>
+          <rect x="540" y="34" width="70" height="44" rx="6" fill="var(--faint)"/><text x="575" y="61" text-anchor="middle" fill="var(--muted)">6</text>
+          <rect x="616" y="34" width="70" height="44" rx="6" fill="var(--faint)"/><text x="651" y="61" text-anchor="middle" fill="var(--muted)">7</text>
+          <rect x="692" y="34" width="70" height="44" rx="6" fill="var(--faint)"/><text x="727" y="61" text-anchor="middle" fill="var(--muted)">8</text>
+        </g>
+        <path d="M499 82 v16" stroke="var(--fg)" stroke-width="1.5"/>
+        <rect x="350" y="100" width="300" height="40" rx="6" fill="var(--panel)" stroke="var(--fg)" stroke-dasharray="4 3"/>
+        <text x="500" y="117" text-anchor="middle" font-size="12" fill="var(--fg)">feedback note at the first wrong decision:</text>
+        <text x="500" y="133" text-anchor="middle" font-size="12" fill="var(--fg)">“this task forbids …” or “… was never done”</text>
+        <text x="0" y="178" font-size="13" fill="var(--muted)" font-family="var(--mono)">SOLVED ATTEMPT (183 of 624)</text>
+        <g font-size="12" font-family="var(--mono)">
+          <rect x="0" y="190" width="150" height="44" rx="6" fill="var(--panel)" stroke="var(--line)"/><text x="75" y="217" text-anchor="middle" fill="var(--fg)">task</text>
+          <rect x="160" y="190" width="602" height="44" rx="6" fill="var(--m-sdpo)" opacity=".85"/><text x="461" y="217" text-anchor="middle" fill="#fff">every turn trained, with the line “it succeeded”</text>
+        </g>
+        <rect x="780" y="40" width="14" height="14" rx="3" fill="var(--m-sdpo)" opacity=".85"/><text x="800" y="52" font-size="12" fill="var(--fg)">trained</text>
+        <rect x="780" y="64" width="14" height="14" rx="3" fill="var(--faint)"/><text x="800" y="76" font-size="12" fill="var(--fg)">not trained</text>
+      </svg>
+      <p class="note">The teacher is the model itself, re-reading the attempt with the outcome and the feedback. The median failed attempt is 8 turns long and its first located mistake is at turn 5, so about 70% of its turns are trained.</p></div>
+
+    <div class="grid2">
+      <div class="panel"><h3>Most first mistakes were a missing or wrong action</h3>
+        <svg class="mid" viewBox="0 0 420 110" role="img" aria-label="Of 438 located first mistakes, 247 were a required action missing or a wrong value and 191 a forbidden action">
+          <rect x="0" y="20" width="238" height="34" rx="4" fill="var(--m-sdpo)"/><rect x="241" y="20" width="179" height="34" rx="4" fill="var(--m-sdpo)" opacity=".45"/>
+          <text x="6" y="42" font-size="13" fill="#fff" font-weight="600">247 missing or wrong</text>
+          <text x="247" y="42" font-size="13" fill="var(--fg)" font-weight="600">191 forbidden</text>
+          <text x="0" y="82" font-size="12" fill="var(--muted)">First located mistake in the 438 failed attempts with feedback</text>
+        </svg>
+        <p class="note">2 failed attempts had no feedback from the engine and were left out.</p></div>
+      <div class="panel"><h3>Round 1 was the best of three</h3>
+        <svg class="mid" viewBox="0 0 420 170" role="img" aria-label="Held-out training tasks solved: SFT 24.8%, round 1 34.4%, round 2 31.7%, round 3 29.9%">
+          <g font-size="12" font-family="var(--mono)">
+            <text x="0" y="30" fill="var(--fg)">SFT start</text><rect x="90" y="18" width="186" height="18" rx="3" fill="var(--m-sft)"/><text x="282" y="31" fill="var(--fg)">24.8%</text>
+            <text x="0" y="66" fill="var(--fg)">round 1</text><rect x="90" y="54" width="258" height="18" rx="3" fill="var(--m-sdpo)"/><text x="354" y="67" fill="var(--fg)" font-weight="600">34.4%</text>
+            <text x="0" y="102" fill="var(--fg)">round 2</text><rect x="90" y="90" width="238" height="18" rx="3" fill="var(--m-sdpo)" opacity=".65"/><text x="334" y="103" fill="var(--fg)">31.7%</text>
+            <text x="0" y="138" fill="var(--fg)">round 3</text><rect x="90" y="126" width="224" height="18" rx="3" fill="var(--m-sdpo)" opacity=".45"/><text x="320" y="139" fill="var(--fg)">29.9%</text>
+          </g>
+        </svg>
+        <p class="note">Solved share of 102 held-out training tasks (H2), 8 attempts each. The round was chosen here, before test120 was run.</p></div>
+    </div>
+
+    <div class="panel"><h3>What changed in the model on test120</h3>
+      <div class="ddcards">
+        <div class="ddcard"><h4>Solved attempts</h4><div class="ddrow"><span>SFT → SFT + SDPO</span><span class="v"><b>42.4% → 50.6%</b></span><span class="d">+8.2 points, measured; 34 tasks gained, 11 lost</span></div></div>
+        <div class="ddcard"><h4>Required checks missed</h4><div class="ddrow"><span>per attempt</span><span class="v"><b>3.85 → 2.96</b></span><span class="d">the kind of mistake the feedback names most</span></div></div>
+        <div class="ddcard"><h4>Tool errors and length</h4><div class="ddrow"><span>tool errors per attempt</span><span class="v"><b>0.46 → 0.53</b></span></div><div class="ddrow"><span>tokens per attempt</span><span class="v"><b>14.7k → 17.5k</b></span></div></div>
+      </div></div>
+
+    <div class="panel"><h3>The other SDPO runs added less</h3>
+      <svg class="wide" viewBox="0 0 880 200" role="img" aria-label="Points added on test120 over the SFT model: full2 1.3, full3 2.9, f1 round 3 3.0, f1 round 1 8.2">
+        <g font-size="12" font-family="var(--mono)">
+          <line x1="250" y1="10" x2="250" y2="170" stroke="var(--grid)"/>
+          <text x="0" y="32" fill="var(--fg)">16 Nov · first full run, one pass</text><rect x="250" y="20" width="52" height="18" rx="3" fill="var(--m-sdpo)" opacity=".45"/><text x="308" y="33" fill="var(--fg)">+1.3</text>
+          <text x="0" y="72" fill="var(--fg)">17 Nov · rewritten feedback</text><rect x="250" y="60" width="116" height="18" rx="3" fill="var(--m-sdpo)" opacity=".45"/><text x="372" y="73" fill="var(--fg)">+2.9</text>
+          <text x="0" y="112" fill="var(--fg)">22 Nov · three rounds (round 3)</text><rect x="250" y="100" width="120" height="18" rx="3" fill="var(--m-sdpo)" opacity=".45"/><text x="376" y="113" fill="var(--fg)">+3.0</text>
+          <text x="0" y="152" fill="var(--fg)" font-weight="600">22 Nov · same run, round 1</text><rect x="250" y="140" width="328" height="18" rx="3" fill="var(--m-sdpo)"/><text x="584" y="153" fill="var(--fg)" font-weight="600">+8.2</text>
+          <text x="250" y="190" fill="var(--muted)">points added on test120 over the SFT model (42.4%)</text>
+        </g>
+      </svg>
+      <p class="note">On 24 Nov a final feedback text was tried for one round: it reached 31.7% on the held-out training tasks, below round 1’s 34.4%, so it did not go on to test120.</p></div>
+
+    <div class="panel"><h3>What we take away</h3><ol class="ddlist">
+      <li><b>Feedback at the first wrong decision works.</b> Training a failed attempt only up to its first located mistake gave the largest gain of any SDPO run.</li>
+      <li><b>One round was best.</b> Each later round of the same run scored lower on held-out tasks.</li>
+      <li><b>The gain came with a cost on the warning set.</b> guard10 fell, so the gain is not free (see below).</li>
+      <li><b>One run, one seed.</b> 50.6% against the 397B’s 49.6% is not a measured difference.</li>
+    </ol>
+      <p class="decision">Decision, 24 Nov: SDPO stays at 50.6%, the round-1 model of 22 Nov.</p></div>
+
+    <details class="more"><summary>More detail: how it was trained, guard10, and what published work says</summary>
+      <div class="panel"><ul class="ddfacts">
+        <li><b>Start:</b> the SFT model. <b>Tasks:</b> 78 training tasks (48 it sometimes solved, 30 it never solved). <b>Attempts:</b> 8 per task, 624 in all; 622 trained.</li>
+        <li><b>Teacher:</b> a running average of the student (1% per update), shown the outcome and, for failures, the engine’s feedback with values the attempt never saw hidden.</li>
+        <li><b>Loss:</b> reverse KL on the teacher’s top 20 tokens plus the tail, importance weight capped at 2; trained on reasoning, tool calls and the act-or-reply token. 39 updates of 16 attempts, learning rate 3e-5, LoRA rank 16.</li>
+        <li><b>guard10:</b> the 10-task warning set fell from 78.8% (SFT) to 66.3% (SDPO round 1).</li>
+        <li><b>Published work:</b> SDPO was published for single-turn tasks (Hübotter et al., 2026); its multi-turn, tool-using use is open. Here the feedback had to be located at a turn, and hidden values had to stay hidden.</li>
+      </ul></div>
+    </details>
+  </section>
+
+  <footer>
+    <dl>
+      <dt>Success</dt><dd>Every required check of the task passes (AutomationBench’s task_completed_correctly).</dd>
+      <dt>Gained / lost</dt><dd>The solve count moved by 2 or more of 8. Smaller moves are within run-to-run noise.</dd>
+      <dt>Solved (chapter 4)</dt><dd>At least 4 of 8 attempts; for the 397B at least 1 of 2.</dd>
+      <dt>Causes</dt><dd>Groupings are measured; “why” statements are our reading of them (Inference), not experiments.</dd>
+      <dt>Grouped fairly</dt><dd>A task’s level (never, sometimes or always solved) comes from half of the SFT model’s 8 tries; the change is measured on the other half, both ways round. Using the same tries for both would fake gains on never-solved tasks.</dd>
+      <dt>Sources</dt><dd>Recorded runs only: test120 and training-task runs ×8, the 397B collection and test runs, the SFT data v3 (97 rows), the SDPO run’s round-1 training records, the 322 DPO training pairs and the DPO training log. Scripts: research/sdpo-work/scratch/reconcile/deepdive/; chapter 9: research/sdpo-work/scratch/dpo-deepdive/ (one row per pair in pairs-table.csv, paper notes in papers/NOTES.md).</dd>
+    </dl>
+  </footer>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const D = {"models":["4B","4B+SFT","4B+SFT+SDPO","4B+SFT+DPO","9B","9B+SFT"],"missing":[],"success":{"4B":28.3,"4B+SFT":42.4,"4B+SFT+SDPO":50.6,"4B+SFT+DPO":43.3,"9B":35.5,"9B+SFT":46.3},"success_397B":49.6,"changes":{"SFT":{"from":"4B","to":"4B+SFT","points":14.1,"classes":{"stable-solved":23,"stable-failed":43,"gained":39,"mixed":12,"lost":3},"points_by_band":{"easy":-1.7,"medium":14.2,"hard":19.2,"never":18.1}},"SDPO on SFT":{"from":"4B+SFT","to":"4B+SFT+SDPO","points":8.2,"classes":{"stable-solved":37,"stable-failed":26,"gained":34,"lost":11,"mixed":12},"points_by_band":{"easy":0.6,"medium":0.0,"hard":16.3,"never":10.2}},"9B vs 4B":{"from":"4B","to":"9B","points":7.2,"classes":{"stable-solved":25,"stable-failed":58,"mixed":8,"lost":7,"gained":22},"points_by_band":{"easy":0.0,"medium":11.9,"hard":9.7,"never":7.3}},"SFT on 9B":{"from":"9B","to":"9B+SFT","points":10.8,"classes":{"stable-solved":31,"stable-failed":39,"gained":31,"mixed":15,"lost":4},"points_by_band":{"easy":2.8,"medium":11.5,"hard":13.2,"never":12.7}},"DPO on SFT":{"from":"4B+SFT","to":"4B+SFT+DPO","points":0.9,"classes":{"stable-solved":35,"stable-failed":37,"lost":14,"gained":17,"mixed":17},"points_by_band":{"easy":3.4,"medium":-3.6,"hard":-0.5,"never":2.1}}},"behaviour":{"harm_share":{"4B":36.1,"4B+SFT":25.1,"4B+SFT+SDPO":20.1,"4B+SFT+DPO":23.6,"9B":33.4,"9B+SFT":26.8},"required_missed":{"4B":4.73,"4B+SFT":3.85,"4B+SFT+SDPO":2.96,"4B+SFT+DPO":3.63,"9B":3.75,"9B+SFT":3.58},"tool_errors":{"4B":0.93,"4B+SFT":0.46,"4B+SFT+SDPO":0.53,"4B+SFT+DPO":0.47,"9B":0.65,"9B+SFT":0.54},"tokens":{"4B":14537,"4B+SFT":14712,"4B+SFT+SDPO":17488,"4B+SFT+DPO":14893,"9B":14093,"9B+SFT":14379}},"by_band":{"easy":{"4B":90.3,"4B+SFT":88.6,"4B+SFT+SDPO":89.2,"4B+SFT+DPO":92.0,"9B":90.3,"9B+SFT":93.2,"397B":95.5,"tasks":22},"medium":{"4B":51.1,"4B+SFT":65.3,"4B+SFT+SDPO":65.3,"4B+SFT+DPO":61.7,"9B":63.0,"9B+SFT":74.4,"397B":80.6,"tasks":18},"hard":{"4B":18.8,"4B+SFT":38.0,"4B+SFT+SDPO":54.3,"4B+SFT+DPO":37.5,"9B":28.5,"9B+SFT":41.6,"397B":48.1,"tasks":26},"never":{"4B":0.0,"4B+SFT":18.1,"4B+SFT+SDPO":28.2,"4B+SFT+DPO":20.1,"9B":7.3,"9B+SFT":20.1,"397B":21.3,"tasks":54}},"bands_test":{"easy":22,"medium":18,"hard":26,"never":54},"counts":{"all":25,"none":32,"only397":10},"matrix":[{"task":"finance.dept_expense_rollup","domain":"finance","band":"easy","4B":8,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"finance.financial_close_checklist","domain":"finance","band":"easy","4B":8,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"finance.vendor_statement_reconciliation","domain":"finance","band":"easy","4B":8,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":5,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"hr.docusign_nda_collection","domain":"hr","band":"easy","4B":8,"4B+SFT":7,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":0.667},{"task":"hr.notion_meeting_notes","domain":"hr","band":"easy","4B":8,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"hr.performance_feedback_logging","domain":"hr","band":"easy","4B":8,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"hr.recruitment_dedup_alert","domain":"hr","band":"easy","4B":8,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"operations.calendar_slack_training","domain":"operations","band":"easy","4B":8,"4B+SFT":6,"4B+SFT+SDPO":7,"4B+SFT+DPO":8,"9B":7,"9B+SFT":6,"397B":2,"closest_jaccard":0.8},{"task":"operations.zoom_training_setup","domain":"operations","band":"easy","4B":8,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":0.625},{"task":"sales.five_level_conditional","domain":"sales","band":"easy","4B":8,"4B+SFT":7,"4B+SFT+SDPO":7,"4B+SFT+DPO":6,"9B":7,"9B+SFT":8,"397B":2,"closest_jaccard":0.75},{"task":"finance.ap_aging_report","domain":"finance","band":"easy","4B":7,"4B+SFT":7,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"finance.forex_gain_loss","domain":"finance","band":"easy","4B":7,"4B+SFT":6,"4B+SFT+SDPO":7,"4B+SFT+DPO":8,"9B":8,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"finance.multicurrency_invoice","domain":"finance","band":"easy","4B":7,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":8,"9B+SFT":7,"397B":2,"closest_jaccard":1.0},{"task":"hr.employee_directory_update","domain":"hr","band":"easy","4B":7,"4B+SFT":7,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":7,"9B+SFT":7,"397B":2,"closest_jaccard":1.0},{"task":"hr.termination_checklist","domain":"hr","band":"easy","4B":7,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":7,"9B":7,"9B+SFT":6,"397B":2,"closest_jaccard":1.0},{"task":"operations.zoom_change_advisory","domain":"operations","band":"easy","4B":7,"4B+SFT":7,"4B+SFT+SDPO":8,"4B+SFT+DPO":5,"9B":5,"9B+SFT":5,"397B":2,"closest_jaccard":0.714},{"task":"support.zendesk_gdpr_purge","domain":"support","band":"easy","4B":7,"4B+SFT":8,"4B+SFT+SDPO":6,"4B+SFT+DPO":7,"9B":8,"9B+SFT":7,"397B":2,"closest_jaccard":0.8},{"task":"operations.drive_slack_dock_schedule","domain":"operations","band":"easy","4B":6,"4B+SFT":5,"4B+SFT+SDPO":2,"4B+SFT+DPO":4,"9B":6,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"sales.calendly_no_show_followup","domain":"sales","band":"easy","4B":6,"4B+SFT":6,"4B+SFT+SDPO":3,"4B+SFT+DPO":7,"9B":8,"9B+SFT":8,"397B":0,"closest_jaccard":0.75},{"task":"sales.gcal_deal_milestone_tracker","domain":"sales","band":"easy","4B":6,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":7,"9B":7,"9B+SFT":8,"397B":2,"closest_jaccard":0.5},{"task":"sales.job_posting_contact","domain":"sales","band":"easy","4B":6,"4B+SFT":4,"4B+SFT+SDPO":7,"4B+SFT+DPO":8,"9B":6,"9B+SFT":7,"397B":2,"closest_jaccard":0.667},{"task":"support.reamaze_knowledge_routing","domain":"support","band":"easy","4B":6,"4B+SFT":6,"4B+SFT+SDPO":6,"4B+SFT+DPO":7,"9B":6,"9B+SFT":7,"397B":2,"closest_jaccard":1.0},{"task":"finance.revenue_recognition","domain":"finance","band":"medium","4B":5,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":8,"9B":7,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"operations.cross_department_budget_reconciliation","domain":"operations","band":"medium","4B":5,"4B+SFT":8,"4B+SFT+SDPO":5,"4B+SFT+DPO":8,"9B":5,"9B+SFT":8,"397B":2,"closest_jaccard":1.0},{"task":"sales.calendar_crm_meeting","domain":"sales","band":"medium","4B":5,"4B+SFT":5,"4B+SFT+SDPO":2,"4B+SFT+DPO":5,"9B":5,"9B+SFT":7,"397B":2,"closest_jaccard":0.8},{"task":"sales.multi_step_drip_campaign","domain":"sales","band":"medium","4B":5,"4B+SFT":8,"4B+SFT+SDPO":7,"4B+SFT+DPO":7,"9B":4,"9B+SFT":7,"397B":2,"closest_jaccard":1.0},{"task":"support.helpcrunch_trial_nurture","domain":"support","band":"medium","4B":5,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":7,"9B":1,"9B+SFT":2,"397B":2,"closest_jaccard":1.0},{"task":"hr.intern_cohort_onboarding","domain":"hr","band":"medium","4B":4,"4B+SFT":8,"4B+SFT+SDPO":5,"4B+SFT+DPO":1,"9B":4,"9B+SFT":5,"397B":2,"closest_jaccard":1.0},{"task":"hr.quarterly_termination_queue","domain":"hr","band":"medium","4B":4,"4B+SFT":2,"4B+SFT+SDPO":7,"4B+SFT+DPO":4,"9B":6,"9B+SFT":7,"397B":2,"closest_jaccard":1.0},{"task":"operations.calendar_airtable_gmail_maintenance_notice","domain":"operations","band":"medium","4B":4,"4B+SFT":6,"4B+SFT+SDPO":6,"4B+SFT+DPO":6,"9B":8,"9B+SFT":7,"397B":2,"closest_jaccard":0.667},{"task":"operations.equipment_calibration_scheduling","domain":"operations","band":"medium","4B":4,"4B+SFT":6,"4B+SFT+SDPO":8,"4B+SFT+DPO":7,"9B":6,"9B+SFT":7,"397B":2,"closest_jaccard":1.0},{"task":"sales.competitive_displacement_outreach","domain":"sales","band":"medium","4B":4,"4B+SFT":3,"4B+SFT+SDPO":3,"4B+SFT+DPO":5,"9B":2,"9B+SFT":3,"397B":1,"closest_jaccard":0.8},{"task":"sales.contract_renewal_coordinator","domain":"sales","band":"medium","4B":4,"4B+SFT":4,"4B+SFT+SDPO":3,"4B+SFT+DPO":3,"9B":5,"9B+SFT":7,"397B":2,"closest_jaccard":0.5},{"task":"sales.linkedin_signal_monitoring","domain":"sales","band":"medium","4B":4,"4B+SFT":4,"4B+SFT+SDPO":0,"4B+SFT+DPO":2,"9B":5,"9B+SFT":4,"397B":1,"closest_jaccard":1.0},{"task":"support.helpscout_hubspot_deal_alerts","domain":"support","band":"medium","4B":4,"4B+SFT":7,"4B+SFT+SDPO":6,"4B+SFT+DPO":6,"9B":1,"9B+SFT":2,"397B":2,"closest_jaccard":0.714},{"task":"support.zoho_desk_customer_journey","domain":"support","band":"medium","4B":4,"4B+SFT":4,"4B+SFT+SDPO":5,"4B+SFT+DPO":6,"9B":3,"9B+SFT":6,"397B":1,"closest_jaccard":0.8},{"task":"finance.xero_multicurrency_payment","domain":"finance","band":"medium","4B":3,"4B+SFT":4,"4B+SFT+SDPO":6,"4B+SFT+DPO":5,"9B":7,"9B+SFT":8,"397B":2,"closest_jaccard":0.8},{"task":"hr.survey_distribution","domain":"hr","band":"medium","4B":3,"4B+SFT":2,"4B+SFT+SDPO":4,"4B+SFT+DPO":2,"9B":6,"9B+SFT":2,"397B":0,"closest_jaccard":1.0},{"task":"marketing.lead_scoring","domain":"marketing","band":"medium","4B":3,"4B+SFT":5,"4B+SFT+SDPO":8,"4B+SFT+DPO":2,"9B":5,"9B+SFT":7,"397B":0,"closest_jaccard":1.0},{"task":"operations.asana_slack_sheets_audit","domain":"operations","band":"medium","4B":3,"4B+SFT":2,"4B+SFT+SDPO":3,"4B+SFT+DPO":4,"9B":6,"9B+SFT":3,"397B":2,"closest_jaccard":0.75},{"task":"finance.expense_policy_violation","domain":"finance","band":"hard","4B":2,"4B+SFT":6,"4B+SFT+SDPO":8,"4B+SFT+DPO":4,"9B":3,"9B+SFT":5,"397B":1,"closest_jaccard":1.0},{"task":"finance.late_fee_calculation","domain":"finance","band":"hard","4B":2,"4B+SFT":1,"4B+SFT+SDPO":1,"4B+SFT+DPO":0,"9B":0,"9B+SFT":2,"397B":0,"closest_jaccard":1.0},{"task":"finance.qb_undeposited_funds","domain":"finance","band":"hard","4B":2,"4B+SFT":6,"4B+SFT+SDPO":6,"4B+SFT+DPO":6,"9B":6,"9B+SFT":5,"397B":0,"closest_jaccard":1.0},{"task":"hr.performance_review_cycle","domain":"hr","band":"hard","4B":2,"4B+SFT":3,"4B+SFT+SDPO":7,"4B+SFT+DPO":5,"9B":2,"9B+SFT":5,"397B":2,"closest_jaccard":1.0},{"task":"marketing.conversion_tracking","domain":"marketing","band":"hard","4B":2,"4B+SFT":1,"4B+SFT+SDPO":5,"4B+SFT+DPO":3,"9B":0,"9B+SFT":0,"397B":1,"closest_jaccard":0.75},{"task":"marketing.facebook_photo_highlight","domain":"marketing","band":"hard","4B":2,"4B+SFT":7,"4B+SFT+SDPO":8,"4B+SFT+DPO":7,"9B":6,"9B+SFT":8,"397B":2,"closest_jaccard":0.75},{"task":"operations.facility_incident_triage","domain":"operations","band":"hard","4B":2,"4B+SFT":5,"4B+SFT+SDPO":5,"4B+SFT+DPO":7,"9B":7,"9B+SFT":8,"397B":2,"closest_jaccard":0.667},{"task":"operations.pipefy_vendor_onboarding","domain":"operations","band":"hard","4B":2,"4B+SFT":1,"4B+SFT+SDPO":3,"4B+SFT+DPO":2,"9B":3,"9B+SFT":6,"397B":1,"closest_jaccard":0.8},{"task":"sales.docusign_bulk_nda_sender","domain":"sales","band":"hard","4B":2,"4B+SFT":1,"4B+SFT+SDPO":4,"4B+SFT+DPO":1,"9B":2,"9B+SFT":1,"397B":0,"closest_jaccard":0.714},{"task":"support.freshdesk_contract_renewal","domain":"support","band":"hard","4B":2,"4B+SFT":6,"4B+SFT+SDPO":5,"4B+SFT+DPO":5,"9B":4,"9B+SFT":6,"397B":2,"closest_jaccard":0.8},{"task":"support.freshdesk_sla_monitoring","domain":"support","band":"hard","4B":2,"4B+SFT":4,"4B+SFT+SDPO":4,"4B+SFT+DPO":4,"9B":2,"9B+SFT":4,"397B":1,"closest_jaccard":0.833},{"task":"support.hiver_csat_analysis","domain":"support","band":"hard","4B":2,"4B+SFT":6,"4B+SFT+SDPO":6,"4B+SFT+DPO":7,"9B":6,"9B+SFT":6,"397B":2,"closest_jaccard":1.0},{"task":"support.intercom_zoho_customer_360","domain":"support","band":"hard","4B":2,"4B+SFT":1,"4B+SFT+SDPO":5,"4B+SFT+DPO":2,"9B":2,"9B+SFT":6,"397B":2,"closest_jaccard":0.667},{"task":"finance.subscription_billing","domain":"finance","band":"hard","4B":1,"4B+SFT":0,"4B+SFT+SDPO":2,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":1,"closest_jaccard":0.714},{"task":"hr.mandatory_meeting_scheduling","domain":"hr","band":"hard","4B":1,"4B+SFT":6,"4B+SFT+SDPO":6,"4B+SFT+DPO":3,"9B":8,"9B+SFT":5,"397B":0,"closest_jaccard":1.0},{"task":"hr.offer_letter_generation","domain":"hr","band":"hard","4B":1,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"hr.training_compliance","domain":"hr","band":"hard","4B":1,"4B+SFT":1,"4B+SFT+SDPO":2,"4B+SFT+DPO":1,"9B":0,"9B+SFT":1,"397B":1,"closest_jaccard":1.0},{"task":"marketing.multi_touch_attribution","domain":"marketing","band":"hard","4B":1,"4B+SFT":0,"4B+SFT+SDPO":2,"4B+SFT+DPO":1,"9B":0,"9B+SFT":3,"397B":1,"closest_jaccard":1.0},{"task":"marketing.social_engagement_response","domain":"marketing","band":"hard","4B":1,"4B+SFT":2,"4B+SFT+SDPO":6,"4B+SFT+DPO":2,"9B":1,"9B+SFT":2,"397B":2,"closest_jaccard":0.5},{"task":"marketing.twitter_influencer_followup","domain":"marketing","band":"hard","4B":1,"4B+SFT":1,"4B+SFT+SDPO":6,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.333},{"task":"operations.linkedin_abm_outreach","domain":"operations","band":"hard","4B":1,"4B+SFT":7,"4B+SFT+SDPO":7,"4B+SFT+DPO":7,"9B":1,"9B+SFT":8,"397B":0,"closest_jaccard":0.667},{"task":"sales.calendly_discovery_call","domain":"sales","band":"hard","4B":1,"4B+SFT":2,"4B+SFT+SDPO":1,"4B+SFT+DPO":2,"9B":1,"9B+SFT":2,"397B":0,"closest_jaccard":0.8},{"task":"sales.full_sales_cycle_orchestrator","domain":"sales","band":"hard","4B":1,"4B+SFT":3,"4B+SFT+SDPO":4,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.375},{"task":"sales.unreliable_label_account_review","domain":"sales","band":"hard","4B":1,"4B+SFT":1,"4B+SFT+SDPO":3,"4B+SFT+DPO":1,"9B":2,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"support.reamaze_feedback_sentiment","domain":"support","band":"hard","4B":1,"4B+SFT":4,"4B+SFT+SDPO":4,"4B+SFT+DPO":2,"9B":1,"9B+SFT":1,"397B":2,"closest_jaccard":1.0},{"task":"support.reamaze_intercom_sync","domain":"support","band":"hard","4B":1,"4B+SFT":4,"4B+SFT+SDPO":3,"4B+SFT+DPO":3,"9B":1,"9B+SFT":2,"397B":2,"closest_jaccard":0.667},{"task":"finance.bad_debt_writeoff","domain":"finance","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":1,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":1,"closest_jaccard":1.0},{"task":"finance.closing_journal_automation","domain":"finance","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":3,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"finance.inventory_valuation","domain":"finance","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"finance.profit_margin_analysis","domain":"finance","band":"never","4B":0,"4B+SFT":6,"4B+SFT+SDPO":3,"4B+SFT+DPO":4,"9B":1,"9B+SFT":6,"397B":1,"closest_jaccard":1.0},{"task":"finance.project_profitability","domain":"finance","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":3,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"finance.qb_customer_balance_review","domain":"finance","band":"never","4B":0,"4B+SFT":4,"4B+SFT+SDPO":4,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"finance.qb_customer_onboard","domain":"finance","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.6},{"task":"finance.quarterly_tax_estimate","domain":"finance","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":2,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"hr.comp_review_preparation","domain":"hr","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":2,"9B+SFT":2,"397B":0,"closest_jaccard":1.0},{"task":"hr.employee_transfer_approval_workflow","domain":"hr","band":"never","4B":0,"4B+SFT":2,"4B+SFT+SDPO":2,"4B+SFT+DPO":2,"9B":0,"9B+SFT":1,"397B":0,"closest_jaccard":0.8},{"task":"hr.jira_security_access_review","domain":"hr","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":1,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"hr.monday_succession_planning","domain":"hr","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.8},{"task":"hr.recruitment_channel_roi","domain":"hr","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":0,"4B+SFT+DPO":3,"9B":0,"9B+SFT":3,"397B":0,"closest_jaccard":1.0},{"task":"hr.slack_benefits_inquiry","domain":"hr","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":2,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"hr.visa_expiration_monitoring","domain":"hr","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":1,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"marketing.ad_platform_audit","domain":"marketing","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":3,"4B+SFT+DPO":2,"9B":4,"9B+SFT":4,"397B":0,"closest_jaccard":0.5},{"task":"marketing.campaign_attribution","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":2,"9B":0,"9B+SFT":3,"397B":0,"closest_jaccard":1.0},{"task":"marketing.campaign_retrospective","domain":"marketing","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":7,"4B+SFT+DPO":4,"9B":1,"9B+SFT":3,"397B":1,"closest_jaccard":1.0},{"task":"marketing.competitor_product_launch","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":3,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"marketing.content_performance","domain":"marketing","band":"never","4B":0,"4B+SFT":5,"4B+SFT+SDPO":7,"4B+SFT+DPO":7,"9B":0,"9B+SFT":3,"397B":1,"closest_jaccard":1.0},{"task":"marketing.content_scoring","domain":"marketing","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":2,"4B+SFT+DPO":3,"9B":0,"9B+SFT":1,"397B":0,"closest_jaccard":1.0},{"task":"marketing.editorial_calendar","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"marketing.event_sponsorship_screen","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":5,"4B+SFT+DPO":0,"9B":0,"9B+SFT":1,"397B":1,"closest_jaccard":1.0},{"task":"marketing.google_ads_pause_low_ctr","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":3,"4B+SFT+DPO":0,"9B":1,"9B+SFT":0,"397B":1,"closest_jaccard":0.75},{"task":"marketing.link_building","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":5,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"marketing.market_trend","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"marketing.partner_comarketing","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":2,"4B+SFT+DPO":2,"9B":0,"9B+SFT":1,"397B":0,"closest_jaccard":1.0},{"task":"marketing.patent_monitoring","domain":"marketing","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":0,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"marketing.social_benchmark","domain":"marketing","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":1,"9B":0,"9B+SFT":1,"397B":0,"closest_jaccard":1.0},{"task":"operations.contract_renewal_pipeline","domain":"operations","band":"never","4B":0,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":7,"9B":0,"9B+SFT":5,"397B":1,"closest_jaccard":0.75},{"task":"operations.contractor_onboarding_workflow","domain":"operations","band":"never","4B":0,"4B+SFT":3,"4B+SFT+SDPO":1,"4B+SFT+DPO":4,"9B":0,"9B+SFT":2,"397B":2,"closest_jaccard":1.0},{"task":"operations.fleet_vehicle_maintenance","domain":"operations","band":"never","4B":0,"4B+SFT":3,"4B+SFT+SDPO":5,"4B+SFT+DPO":2,"9B":0,"9B+SFT":6,"397B":0,"closest_jaccard":0.75},{"task":"operations.hubspot_ticket_escalation","domain":"operations","band":"never","4B":0,"4B+SFT":2,"4B+SFT+SDPO":4,"4B+SFT+DPO":3,"9B":1,"9B+SFT":1,"397B":0,"closest_jaccard":1.0},{"task":"operations.mailchimp_subscriber_sync","domain":"operations","band":"never","4B":0,"4B+SFT":5,"4B+SFT+SDPO":6,"4B+SFT+DPO":2,"9B":5,"9B+SFT":8,"397B":2,"closest_jaccard":0.8},{"task":"operations.purchase_order_three_way_match","domain":"operations","band":"never","4B":0,"4B+SFT":5,"4B+SFT+SDPO":5,"4B+SFT+DPO":6,"9B":0,"9B+SFT":5,"397B":0,"closest_jaccard":1.0},{"task":"operations.safety_certification_gap_analysis","domain":"operations","band":"never","4B":0,"4B+SFT":2,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.8},{"task":"operations.safety_incident_investigation_routing","domain":"operations","band":"never","4B":0,"4B+SFT":3,"4B+SFT+SDPO":4,"4B+SFT+DPO":4,"9B":3,"9B+SFT":4,"397B":0,"closest_jaccard":0.667},{"task":"operations.salesforce_escalated_customer","domain":"operations","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":1,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.714},{"task":"sales.add_contact_to_campaign","domain":"sales","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":3,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.75},{"task":"sales.cross_modal_renewal_processing","domain":"sales","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":3,"4B+SFT+DPO":2,"9B":1,"9B+SFT":2,"397B":2,"closest_jaccard":0.833},{"task":"sales.linkedin_profile_enrichment","domain":"sales","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.75},{"task":"sales.slack_deal_notification","domain":"sales","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":1,"4B+SFT+DPO":0,"9B":1,"9B+SFT":2,"397B":1,"closest_jaccard":0.75},{"task":"sales.weighted_priority","domain":"sales","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":1,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":1.0},{"task":"sales.zoom_customer_health","domain":"sales","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":0,"4B+SFT+DPO":1,"9B":0,"9B+SFT":0,"397B":0,"closest_jaccard":0.833},{"task":"sales.zoom_webinar_lead_capture","domain":"sales","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":1,"9B+SFT":1,"397B":2,"closest_jaccard":0.833},{"task":"support.freshdesk_reamaze_migration","domain":"support","band":"never","4B":0,"4B+SFT":3,"4B+SFT+SDPO":6,"4B+SFT+DPO":1,"9B":3,"9B+SFT":3,"397B":2,"closest_jaccard":0.8},{"task":"support.freshdesk_warranty_adjudication","domain":"support","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":1,"4B+SFT+DPO":0,"9B":1,"9B+SFT":1,"397B":1,"closest_jaccard":0.8},{"task":"support.gorgias_loyalty_program","domain":"support","band":"never","4B":0,"4B+SFT":4,"4B+SFT+SDPO":3,"4B+SFT+DPO":3,"9B":1,"9B+SFT":2,"397B":1,"closest_jaccard":0.8},{"task":"support.gorgias_refund_processing","domain":"support","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":1,"4B+SFT+DPO":0,"9B":0,"9B+SFT":0,"397B":2,"closest_jaccard":0.833},{"task":"support.helpscout_customer_merge","domain":"support","band":"never","4B":0,"4B+SFT":3,"4B+SFT+SDPO":4,"4B+SFT+DPO":3,"9B":0,"9B+SFT":2,"397B":0,"closest_jaccard":0.8},{"task":"support.helpscout_reamaze_migration","domain":"support","band":"never","4B":0,"4B+SFT":1,"4B+SFT+SDPO":0,"4B+SFT+DPO":0,"9B":2,"9B+SFT":1,"397B":0,"closest_jaccard":0.667},{"task":"support.helpscout_weekly_report","domain":"support","band":"never","4B":0,"4B+SFT":0,"4B+SFT+SDPO":1,"4B+SFT+DPO":1,"9B":2,"9B+SFT":1,"397B":0,"closest_jaccard":0.8},{"task":"support.zendesk_cross_org_merge","domain":"support","band":"never","4B":0,"4B+SFT":7,"4B+SFT+SDPO":5,"4B+SFT+DPO":5,"9B":0,"9B+SFT":7,"397B":1,"closest_jaccard":0.8},{"task":"support.zendesk_freshdesk_reconciliation","domain":"support","band":"never","4B":0,"4B+SFT":2,"4B+SFT+SDPO":5,"4B+SFT+DPO":2,"9B":0,"9B+SFT":4,"397B":0,"closest_jaccard":1.0}],"train":{"tasks":204,"bands":{"easy":12,"medium":22,"hard":42,"never":128},"sft_by_band":{"easy":11,"medium":21,"hard":29,"never":36},"teacher_perfect_by_band":{"easy":11,"medium":21,"hard":28,"never":30},"in_sft_data":97,"tasks_teacher_perfect_any":90,"tasks_teacher_never":114,"rate_trained_tasks":{"4B":25.0,"4B+SFT":42.4},"rate_untrained_tasks":{"4B":3.0,"4B+SFT":7.0},"success":{"4B":13.5,"4B+SFT":23.8}},"train_sft":{"finance.ap_turnover_analysis":false,"finance.audit_sample_selection":true,"finance.cash_flow_forecast":true,"finance.commission_calculation":true,"finance.credit_card_reconciliation":false,"finance.depreciation_schedule":false,"finance.expense_split_allocation":false,"finance.gl_variance_analysis":true,"finance.grant_expense_tracking":true,"finance.intercompany_invoice":true,"finance.invoice_aging_followup":false,"finance.invoice_dispute":false,"finance.overdue_invoice_followup":false,"finance.payment_fraud_detection":true,"finance.payroll_variance_check":true,"finance.po_three_way_match":false,"finance.qb_bill_payment_batch":false,"finance.qb_estimate_conversion":false,"finance.qb_invoice_from_orders":false,"finance.qb_recurring_journal":true,"finance.tax_prep_summary":true,"finance.timesheet_to_invoice":true,"finance.vendor_1099_prep":true,"finance.wave_client_statement":false,"finance.wave_expense_categorization":true,"finance.wave_freelance_invoice":true,"finance.wave_product_catalog":true,"finance.wave_tax_compliance":false,"finance.wire_transfer_approval":false,"finance.xero_bank_reconcile":true,"finance.xero_batch_invoice_send":false,"finance.xero_bill_entry":true,"finance.xero_vendor_onboard":false,"finance.year_end_audit_prep":true,"hr.asana_compliance_tasks":true,"hr.background_check_followup":false,"hr.benefits_enrollment_audit":false,"hr.benefits_enrollment_review":false,"hr.break_schedule_processing":false,"hr.candidate_pipeline_report":false,"hr.comp_adjustment_batch":false,"hr.compliance_training_enforcement":true,"hr.compliance_training_enrollment":false,"hr.confluence_policy_migration":false,"hr.contractor_renewal":true,"hr.data_migration_validation":false,"hr.disciplinary_action_tracking":false,"hr.diversity_metrics_report":false,"hr.exit_interview_scheduling":true,"hr.expense_report_audit":false,"hr.handbook_acknowledgment":false,"hr.i9_verification_tracking":false,"hr.interview_scheduling":false,"hr.monday_pip_tracking":false,"hr.multi_app_new_hire_setup":true,"hr.performance_review_kickoff":false,"hr.probation_review_reminder":true,"hr.pto_balance_alert":false,"hr.pto_reconciliation":true,"hr.recognition_nominations":true,"hr.referral_bonus_processing":false,"hr.referral_bonus_tracking":true,"hr.rto_compliance_check":false,"hr.safety_incident_reporting":true,"hr.standup_absence_tracking":true,"hr.team_restructure_notification":false,"hr.trello_internal_transfers":false,"hr.zoom_orientation_sessions":false,"marketing.ad_performance_review":false,"marketing.analyst_briefing":true,"marketing.analyst_mention_tracking":true,"marketing.campaign_launch_checklist":false,"marketing.campaign_roi_analysis":true,"marketing.contact_data_cleanup":false,"marketing.content_repurpose":false,"marketing.customer_milestone":false,"marketing.email_blast_suppression":false,"marketing.event_registration_sync":true,"marketing.featured_snippet":false,"marketing.google_ads_high_intent_list_from_hubspot":false,"marketing.guest_post_outreach":false,"marketing.industry_event_tracking":true,"marketing.industry_news":false,"marketing.influencer_contract_reminders":true,"marketing.keyword_cannibalization":false,"marketing.landing_page_conversion":false,"marketing.lifecycle_stage":true,"marketing.linkedin_company_update":false,"marketing.news_digest_dedup":false,"marketing.newsletter_unsubscribe_processing":false,"marketing.referral_processing":false,"marketing.seasonal_campaign":true,"marketing.seo_audit":true,"marketing.seo_competitor_gap":false,"marketing.social_audit":false,"marketing.social_content_calendar":false,"marketing.social_roi":false,"marketing.social_scheduling":false,"marketing.topic_cluster":true,"marketing.trial_extension_processing":true,"marketing.vendor_management":true,"marketing.webinar_cancellation_workflow":true,"operations.airtable_gmail_visitor_followup":true,"operations.buffer_engagement_optimization":false,"operations.calendly_equipment_inspection":true,"operations.canva_asset_management":true,"operations.chatgpt_feedback_analysis":true,"operations.chemical_inventory_safety_audit":true,"operations.conference_room_booking_conflicts":false,"operations.cross_training_assignment":true,"operations.docusign_contractor_offboard":false,"operations.docusign_lease_renewal":false,"operations.energy_consumption_anomaly":true,"operations.generator_load_testing_schedule":false,"operations.hazmat_shipping_compliance":false,"operations.hubspot_payment_failure":true,"operations.hubspot_personalized_outreach":true,"operations.inventory_enrichment":true,"operations.loading_dock_scheduling":false,"operations.mailchimp_campaign_tracking":true,"operations.monday_calendar_emergency_drill":true,"operations.monday_slack_inventory":true,"operations.notion_gmail_checklist_update":false,"operations.overtime_threshold_monitoring":false,"operations.parking_allocation_management":false,"operations.perishable_inventory_expiry":true,"operations.pipefy_gmail_vendor_approval":true,"operations.procurement_card_reconciliation":true,"operations.sensor_monitoring_alert":true,"operations.server_capacity_threshold_alerts":true,"operations.sla_breach_early_warning":false,"operations.space_utilization_analysis":false,"operations.trello_basecamp_compliance":false,"operations.trello_vendor_hold_email":true,"operations.utility_cost_allocation":true,"operations.zoom_board_meeting":false,"sales.apply_project_label":true,"sales.calendly_meeting_prep":true,"sales.calendly_multi_stakeholder_scheduling":false,"sales.calendly_reschedule_chain":true,"sales.calendly_sequential_meetings":false,"sales.calendly_sla_monitoring":true,"sales.calendly_timezone_aware_scheduling":false,"sales.chatgpt_contract_summary":false,"sales.chatgpt_email_sentiment_routing":true,"sales.chatgpt_lead_classification_pipeline":false,"sales.chatgpt_lead_summary_generator":true,"sales.chatgpt_proposal_customization":false,"sales.create_draft_reply":false,"sales.create_new_opportunity":false,"sales.create_note_on_contact":true,"sales.cross_platform_account_health_score":false,"sales.cross_reference_validation":false,"sales.docusign_completion_processor":false,"sales.docusign_compliance_template":false,"sales.docusign_void_resend":true,"sales.format_ambiguity":true,"sales.gcal_travel_time_buffer":false,"sales.historical_context_pipeline_report":false,"sales.linkedin_event_promotion":true,"sales.linkedin_job_change":true,"sales.negative_selection":false,"sales.overdue_followup_flag":true,"sales.partnership_contract":false,"sales.qualify_lead":true,"sales.soft_matching":true,"sales.update_contact_phone":true,"sales.vendor_review_prep":true,"sales.zoom_attendance_pipeline":false,"sales.zoom_recording_distribution":true,"support.freshdesk_escalation_matrix":false,"support.freshdesk_faq_drafts":true,"support.freshdesk_journey_mapping":true,"support.freshdesk_onboarding_automation":true,"support.freshdesk_zoho_migration":true,"support.gorgias_channel_consolidation":false,"support.gorgias_fraud_detection":true,"support.helpcrunch_engagement_scoring":false,"support.helpcrunch_satisfaction":false,"support.helpcrunch_usage_alerts":true,"support.helpscout_auto_categorization":false,"support.helpscout_daily_digest":true,"support.helpscout_jira_bugs":true,"support.hiver_escalation_patterns":false,"support.hiver_inbox_report":false,"support.hiver_response_sla":true,"support.hiver_workload_forecast":false,"support.intercom_demo_scheduling":true,"support.intercom_reactivation_campaign":true,"support.intercom_winback":false,"support.reamaze_cross_platform_dedup":true,"support.reamaze_intercom_migration":false,"support.reamaze_multilanguage":true,"support.zendesk_automated_responses":false,"support.zendesk_customer_360":true,"support.zendesk_data_quality":true,"support.zendesk_escalation_waterfall":false,"support.zendesk_freshdesk_sync":true,"support.zendesk_hubspot_org_sync":true,"support.zendesk_sf_case_sync":false,"support.zoho_calendar_callbacks":true,"support.zoho_desk_capacity_planning":false,"support.zoho_desk_root_cause":false,"support.zoho_vendor_tickets":false},"train_band":{"finance.ap_turnover_analysis":"never","finance.audit_sample_selection":"hard","finance.cash_flow_forecast":"medium","finance.commission_calculation":"easy","finance.credit_card_reconciliation":"never","finance.depreciation_schedule":"never","finance.expense_split_allocation":"never","finance.gl_variance_analysis":"never","finance.grant_expense_tracking":"medium","finance.intercompany_invoice":"easy","finance.invoice_aging_followup":"never","finance.invoice_dispute":"never","finance.overdue_invoice_followup":"never","finance.payment_fraud_detection":"hard","finance.payroll_variance_check":"never","finance.po_three_way_match":"hard","finance.qb_bill_payment_batch":"never","finance.qb_estimate_conversion":"never","finance.qb_invoice_from_orders":"never","finance.qb_recurring_journal":"never","finance.tax_prep_summary":"hard","finance.timesheet_to_invoice":"medium","finance.vendor_1099_prep":"never","finance.wave_client_statement":"never","finance.wave_expense_categorization":"easy","finance.wave_freelance_invoice":"easy","finance.wave_product_catalog":"never","finance.wave_tax_compliance":"never","finance.wire_transfer_approval":"never","finance.xero_bank_reconcile":"medium","finance.xero_batch_invoice_send":"never","finance.xero_bill_entry":"easy","finance.xero_vendor_onboard":"never","finance.year_end_audit_prep":"never","hr.asana_compliance_tasks":"medium","hr.background_check_followup":"hard","hr.benefits_enrollment_audit":"never","hr.benefits_enrollment_review":"hard","hr.break_schedule_processing":"never","hr.candidate_pipeline_report":"never","hr.comp_adjustment_batch":"never","hr.compliance_training_enforcement":"easy","hr.compliance_training_enrollment":"never","hr.confluence_policy_migration":"hard","hr.contractor_renewal":"never","hr.data_migration_validation":"never","hr.disciplinary_action_tracking":"never","hr.diversity_metrics_report":"never","hr.exit_interview_scheduling":"never","hr.expense_report_audit":"never","hr.handbook_acknowledgment":"never","hr.i9_verification_tracking":"medium","hr.interview_scheduling":"never","hr.monday_pip_tracking":"hard","hr.multi_app_new_hire_setup":"easy","hr.performance_review_kickoff":"never","hr.probation_review_reminder":"never","hr.pto_balance_alert":"never","hr.pto_reconciliation":"never","hr.recognition_nominations":"never","hr.referral_bonus_processing":"hard","hr.referral_bonus_tracking":"hard","hr.rto_compliance_check":"never","hr.safety_incident_reporting":"hard","hr.standup_absence_tracking":"hard","hr.team_restructure_notification":"never","hr.trello_internal_transfers":"never","hr.zoom_orientation_sessions":"never","marketing.ad_performance_review":"never","marketing.analyst_briefing":"never","marketing.analyst_mention_tracking":"never","marketing.campaign_launch_checklist":"hard","marketing.campaign_roi_analysis":"never","marketing.contact_data_cleanup":"never","marketing.content_repurpose":"never","marketing.customer_milestone":"never","marketing.email_blast_suppression":"hard","marketing.event_registration_sync":"hard","marketing.featured_snippet":"never","marketing.google_ads_high_intent_list_from_hubspot":"never","marketing.guest_post_outreach":"never","marketing.industry_event_tracking":"medium","marketing.industry_news":"never","marketing.influencer_contract_reminders":"never","marketing.keyword_cannibalization":"never","marketing.landing_page_conversion":"never","marketing.lifecycle_stage":"never","marketing.linkedin_company_update":"never","marketing.news_digest_dedup":"never","marketing.newsletter_unsubscribe_processing":"never","marketing.referral_processing":"never","marketing.seasonal_campaign":"hard","marketing.seo_audit":"never","marketing.seo_competitor_gap":"never","marketing.social_audit":"never","marketing.social_content_calendar":"never","marketing.social_roi":"hard","marketing.social_scheduling":"never","marketing.topic_cluster":"never","marketing.trial_extension_processing":"hard","marketing.vendor_management":"never","marketing.webinar_cancellation_workflow":"medium","operations.airtable_gmail_visitor_followup":"easy","operations.buffer_engagement_optimization":"hard","operations.calendly_equipment_inspection":"easy","operations.canva_asset_management":"never","operations.chatgpt_feedback_analysis":"easy","operations.chemical_inventory_safety_audit":"never","operations.conference_room_booking_conflicts":"never","operations.cross_training_assignment":"medium","operations.docusign_contractor_offboard":"easy","operations.docusign_lease_renewal":"never","operations.energy_consumption_anomaly":"never","operations.generator_load_testing_schedule":"hard","operations.hazmat_shipping_compliance":"never","operations.hubspot_payment_failure":"hard","operations.hubspot_personalized_outreach":"medium","operations.inventory_enrichment":"hard","operations.loading_dock_scheduling":"never","operations.mailchimp_campaign_tracking":"medium","operations.monday_calendar_emergency_drill":"hard","operations.monday_slack_inventory":"medium","operations.notion_gmail_checklist_update":"never","operations.overtime_threshold_monitoring":"never","operations.parking_allocation_management":"never","operations.perishable_inventory_expiry":"hard","operations.pipefy_gmail_vendor_approval":"medium","operations.procurement_card_reconciliation":"medium","operations.sensor_monitoring_alert":"hard","operations.server_capacity_threshold_alerts":"never","operations.sla_breach_early_warning":"never","operations.space_utilization_analysis":"never","operations.trello_basecamp_compliance":"never","operations.trello_vendor_hold_email":"hard","operations.utility_cost_allocation":"never","operations.zoom_board_meeting":"never","sales.apply_project_label":"hard","sales.calendly_meeting_prep":"hard","sales.calendly_multi_stakeholder_scheduling":"never","sales.calendly_reschedule_chain":"never","sales.calendly_sequential_meetings":"never","sales.calendly_sla_monitoring":"never","sales.calendly_timezone_aware_scheduling":"never","sales.chatgpt_contract_summary":"never","sales.chatgpt_email_sentiment_routing":"never","sales.chatgpt_lead_classification_pipeline":"never","sales.chatgpt_lead_summary_generator":"medium","sales.chatgpt_proposal_customization":"never","sales.create_draft_reply":"never","sales.create_new_opportunity":"never","sales.create_note_on_contact":"hard","sales.cross_platform_account_health_score":"hard","sales.cross_reference_validation":"never","sales.docusign_completion_processor":"never","sales.docusign_compliance_template":"never","sales.docusign_void_resend":"never","sales.format_ambiguity":"never","sales.gcal_travel_time_buffer":"never","sales.historical_context_pipeline_report":"never","sales.linkedin_event_promotion":"hard","sales.linkedin_job_change":"medium","sales.negative_selection":"never","sales.overdue_followup_flag":"never","sales.partnership_contract":"never","sales.qualify_lead":"never","sales.soft_matching":"hard","sales.update_contact_phone":"medium","sales.vendor_review_prep":"never","sales.zoom_attendance_pipeline":"hard","sales.zoom_recording_distribution":"never","support.freshdesk_escalation_matrix":"never","support.freshdesk_faq_drafts":"hard","support.freshdesk_journey_mapping":"medium","support.freshdesk_onboarding_automation":"hard","support.freshdesk_zoho_migration":"hard","support.gorgias_channel_consolidation":"never","support.gorgias_fraud_detection":"never","support.helpcrunch_engagement_scoring":"never","support.helpcrunch_satisfaction":"never","support.helpcrunch_usage_alerts":"hard","support.helpscout_auto_categorization":"never","support.helpscout_daily_digest":"hard","support.helpscout_jira_bugs":"never","support.hiver_escalation_patterns":"never","support.hiver_inbox_report":"never","support.hiver_response_sla":"never","support.hiver_workload_forecast":"never","support.intercom_demo_scheduling":"hard","support.intercom_reactivation_campaign":"easy","support.intercom_winback":"never","support.reamaze_cross_platform_dedup":"medium","support.reamaze_intercom_migration":"never","support.reamaze_multilanguage":"medium","support.zendesk_automated_responses":"never","support.zendesk_customer_360":"hard","support.zendesk_data_quality":"hard","support.zendesk_escalation_waterfall":"never","support.zendesk_freshdesk_sync":"medium","support.zendesk_hubspot_org_sync":"hard","support.zendesk_sf_case_sync":"never","support.zoho_calendar_callbacks":"medium","support.zoho_desk_capacity_planning":"never","support.zoho_desk_root_cause":"never","support.zoho_vendor_tickets":"never"},"domains":{"finance":{"sft_rows":18,"gain":12.5},"hr":{"sft_rows":11,"gain":6.2},"marketing":{"sft_rows":13,"gain":9.4},"operations":{"sft_rows":20,"gain":26.9},"sales":{"sft_rows":17,"gain":3.8},"support":{"sft_rows":18,"gain":25.9}},"link":{"by_nearest_train_in_sft":{"nearest training task in SFT data":{"tasks":58,"sft_points":19.4,"sdpo_points":3.4,"base":33.0},"not in SFT data":{"tasks":62,"sft_points":9.3,"sdpo_points":12.7,"base":23.8}},"by_nearest_train_gain":{"nearest training task improved (+2/8 or more)":{"tasks":29,"sft_points":25.9,"sdpo_points":8.2,"base":19.0},"did not":{"tasks":91,"sft_points":10.4,"sdpo_points":8.2,"base":31.2}},"by_nearest_sft_similarity":{"low (<0.133)":{"tasks":38,"sft_points":6.6,"sdpo_points":8.6,"base":29.3},"mid":{"tasks":42,"sft_points":19.3,"sdpo_points":8.0,"base":32.1},"high (>=0.216)":{"tasks":40,"sft_points":15.9,"sdpo_points":8.1,"base":23.1}},"sdpo_by_p9_level":{"P9 0/8":{"tasks":29,"sdpo_points":15.9},"P9 1-3/8":{"tasks":36,"sdpo_points":17.7},"P9 4-7/8":{"tasks":38,"sdpo_points":0.0},"P9 8/8":{"tasks":17,"sdpo_points":-6.6}},"sdpo_rows_total":622,"sdpo_tasks":78},"fair":{"sdpo":{"naive":{"sometimes":{"tasks":74,"points":8.6},"never":{"tasks":29,"points":15.9},"always":{"tasks":17,"points":-6.6}},"fair":{"sometimes":{"tasks":54,"points":7.8},"always":{"tasks":25,"points":3.2},"never":{"tasks":40,"points":11.9}},"churn":{"up":34,"down":11}},"sft":{"fair":{"always":{"tasks":14,"points":0.9},"sometimes":{"tasks":43,"points":15.0},"never":{"tasks":62,"points":16.4}},"churn":{"up":39,"down":3}},"dpo":{"naive":{"sometimes":{"tasks":74,"points":0.8},"never":{"tasks":29,"points":7.3},"always":{"tasks":17,"points":-9.6}},"fair":{"sometimes":{"tasks":54,"points":0.1},"always":{"tasks":25,"points":0.2},"never":{"tasks":40,"points":2.5}},"churn":{"up":17,"down":14}}},"dpo_dive":{"pairs":322,"tasks":111,"type":{"A":277,"B":45},"first_action_diff_turn":{"1":285,"2":26,"3":10,"4":1},"diff_kinds":{"same read tools, different arguments":158,"different read tools":100,"same tools, different count":50,"different tools (a write involved)":12,"same tools, different arguments":2},"located":319,"gap_buckets":[["at the mistake",16],["1\u20132 turns before",52],["3\u20135 turns before",125],["6 or more before",126]],"gap_median":4,"mistake_is_final_turn":111,"token_share_mean":{"before":0.484,"at":0.254,"after":0.262},"token_share_median":{"before":0.475,"at":0.198},"trained_tokens_median":{"chosen":5384.0,"rejected":5693.0},"habits":{"calls":{"chosen_lower":188,"chosen_higher":95,"equal":39},"reasoning_per_turn":{"chosen_lower":131,"chosen_higher":191,"equal":0},"final_reply_chars":{"chosen_lower":185,"chosen_higher":137,"equal":0},"final_reply_by_edit":{"edited":{"chosen_shorter":85,"chosen_longer":54,"pairs":139},"unedited":{"chosen_shorter":100,"chosen_longer":83,"pairs":183}},"median_calls":{"chosen":12.0,"rejected":15.0},"median_calls_one_side_only":22.5},"failure_classes":{"wrong content":207,"missed action":94,"call never made":23,"forbidden action":138},"multi_class_pairs":115,"clean_step_level_pairs":12,"training":{"steps":[[1,0.05,0.3125,-0.002,0.101,0.946],[2,0.099,0.5625,0.069,0.041,0.8823],[3,0.149,0.375,-0.03,0.062,0.9429],[4,0.199,0.4375,0.027,0.046,0.913],[5,0.248,0.5,-0.032,0.004,0.91],[6,0.298,0.6875,-0.083,-0.178,0.8568],[7,0.348,0.75,-0.011,-0.227,0.8188],[8,0.398,0.6875,-0.138,-0.57,0.7424],[9,0.447,0.6875,-0.24,-0.48,0.8052],[10,0.497,0.875,-0.112,-0.71,0.6845],[11,0.547,0.9375,-0.216,-0.781,0.6536],[12,0.596,0.75,-0.276,-1.063,0.6554],[13,0.646,0.8125,-0.168,-1.023,0.5921],[14,0.696,0.875,-0.325,-1.371,0.5894],[15,0.745,0.8125,-0.465,-1.078,0.7152],[16,0.795,0.875,-0.257,-1.353,0.5774],[17,0.845,0.6875,-0.343,-1.218,0.6827],[18,0.894,0.9375,0.146,-1.743,0.4495],[19,0.944,0.875,-0.054,-1.292,0.5459],[20,0.994,0.9375,-0.198,-2.303,0.4315],[21,1.0,1.0,1.03,-0.599,0.5603],[22,1.05,1.0,0.555,-2.071,0.321],[23,1.099,1.0,0.534,-2.864,0.2875],[24,1.149,1.0,0.425,-2.434,0.3026],[25,1.199,1.0,0.45,-2.068,0.285],[26,1.248,1.0,0.366,-2.417,0.3012],[27,1.298,1.0,0.931,-2.321,0.2588],[28,1.348,1.0,0.695,-2.44,0.2826],[29,1.398,1.0,0.927,-2.708,0.2662],[30,1.447,1.0,0.814,-2.448,0.2912],[31,1.497,1.0,0.696,-2.652,0.2821],[32,1.547,1.0,0.881,-2.657,0.2729],[33,1.596,1.0,0.76,-2.616,0.2416],[34,1.646,1.0,1.178,-2.946,0.2333],[35,1.696,1.0,1.322,-2.658,0.2696],[36,1.745,1.0,0.984,-2.476,0.2762],[37,1.795,1.0,1.011,-2.435,0.2423],[38,1.845,1.0,1.294,-2.497,0.2507],[39,1.894,1.0,1.276,-2.546,0.2656],[40,1.944,1.0,1.689,-2.485,0.258],[41,1.994,1.0,1.395,-2.588,0.242],[42,2.0,1.0,0.787,-1.837,0.2473],[43,2.05,1.0,1.84,-2.5,0.2321],[44,2.099,1.0,1.318,-2.842,0.2385],[45,2.149,1.0,1.59,-2.707,0.2391],[46,2.199,1.0,2.065,-2.291,0.2354],[47,2.248,1.0,1.638,-3.466,0.2222],[48,2.298,1.0,1.682,-3.269,0.2156],[49,2.348,1.0,1.263,-3.066,0.2109],[50,2.398,1.0,1.777,-2.826,0.2286],[51,2.447,1.0,1.325,-3.16,0.2206],[52,2.497,1.0,1.854,-2.663,0.2266],[53,2.547,1.0,1.695,-2.402,0.213],[54,2.596,1.0,1.684,-2.772,0.2211],[55,2.646,1.0,2.036,-2.759,0.2182],[56,2.696,1.0,1.459,-2.719,0.2147],[57,2.745,1.0,1.813,-2.226,0.2186],[58,2.795,1.0,1.374,-2.473,0.2084],[59,2.845,1.0,1.596,-3.03,0.2172],[60,2.894,1.0,1.791,-2.913,0.219],[61,2.944,1.0,1.659,-2.248,0.2399]],"first_step_all_ranked_right_from_then_on":21},"behaviour":{"success":{"P9":0.424,"DPO":0.4322,"higher":41,"lower":32},"calls":{"P9":15.4406,"DPO":15.3935,"higher":48,"lower":68},"write_calls":{"P9":6.9562,"DPO":6.9447,"higher":39,"lower":51},"distinct_tools":{"P9":5.601,"DPO":5.5574,"higher":43,"lower":55},"reasoning_chars":{"P9":15049.7823,"DPO":15800.4509,"higher":74,"lower":46},"reasoning_per_turn":{"P9":1848.4973,"DPO":1928.8047,"higher":64,"lower":56},"final_reply_chars":{"P9":825.0323,"DPO":779.3727,"higher":35,"lower":85},"repeated_calls":{"P9":0.1615,"DPO":0.1138,"higher":24,"lower":30},"harm":{"P9":0.251,"DPO":0.2359,"higher":18,"lower":28}},"headroom":{"p9":{"tasks":120,"attempts":960,"pass1_pooled":42.4,"pass1_task_mean":42.4,"pass_any_of_8":75.8,"ceiling_if_every_sometimes_task_always_solved":33.4,"never":29,"sometimes":74,"always":17,"failed_attempts":553,"failed_on_sometimes_tasks":321,"failed_on_never_tasks":232,"share_failed_on_sometimes":58.0},"train204":{"tasks":204,"attempts":1632,"pass1_pooled":23.8,"pass1_task_mean":23.8,"pass_any_of_8":51.5,"ceiling_if_every_sometimes_task_always_solved":27.6,"never":99,"sometimes":96,"always":9,"failed_attempts":1243,"failed_on_sometimes_tasks":451,"failed_on_never_tasks":792,"share_failed_on_sometimes":36.3},"crossfit":{"sometimes":{"tasks":54.5,"share_of_tasks":45.4,"P9_other_half":46.8,"397B":50.9,"DPO":46.9,"SDPO":54.6,"9B+SFT":53.2,"gap_397B_minus_P9_contrib":1.9,"gap_contrib_exact":1.875,"dpo_change_contrib":0.0},"always":{"tasks":25.0,"share_of_tasks":20.8,"P9_other_half":87.0,"397B":93.0,"DPO":87.2,"SDPO":90.2,"9B+SFT":87.5,"gap_397B_minus_P9_contrib":1.3,"gap_contrib_exact":1.25,"dpo_change_contrib":0.0},"never":{"tasks":40.5,"share_of_tasks":33.8,"P9_other_half":9.0,"397B":21.0,"DPO":11.4,"SDPO":20.8,"9B+SFT":11.5,"gap_397B_minus_P9_contrib":4.1,"gap_contrib_exact":4.062,"dpo_change_contrib":0.8}},"r397":49.6}},"gains":[{"key":"SFT","model":"4B+SFT","base":"4B","points":14.1},{"key":"SDPO","model":"4B+SFT+SDPO","base":"4B+SFT","points":8.2},{"key":"DPO","model":"4B+SFT+DPO","base":"4B+SFT","points":0.9}],"rho":{"spearman_gain_vs_app_coverage":-0.0,"spearman_gain_vs_397B":0.017,"spearman_gain_vs_rows_same_domain":0.261,"spearman_gain_vs_headroom":0.244},"example":{"test":"operations.contract_renewal_pipeline","train":"marketing.influencer_contract_reminders","sim":0.295,"test_k":{"4B":0,"4B+SFT":8,"4B+SFT+SDPO":8,"4B+SFT+DPO":7,"9B":0,"9B+SFT":5},"train_k":{"4B":0,"4B+SFT":4},"test_397":{"k":1,"n":2}}};
+const NS = "http://www.w3.org/2000/svg";
+const NAME = {"4B": "4B", "4B+SFT": "4B + SFT", "4B+SFT+SDPO": "4B + SFT + SDPO", "9B": "9B", "9B+SFT": "9B + SFT", "4B+SFT+DPO": "4B + SFT + DPO", "397B": "397B"};
+const COL = {"4B": "var(--m-4b)", "4B+SFT": "var(--m-sft)", "4B+SFT+SDPO": "var(--m-sdpo)", "9B": "var(--m-9b)", "9B+SFT": "var(--m-9bsft)", "4B+SFT+DPO": "var(--m-dpo)", "397B": "var(--m-397)"};
+// 20 Nov: series in the palette's slot order (CVD and normal-vision neighbour checks pass in both modes)
+const ALL = ["4B", "4B+SFT", "4B+SFT+SDPO", "9B", "9B+SFT", "4B+SFT+DPO", "397B"];
+const have = m => m === "397B" || D.models.includes(m);
+const succ = m => m === "397B" ? D.success_397B : D.success[m];
+const $ = id => document.getElementById(id);
+const fmt = (x, d = 1) => (Math.round(x * 10 ** d) / 10 ** d).toFixed(d);
+const sgn = x => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x));
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function rect(p, x, y, w, h, fill, r = 3, extra = {}) {
+  return el("rect", {x, y, width: Math.max(0, w), height: Math.max(0, h), rx: Math.min(r, Math.max(0, w) / 2), fill, ...extra}, p);
+}
+const tip = $("tip");
+function hover(node, html) {
+  node.addEventListener("mousemove", e => { tip.innerHTML = html; tip.style.opacity = 1;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 290) + "px"; tip.style.top = (e.clientY + 14) + "px"; });
+  node.addEventListener("mouseleave", () => { tip.style.opacity = 0; });
+}
+function legend(id, models) {
+  $(id).innerHTML = models.map(m => have(m) ? `<span><i style="background:${COL[m]}"></i>${NAME[m]}</span>`
+    : `<span><i class="pend"></i>${NAME[m]} (running)</span>`).join("");
+}
+
+/* 1 · sets */
+(() => {
+  const s = $("sets");
+  [["Training", 204, "used to make the training data"], ["Test120", 120, "never trained on; this page’s scores"]].forEach(([n, k, t], i) => {
+    const y = 10 + i * 56, w = 360 * k / 204;
+    rect(s, 0, y, w, 26, i ? "var(--m-397)" : "var(--m-sft)", 4);
+    for (let d = 1; d < 6; d++) el("line", {x1: w * d / 6, x2: w * d / 6, y1: y, y2: y + 26, stroke: "var(--panel)", "stroke-width": 2}, s);
+    el("text", {x: 6, y: y + 17, fill: "#fff", style: "fill:#fff;font-weight:600"}, s, `${k} tasks`);
+    el("text", {x: 0, y: y + 42, class: "mut"}, s, `${n}: ${t}`);
+  });
+  el("text", {x: 365, y: 27, class: "mut"}, s, "6 domains");
+})();
+
+/* 2 · models */
+(() => {
+  const info = [
+    ["4B", "Qwen3.5-4B, untrained. Our student."],
+    ["9B", "Qwen3.5-9B, untrained. 2.4× the parameters."],
+    ["397B", "Qwen3.5-397B. ~100× larger; wrote the SFT examples."],
+    ["4B+SFT", "4B trained to copy 97 checked 397B solutions (SFT)."],
+    ["4B+SFT+SDPO", "4B + SFT, then trained on its own attempts, with written feedback on its failures (SDPO)."],
+    ["9B+SFT", "9B trained on the same 97 SFT examples."],
+    ["4B+SFT+DPO", "4B + SFT, then trained on pairs of its own success and its own failure on the same task (DPO)."],
+  ].filter(([m]) => have(m));
+  $("models").innerHTML = info.map(([m, t]) => `<div class="model" style="--c:${COL[m]}"><b>${NAME[m]}</b><span>${t}</span></div>`).join("");
+  $("pending").innerHTML = [
+    ["9B+SFT", "The same SFT on the 9B: does better data help a bigger model as much? Training now."],
+    ["4B+SFT+DPO", "4B + SFT trained on pairs of its own success and failure on the same task (DPO). Running now."],
+  ].filter(([m]) => !have(m)).map(([m, t]) => `<div class="model pending" style="--c:${COL[m] || "var(--faint)"}"><b>${NAME[m] || "4B + SFT + DPO"}<span class="chip">running</span></b><span>${t}</span></div>`).join("");
+  const s = $("pipeline");
+  const box = (x, y, w, h, t1, t2, c) => { rect(s, x, y, w, h, "var(--panel)", 6, {stroke: c, "stroke-width": 2});
+    el("text", {x: x + w / 2, y: y + 22, "text-anchor": "middle", style: "font-weight:600;font-family:var(--display);font-size:14px"}, s, t1);
+    el("text", {x: x + w / 2, y: y + 40, "text-anchor": "middle", class: "mut", style: "font-size:11px"}, s, t2); };
+  const arrow = (x1, x2, y, t) => { el("line", {x1, x2: x2 - 6, y1: y, y2: y, stroke: "var(--faint)", "stroke-width": 1.6}, s);
+    el("path", {d: `M${x2} ${y} l-8 -4 v8 z`, fill: "var(--faint)"}, s);
+    el("text", {x: (x1 + x2) / 2, y: y - 7, "text-anchor": "middle", class: "mut", style: "font-size:10.5px"}, s, t); };
+  box(0, 20, 150, 52, "397B", "solves training tasks", COL["397B"]);
+  arrow(150, 238, 46, "checked: 97 kept");
+  box(238, 20, 150, 52, "SFT", "copy the 97 solutions", COL["4B+SFT"]);
+  arrow(388, 476, 46, "");
+  box(476, 20, 150, 52, "4B + SFT", "42.4% on test120", COL["4B+SFT"]);
+  arrow(626, 714, 46, "own attempts");
+  box(714, 20, 170, 52, "4B + SFT + SDPO", `${fmt(D.success["4B+SFT+SDPO"])}% on test120`, COL["4B+SFT+SDPO"]);
+  if (have("4B+SFT+DPO")) { box(714, 96, 170, 46, "4B + SFT + DPO", `${fmt(D.success["4B+SFT+DPO"])}% on test120`, COL["4B+SFT+DPO"]);
+    el("path", {d: "M626 60 H670 V119 H706", stroke: "var(--faint)", "stroke-width": 1.6, fill: "none"}, s);
+    el("path", {d: "M714 119 l-8 -4 v8 z", fill: "var(--faint)"}, s);
+    el("text", {x: 664, y: 100, "text-anchor": "end", class: "mut", style: "font-size:10.5px"}, s, "own pairs"); }
+  box(238, 96, 150, 46, "4B", "starting point · 28.3%", COL["4B"]);
+  el("path", {d: "M313 96 V80", stroke: "var(--faint)", "stroke-width": 1.6, fill: "none"}, s);
+  el("path", {d: "M313 72 l-4 8 h8 z", fill: "var(--faint)"}, s);
+})();
+
+/* 3 · headline */
+(() => {
+  const s = $("headline"), rows = ["4B", "9B", "4B+SFT", "4B+SFT+SDPO", "4B+SFT+DPO", "9B+SFT", "397B"];
+  const X0 = 150, W = 600, x = v => X0 + W * v / 60, rowH = 44;
+  s.setAttribute("viewBox", `0 0 1000 ${rows.length * rowH + 32}`);  // 6 rows: 296, as before
+  for (let v = 0; v <= 60; v += 10) { el("line", {x1: x(v), x2: x(v), y1: 6, y2: rows.length * rowH + 4, class: "gridl"}, s);
+    el("text", {x: x(v), y: rows.length * rowH + 20, "text-anchor": "middle", class: "mut num"}, s, v + "%"); }
+  const changeOf = {"9B": D.changes["9B vs 4B"], "4B+SFT": D.changes["SFT"], "4B+SFT+SDPO": D.changes["SDPO on SFT"],
+                    "9B+SFT": D.changes["SFT on 9B"], "4B+SFT+DPO": D.changes["DPO on SFT"]};
+  rows.forEach((m, i) => {
+    const y = 10 + i * rowH;
+    el("text", {x: X0 - 10, y: y + 18, "text-anchor": "end", style: "font-weight:600"}, s, NAME[m]);
+    if (!have(m)) { rect(s, X0, y + 4, W * 0.35, 22, "none", 4, {stroke: "var(--faint)", "stroke-dasharray": "4 3"});
+      el("text", {x: X0 + 10, y: y + 19, class: "mut"}, s, "training now"); return; }
+    const v = succ(m), b = rect(s, X0, y + 4, x(v) - X0, 22, COL[m], 4);
+    el("text", {x: x(v) + 8, y: y + 20, class: "num", style: "font-weight:600"}, s, fmt(v) + "%");
+    const r = changeOf[m];
+    let extra = m === "397B" ? "2 attempts per task (API)" : "";
+    if (r) { extra = `${sgn(r.points)} points vs ${NAME[r.from]}`;
+      el("text", {x: x(v) + 62, y: y + 20, class: "mut", style: "font-size:11px"}, s, extra); }
+    else if (extra) el("text", {x: x(v) + 62, y: y + 20, class: "mut", style: "font-size:11px"}, s, extra);
+    hover(b, `<b>${NAME[m]}</b><br>${fmt(v)}% of attempts succeed${extra ? "<br>" + extra : ""}`);
+  });
+  const sft = D.changes["SFT"], nine = D.changes["9B vs 4B"], sdpo = D.changes["SDPO on SFT"];
+  $("c3a").innerHTML = `SFT added <b>${sgn(sft.points)} points</b>; the untrained 9B, with 2.4× the parameters, is <b>${sgn(nine.points)}</b> above the 4B. ` +
+    `SDPO on top added ${sgn(sdpo.points)} more.` +
+    (have("9B+SFT") ? ` The same SFT lifted the 9B by ${sgn(D.changes["SFT on 9B"].points)} points, to ${fmt(D.success["9B+SFT"])}%: ` +
+      `above the 4B + SFT (${fmt(D.success["4B+SFT"])}%) but still below the 397B (${fmt(D.success_397B)}%).` : "") +
+    (have("4B+SFT+DPO") ? ` DPO on the SFT model, instead of SDPO: ${sgn(D.changes["DPO on SFT"].points)} points` +
+      `, to ${fmt(D.success["4B+SFT+DPO"])}%.` : "");
+})();
+
+/* 4 · heat strip */
+(() => {
+  const cols = ALL.filter(m => m !== "9B+SFT" || have(m));
+  legend("heatlegend", []);
+  $("heatlegend").innerHTML = `<span>solves of 8:</span>` + [0, 2, 4, 6, 8].map(k => `<span><i style="background:${heat(k / 8)}"></i>${k}</span>`).join("") +
+    (have("9B+SFT") ? "" : `<span><i class="pend"></i>9B + SFT running</span>`);
+  function heat(f) { return f <= 0 ? "var(--heat0)" : `color-mix(in oklab, var(--seq) ${Math.round(18 + 82 * f)}%, var(--heat0))`; }
+  const s = $("heat"), M = D.matrix, cw = 6.6, ch = 22, X0 = 118, top = 26;
+  const W = X0 + M.length * cw + 4, H = top + cols.length * ch + 8;
+  s.setAttribute("viewBox", `0 0 ${W} ${H}`); s.style.minWidth = "620px";
+  const bands = ["easy", "medium", "hard", "never"], label = {easy: "easy", medium: "medium", hard: "hard", never: "4B never solves"};
+  let start = 0;
+  bands.forEach(b => { const n = M.filter(r => r.band === b).length; if (!n) return;
+    el("text", {x: X0 + (start + n / 2) * cw, y: 14, "text-anchor": "middle", class: "mut", style: "font-size:11px"}, s, `${label[b]} (${n})`);
+    if (start) el("line", {x1: X0 + start * cw - 1, x2: X0 + start * cw - 1, y1: 18, y2: H, stroke: "var(--fg)", "stroke-width": 1}, s);
+    start += n; });
+  cols.forEach((m, j) => {
+    const y = top + j * ch;
+    el("text", {x: X0 - 8, y: y + 15, "text-anchor": "end", style: "font-weight:600;font-size:12px"}, s, NAME[m]);
+    M.forEach((r, i) => { const k = r[m], f = m === "397B" ? k / 2 : k / 8;
+      const c = rect(s, X0 + i * cw, y + 2, cw - 1, ch - 4, heat(f), 1);
+      hover(c, `<b>${r.task}</b><br>${NAME[m]}: ${k} of ${m === "397B" ? 2 : 8}<br>${r.domain} · ${label[r.band]}`); });
+  });
+  const c = D.counts;
+  $("solvestats").innerHTML = [[c.all, "solved by every model"], [c.none, "solved by none"], [c.only397, "only the 397B solves"],
+    [D.changes["SFT"].classes.gained, `gained with SFT (${D.changes["SFT"].classes.lost} lost)`]]
+    .map(([n, t]) => `<div class="stat"><div class="big">${n}</div><span>${t}</span></div>`).join("");
+  $("c4a").innerHTML = `Blue = solved more often. After SFT, columns light up across the hard and never-solved groups; ${c.none} tasks stay dark for every model.`;
+})();
+
+/* 5 · bands */
+(() => {
+  const ms = ALL.filter(have), s = $("bands"), bands = ["easy", "medium", "hard", "never"];
+  legend("bandlegend", ALL);
+  const X0 = 46, gw = 200, bw = Math.min(26, Math.floor((gw - 20) / ms.length) - 4), H = 230, y = v => 10 + H * (1 - v / 100);
+  for (let v = 0; v <= 100; v += 25) { el("line", {x1: X0, x2: X0 + gw * 4, y1: y(v), y2: y(v), class: "gridl"}, s);
+    el("text", {x: X0 - 6, y: y(v) + 4, "text-anchor": "end", class: "mut num"}, s, v + "%"); }
+  bands.forEach((b, i) => { const g = D.by_band[b], gx = X0 + i * gw + (gw - ms.length * (bw + 4)) / 2;
+    ms.forEach((m, j) => { const v = g[m], bx = gx + j * (bw + 4);
+      const r = rect(s, bx, y(v), bw, y(0) - y(v), COL[m], 4);
+      if (m === "4B+SFT" || m === "4B") el("text", {x: bx + bw / 2, y: y(v) - 5, "text-anchor": "middle", class: "num", style: "font-size:10.5px"}, s, Math.round(v));
+      hover(r, `<b>${NAME[m]}</b> on ${b} tasks<br>${fmt(v)}% success`); });
+    el("text", {x: X0 + i * gw + gw / 2, y: H + 30, "text-anchor": "middle", style: "font-weight:600"}, s, b === "never" ? "4B never solves" : b);
+    el("text", {x: X0 + i * gw + gw / 2, y: H + 46, "text-anchor": "middle", class: "mut"}, s, `${g.tasks} tasks`); });
+  const p = D.changes["SFT"].points_by_band;
+  $("c5a").innerHTML = `With SFT: easy ${sgn(p.easy)}, medium ${sgn(p.medium)}, hard ${sgn(p.hard)}, and tasks the 4B never solves rose from 0% to <b>${fmt(D.by_band.never["4B+SFT"])}%</b>, close to the 397B’s ${fmt(D.by_band.never["397B"])}%.`;
+})();
+
+/* 6 · waffle of training tasks */
+(() => {
+  const s = $("waffle"), bands = ["easy", "medium", "hard", "never"], name = {easy: "easy", medium: "medium", hard: "hard", never: "4B never solves"};
+  const tasks = Object.keys(D.train_band), size = 12, gap = 2, perRow = 22;
+  let y = 4;
+  bands.forEach(b => { const ts = tasks.filter(t => D.train_band[t] === b).sort((a, c) => D.train_sft[c] - D.train_sft[a]);
+    el("text", {x: 0, y: y + 10, class: "mut", style: "font-size:11px"}, s, `${name[b]} · ${ts.length} (${ts.filter(t => D.train_sft[t]).length} with example)`);
+    y += 16;
+    ts.forEach((t, i) => { const r = rect(s, (i % perRow) * (size + gap), y + Math.floor(i / perRow) * (size + gap), size, size,
+      D.train_sft[t] ? "var(--m-sft)" : "var(--heat0)", 2, D.train_sft[t] ? {} : {stroke: "var(--line)"});
+      hover(r, `<b>${t}</b><br>${D.train_sft[t] ? "in the SFT data" : "no SFT example"}`); });
+    y += Math.ceil(ts.length / perRow) * (size + gap) + 10; });
+  s.setAttribute("viewBox", `0 0 ${perRow * (size + gap)} ${y}`);
+})();
+
+/* 6 · slope on training tasks */
+(() => {
+  const s = $("slope"), a = D.train.rate_trained_tasks, b = D.train.rate_untrained_tasks;
+  const x1 = 110, x2 = 330, y = v => 222 - 180 * v / 50;
+  [0, 25, 50].forEach(v => el("line", {x1: x1 - 20, x2: x2 + 20, y1: y(v), y2: y(v), class: "gridl"}, s));
+  el("text", {x: x1, y: 240, "text-anchor": "middle", class: "mut"}, s, "untrained 4B");
+  el("text", {x: x2, y: 240, "text-anchor": "middle", class: "mut"}, s, "4B + SFT");
+  [[a, "var(--m-sft)", `with an SFT example (${D.train.in_sft_data})`], [b, "var(--faint)", `no example (${D.train.tasks - D.train.in_sft_data})`]].forEach(([r, c, t]) => {
+    el("line", {x1, x2, y1: y(r["4B"]), y2: y(r["4B+SFT"]), stroke: c, "stroke-width": 3}, s);
+    [[x1, r["4B"]], [x2, r["4B+SFT"]]].forEach(([x, v]) => { el("circle", {cx: x, cy: y(v), r: 5, fill: c, stroke: "var(--panel)", "stroke-width": 2}, s);
+      el("text", {x: x + (x === x1 ? -10 : 10), y: y(v) + 4, "text-anchor": x === x1 ? "end" : "start", class: "num"}, s, fmt(v) + "%"); });
+    el("text", {x: x1 - 50, y: Math.min(y(r["4B"]), y(r["4B+SFT"])) - 16, style: "font-size:11.5px;font-weight:600"}, s,
+      `${t}: ${sgn(r["4B+SFT"] - r["4B"])} points`); });
+})();
+
+/* 6 · example (20 Nov: one row per model, so a count never overlaps the next model's squares) */
+(() => {
+  const e = D.example;
+  $("extest").textContent = `TEST TASK · ${e.test}`;
+  $("extrain").textContent = `CLOSEST SFT EXAMPLE · ${e.train} (training task: 4B ${e.train_k["4B"]}/8 → SFT ${e.train_k["4B+SFT"]}/8)`;
+  const s = $("exbars"), rowH = 28, LX = 132, SQ = 18, GAP = 4;
+  const rows = D.models.map(m => [m, e.test_k[m], 8]).concat(e.test_397 ? [["397B", e.test_397.k, e.test_397.n]] : []);
+  rows.forEach(([m, k, n], i) => { const y = 4 + i * rowH;
+    el("text", {x: LX - 12, y: y + 15, "text-anchor": "end", style: "font-weight:600;font-size:12px"}, s, NAME[m]);
+    for (let j = 0; j < n; j++) rect(s, LX + j * (SQ + GAP), y + 2, SQ, SQ, j < k ? COL[m] : "var(--heat0)", 3, j < k ? {} : {stroke: "var(--line)"});
+    el("text", {x: LX + 8 * (SQ + GAP) + 6, y: y + 16, class: "num", style: "font-weight:600"}, s, `${k} of ${n}`);
+    hover(rect(s, 0, y, LX + 8 * (SQ + GAP) + 50, rowH - 2, "transparent", 0), `<b>${NAME[m]}</b>: solved ${k} of ${n} attempts`); });
+  s.setAttribute("viewBox", `0 0 ${LX + 8 * (SQ + GAP) + 56} ${rows.length * rowH + 6}`);
+})();
+
+/* 6 · link groups */
+(() => {
+  const s = $("linkbars"), L = D.link;
+  const groups = [
+    ["Closest training task has an SFT example?", [["yes", L.by_nearest_train_in_sft["nearest training task in SFT data"]], ["no", L.by_nearest_train_in_sft["not in SFT data"]]]],
+    ["Did that closest training task itself improve with SFT?", [["yes", L.by_nearest_train_gain["nearest training task improved (+2/8 or more)"]], ["no", L.by_nearest_train_gain["did not"]]]],
+    ["Similarity to the closest SFT example", Object.entries(L.by_nearest_sft_similarity).map(([k, v]) => [k.startsWith("low") ? "least similar third" : k === "mid" ? "middle third" : "most similar third", v])],
+  ];
+  const X0 = 300, W = 470, x = v => X0 + W * v / 30;
+  let y = 6;
+  [0, 10, 20, 30].forEach(v => el("text", {x: x(v), y: 322, "text-anchor": "middle", class: "mut num"}, s, `+${v}`));
+  groups.forEach(([title, rows]) => {
+    el("text", {x: 0, y: y + 14, style: "font-weight:600"}, s, title); y += 22;
+    rows.forEach(([lab, g]) => { const v = g.sft_points;
+      el("text", {x: X0 - 10, y: y + 15, "text-anchor": "end", class: "mut"}, s, `${lab} · ${g.tasks} tasks`);
+      const r = rect(s, X0, y + 3, x(v) - X0, 18, "var(--m-sft)", 4);
+      el("text", {x: x(v) + 8, y: y + 16, class: "num", style: "font-weight:600"}, s, sgn(v));
+      hover(r, `<b>${lab}</b> (${g.tasks} test tasks)<br>untrained 4B ${fmt(g.base)}%, gain with SFT ${sgn(v)} points`);
+      y += 26; });
+    y += 10; });
+  el("line", {x1: X0, x2: X0, y1: 0, y2: y, class: "axis"}, s);
+  s.setAttribute("viewBox", `0 0 860 ${y + 24}`);
+  el("text", {x: x(30), y: y + 18, "text-anchor": "end", class: "mut", style: "font-size:11px"}, s, "points gained with SFT");
+  [...s.querySelectorAll("text.num.mut")].forEach(t => t.setAttribute("y", y + 4));
+})();
+
+/* 6 · domains and correlations */
+(() => {
+  const s = $("domains"), ds = Object.entries(D.domains).sort((a, b) => b[1].sft_rows - a[1].sft_rows);
+  const X0 = 92, rowH = 36;
+  el("text", {x: X0, y: 12, class: "mut", style: "font-size:11px"}, s, "SFT examples");
+  el("text", {x: 250, y: 12, class: "mut", style: "font-size:11px"}, s, "test gain (points)");
+  ds.forEach(([d, v], i) => { const y = 22 + i * rowH;
+    el("text", {x: X0 - 8, y: y + 15, "text-anchor": "end", style: "font-weight:600"}, s, d);
+    rect(s, X0, y + 4, v.sft_rows * 6, 16, "var(--faint)", 3); el("text", {x: X0 + v.sft_rows * 6 + 6, y: y + 16, class: "num"}, s, v.sft_rows);
+    rect(s, 250, y + 4, v.gain * 5, 16, "var(--m-sft)", 3); el("text", {x: 250 + v.gain * 5 + 6, y: y + 16, class: "num"}, s, sgn(v.gain)); });
+  const r = $("rho"), rows = [["Same domain as more SFT examples", D.rho.spearman_gain_vs_rows_same_domain],
+    ["Room to improve (4B failures)", D.rho.spearman_gain_vs_headroom],
+    ["Uses the same apps as SFT examples", D.rho.spearman_gain_vs_app_coverage],
+    ["The 397B can solve it", D.rho.spearman_gain_vs_397B]];
+  const x0 = 210, w = 180, xs = v => x0 + w * v / 0.5;
+  [0, .25, .5].forEach(v => { el("line", {x1: xs(v), x2: xs(v), y1: 6, y2: 196, class: "gridl"}, r);
+    el("text", {x: xs(v), y: 212, "text-anchor": "middle", class: "mut num"}, r, v.toFixed(2)); });
+  rows.forEach(([t, v], i) => { const y = 14 + i * 46;
+    el("text", {x: x0 - 10, y: y + 15, "text-anchor": "end", style: "font-size:11.5px"}, r, t);
+    rect(r, xs(0), y + 4, Math.max(2, xs(Math.max(0, v)) - xs(0)), 16, Math.abs(v) < 0.1 ? "var(--faint)" : "var(--m-sft)", 3);
+    el("text", {x: xs(Math.max(0, v)) + 8, y: y + 16, class: "num"}, r, v.toFixed(2)); });
+})();
+
+/* 7 · behaviour small multiples */
+(() => {
+  const B = D.behaviour, ms = ALL.filter(m => m !== "397B" && have(m));
+  const panels = [["harm_share", "Attempts doing something forbidden", v => fmt(v) + "%", 40],
+    ["required_missed", "Required checks missed per attempt", v => fmt(v, 2), 5],
+    ["tool_errors", "Tool errors per attempt", v => fmt(v, 2), 1],
+    ["tokens", "Tokens written per attempt", v => (v / 1000).toFixed(1) + "k", 18000]];
+  const host = $("behaviour");
+  panels.forEach(([k, t, f, max]) => {
+    const div = document.createElement("div"); div.innerHTML = `<h3>${t}</h3>`; host.appendChild(div);
+    const s = el("svg", {viewBox: `0 0 400 ${ms.length * 30 + 6}`, role: "img", "aria-label": t, class: "mid"}, div);
+    ms.forEach((m, i) => { const v = B[k][m], y = 4 + i * 30;
+      el("text", {x: 118, y: y + 15, "text-anchor": "end", style: "font-size:11.5px"}, s, NAME[m]);
+      const r = rect(s, 126, y + 3, 220 * v / max, 18, COL[m], 4);
+      el("text", {x: 126 + 220 * v / max + 6, y: y + 16, class: "num"}, s, f(v));
+      hover(r, `<b>${NAME[m]}</b><br>${t}: ${f(v)}`); });
+  });
+})();
+
+/* 8 · SDPO and DPO on top of SFT (20 Nov: rebuilt visual-first; no ranges or noise labels, Ali 19 Nov 15:09) */
+(() => {
+  const G = (D.gains || []).filter(g => have(g.model)), fl = D.fair, X = D.dpo_dive;
+  const by = k => G.find(g => g.key === k);
+  const sft = by("SFT"), sdpo = by("SDPO"), dpo = by("DPO");
+  $("c8a").innerHTML = `Both trained the SFT model on its own attempts at the training tasks. SDPO added <b>${sgn(sdpo.points)}</b> points` +
+    (dpo ? ` and DPO <b>${sgn(dpo.points)}</b>` : "") + `, against <b>${sgn(sft.points)}</b> from SFT.`;
+  $("sdpofacts").textContent = "622 attempts · 78 training tasks · 1 round";
+  $("dpofacts").textContent = X ? `${X.pairs} pairs · ${X.tasks} training tasks · about 3 passes` : "";
+
+  /* gains as dots on a stem from 0 (label above each row so the chart fits a phone) */
+  const s = $("gains"), X0 = 14, W = 300, lo = -5, hi = 20, x = v => X0 + W * (v - lo) / (hi - lo), rowH = 50, top = 4;
+  const H = G.length * rowH;
+  for (let v = lo; v <= hi; v += 5) {
+    el("line", {x1: x(v), x2: x(v), y1: top, y2: top + H, class: v === 0 ? "axis" : "gridl", "stroke-width": v === 0 ? 2 : 1}, s);
+    el("text", {x: x(v), y: top + H + 16, "text-anchor": "middle", class: "mut num"}, s, v === 0 ? "0" : (v > 0 ? "+" : "−") + Math.abs(v)); }
+  el("text", {x: x(hi), y: top + H + 32, "text-anchor": "end", class: "mut", style: "font-size:11px"}, s, "points of test120 success");
+  G.forEach((g, i) => { const y0 = top + i * rowH, y = y0 + 32, c = COL[g.model];
+    const t = el("text", {x: X0, y: y0 + 14, style: "font-weight:600"}, s, g.key);
+    el("tspan", {class: "mut", style: "font-weight:400;font-size:11px"}, t, `  ${g.key === "SFT" ? "4B → 4B + SFT" : "on top of SFT"}`);
+    el("line", {x1: x(0), x2: x(g.points), y1: y, y2: y, stroke: c, "stroke-width": 3, "stroke-linecap": "round"}, s);
+    const dot = el("circle", {cx: x(g.points), cy: y, r: 7, fill: c, stroke: "var(--panel)", "stroke-width": 2}, s);
+    el("text", {x: x(Math.max(0, g.points)) + 12, y: y + 5, class: "num", style: "font-weight:600"}, s, sgn(g.points));
+    hover(dot, `<b>${g.key}</b>: ${sgn(g.points)} points on test120`); });
+  s.setAttribute("viewBox", `0 0 420 ${top + H + 38}`);
+
+  /* tasks that clearly moved (label above each row) */
+  const C = [["SFT", "4B → 4B + SFT", fl.sft.churn], ["SDPO", "on top of SFT", fl.sdpo.churn]].concat(fl.dpo && have("4B+SFT+DPO") ? [["DPO", "on top of SFT", fl.dpo.churn]] : []);
+  const cs = $("churn"), CX = 150, k = 5.4, crow = 50, ctop = 22;
+  el("text", {x: CX - 8, y: 12, "text-anchor": "end", class: "mut", style: "font-size:11px"}, cs, "◀ went down");
+  el("text", {x: CX + 8, y: 12, class: "mut", style: "font-size:11px"}, cs, "went up ▶");
+  C.forEach(([name, sub, c], i) => { const y0 = ctop + i * crow, y = y0 + 20;
+    const t = el("text", {x: 0, y: y0 + 12, style: "font-weight:600"}, cs, name);
+    el("tspan", {class: "mut", style: "font-weight:400;font-size:11px"}, t, `  ${sub}`);
+    const rd = rect(cs, CX - c.down * k, y, c.down * k, 18, "var(--down)", 4);
+    const ru = rect(cs, CX, y, c.up * k, 18, "var(--up)", 4);
+    el("text", {x: CX - c.down * k - 6, y: y + 14, "text-anchor": "end", class: "num", style: "font-weight:600"}, cs, c.down);
+    el("text", {x: CX + c.up * k + 6, y: y + 14, class: "num", style: "font-weight:600"}, cs, c.up);
+    hover(ru, `<b>${name}</b>: ${c.up} tasks up by 2 or more of 8 tries`);
+    hover(rd, `<b>${name}</b>: ${c.down} tasks down by 2 or more of 8 tries`); });
+  el("line", {x1: CX, x2: CX, y1: ctop + 16, y2: ctop + C.length * crow, class: "axis", "stroke-width": 2}, cs);
+  cs.setAttribute("viewBox", `0 0 420 ${ctop + C.length * crow + 4}`);
+
+  /* detail: change by level, one small chart per method (SDPO and DPO colours are too close to sit side by side) */
+  const lvl = $("lvl"), levels = [["never", "never"], ["sometimes", "sometimes"], ["always", "always"]];
+  const LV = [["4B+SFT+SDPO", "SDPO", fl.sdpo.fair], ["4B+SFT+DPO", "DPO", fl.dpo && fl.dpo.fair]].filter(([m, , f]) => f && have(m));
+  const lvTop = Math.max(4, ...LV.flatMap(([, , f]) => levels.map(([key]) => Math.ceil(Math.abs(f[key].points)))));  // shared scale
+  LV.forEach(([m, name, f]) => {
+    const div = document.createElement("div"); div.innerHTML = `<h4>${name}</h4>`; lvl.appendChild(div);
+    const sv = el("svg", {viewBox: "0 0 200 150", role: "img", "aria-label": `${name} change by the SFT model's solve level`}, div);
+    const y = v => 22 + 92 * (1 - v / lvTop), bw = 40;
+    el("line", {x1: 6, x2: 194, y1: y(0), y2: y(0), class: "axis"}, sv);
+    levels.forEach(([key, lab], i) => { const v = f[key].points, bx = 14 + i * 62;
+      const r = rect(sv, bx, Math.min(y(v), y(0)), bw, Math.abs(y(0) - y(v)), COL[m], 4);
+      el("text", {x: bx + bw / 2, y: Math.min(y(v), y(0)) - 5, "text-anchor": "middle", class: "num", style: "font-weight:600"}, sv, sgn(v));
+      el("text", {x: bx + bw / 2, y: y(0) + 16, "text-anchor": "middle", class: "mut", style: "font-size:11px"}, sv, lab);
+      el("text", {x: bx + bw / 2, y: y(0) + 30, "text-anchor": "middle", class: "mut", style: "font-size:10.5px"}, sv, `${f[key].tasks} tasks`);
+      hover(r, `<b>${name}</b> on tasks the SFT model ${key === "sometimes" ? "sometimes solved" : key + " solved"}: ${sgn(v)} points`); }); });
+
+  /* detail: SDPO by link to the SFT data */
+  // 24 Nov (Ali G44): 7 px per point as before, smaller only when the longest bar would push its label off a phone screen
+  const li = D.link.by_nearest_train_in_sft, sl = $("sdpolink"), x0 = 260,
+    kk = Math.min(7, 66 / Math.max(1, ...Object.values(li).map(g => Math.abs(g.sdpo_points))));
+  el("line", {x1: x0, x2: x0, y1: 0, y2: 104, class: "axis"}, sl);
+  [["SFT example nearby", li["nearest training task in SFT data"]], ["No SFT example nearby", li["not in SFT data"]]].forEach(([t, g], i) => {
+    const v = g.sdpo_points, y = 8 + i * 50, w = Math.abs(v) * kk;
+    el("text", {x: 150, y: y + 12, "text-anchor": "end", style: "font-weight:600;font-size:11.5px"}, sl, t);
+    el("text", {x: 150, y: y + 27, "text-anchor": "end", class: "mut", style: "font-size:11px"}, sl, `${g.tasks} tasks`);
+    const r = rect(sl, v >= 0 ? x0 : x0 - w, y + 4, w, 20, v >= 0 ? "var(--up)" : "var(--down)", 4);
+    el("text", {x: v >= 0 ? x0 + w + 6 : x0 - w - 6, y: y + 18, "text-anchor": v >= 0 ? "start" : "end", class: "num", style: "font-weight:600"}, sl, sgn(v));
+    hover(r, `<b>${t}</b>: SDPO ${sgn(v)} points over the SFT model`); });
+  $("sdpolinknote").textContent = "“Nearby” = the training task whose request wording is closest had an SFT example.";
+  $("trainsettings").innerHTML = `<b>How each was trained.</b> Both start from the SFT model. SDPO: 622 of its own fresh attempts on 78 training tasks (8 per task), ` +
+    `each failed one with written feedback; one round, 39 steps. DPO: ${X ? X.pairs : 322} pairs from ${X ? X.tasks : 111} training tasks (a passed and a failed attempt at the same task); ` +
+    `DPO loss plus a likelihood term on the passed side, β 0.1, learning rate 1e-5, batch 16, 61 steps (2.94 passes). The frozen reference is the SFT model.`;
+})();
+
+/* 9 · why DPO gave so little (20 Nov: rebuilt visual-first; numbers from research/sdpo-work/scratch/dpo-deepdive/chapter10.json) */
+(() => {
+  const X = D.dpo_dive;
+  if (!X || !have("4B+SFT+DPO")) { $("ch9").hidden = true; return; }
+  const n0 = v => Math.round(v).toLocaleString("en-US");
+  const pc = (v, d = 0) => fmt(100 * v, d) + "%";
+  const rel = (a, b) => sgn(100 * (b - a) / a) + "%";
+  const H = X.habits, B = X.behaviour, CF = X.headroom.crossfit, P = X.headroom.p9;
+  const at = X.gap_buckets[0][1], before = X.located - at, fd = X.first_action_diff_turn;
+  $("c9a").innerHTML = `In almost every pair, the passed and the failed attempt went different ways <b>before</b> the failed one made its mistake. ` +
+    `DPO pushed down the whole failed attempt, so it learned what most pairs had in common (habits), not the mistakes.`;
+
+  /* the pair, drawn as turns */
+  const p = $("pairdiag"), BX = 150, BW = 92, BS = 100, BH = 40, mi = 1 + X.gap_median;  // mistake box: split at turn 1 + median gap
+  const rows = [{y: 40, label: "Passed attempt", sub: "DPO: make more likely ↑", n: mi + 1, ok: true},
+                {y: 136, label: "Failed attempt", sub: "DPO: make less likely ↓", n: mi + 2, ok: false}];
+  el("line", {x1: BX + BS - 4, x2: BX + BS - 4, y1: 22, y2: 188, stroke: "var(--fg)", "stroke-dasharray": "4 3", "stroke-width": 1.5}, p);
+  el("text", {x: BX + BS - 4, y: 14, "text-anchor": "middle", style: "font-size:11.5px;font-weight:600"}, p, "the attempts split here");
+  rows.forEach(r => {
+    el("text", {x: 0, y: r.y + 17, style: "font-weight:600"}, p, (r.ok ? "✓ " : "✗ ") + r.label);
+    el("text", {x: 0, y: r.y + 33, class: "mut", style: "font-size:11px"}, p, r.sub);
+    for (let i = 0; i < r.n; i++) { const bx = BX + i * BS, last = i === r.n - 1, mist = !r.ok && i === mi;
+      const fill = i === 0 ? "var(--heat0)" : mist ? "var(--down)" : "var(--panel)";
+      const stroke = mist ? "var(--down)" : r.ok && last ? "var(--up)" : "var(--line)";
+      rect(p, bx, r.y, BW, BH, fill, 6, {stroke, "stroke-width": r.ok && last ? 2 : 1});
+      const t = i === 0 ? "task request" : mist ? "✗ the mistake" : last ? (r.ok ? "✓ final reply" : "final reply") : `turn ${i}`;
+      el("text", {x: bx + BW / 2, y: r.y + 25, "text-anchor": "middle", style: `font-size:12px${mist ? ";fill:#fff;font-weight:600" : ""}`}, p, t); } });
+  const fy = rows[1].y + BH + 10, fx1 = BX + BS, fx2 = BX + (mi - 1) * BS + BW;
+  el("path", {d: `M${fx1} ${fy} v6 H${fx2} v-6`, fill: "none", stroke: "var(--muted)", "stroke-width": 1.5}, p);
+  el("text", {x: (fx1 + fx2) / 2, y: fy + 22, "text-anchor": "middle", class: "mut", style: "font-size:11.5px"}, p, "steps that were fine, but DPO pushes them down too");
+  el("text", {x: BX + mi * BS + BW / 2, y: fy + 22, "text-anchor": "middle", style: "font-size:11.5px;font-weight:600"}, p, "the only step that should go down");
+  p.setAttribute("viewBox", `0 0 ${BX + (mi + 2) * BS + 10} ${fy + 32}`);
+  $("pairnote").textContent = `Drawn at the median: the attempts split at turn 1 (true in ${fd["1"]} of ${X.pairs} pairs, often just different search words) ` +
+    `and the mistake comes ${X.gap_median} turns later.`;
+
+  /* waffle: pairs that split at the mistake */
+  const wf = $("waffle2"), cols = 29, sz = 11, gp = 3;
+  $("wafflet").textContent = `Only ${at} of ${X.located} pairs split at the mistake`;
+  for (let i = 0; i < X.located; i++) { const r = rect(wf, (i % cols) * (sz + gp), Math.floor(i / cols) * (sz + gp), sz, sz, i < at ? "var(--m-dpo)" : "var(--faint)", 2);
+    hover(r, i < at ? `<b>Split at the mistake</b>: ${at} pairs` : `<b>Split before the mistake</b>: ${before} pairs`); }
+  wf.setAttribute("viewBox", `0 0 ${cols * (sz + gp)} ${Math.ceil(X.located / cols) * (sz + gp)}`);
+  $("wafflelegend").innerHTML = `<span><i style="background:var(--m-dpo)"></i>split at the mistake: ${at}</span>` +
+    `<span><i style="background:var(--faint)"></i>split earlier: ${before} (a median ${X.gap_median} turns before)</span>`;
+
+  /* where the push-down landed */
+  const sh = X.token_share_mean, s2 = $("ddshare"), SW = 412;
+  let sx0 = 0;
+  [["before the mistake", sh.before, "var(--faint)", {}], ["the mistake turn", sh.at, "var(--m-dpo)", {}],
+   ["after it", sh.after, "var(--heat0)", {stroke: "var(--line)"}]].forEach(([lab, v, c, extra]) => {
+    const w = SW * v, r = rect(s2, sx0 + 1, 4, w - 2, 28, c, 4, extra);
+    el("text", {x: sx0 + 4, y: 50, class: "num", style: "font-weight:600"}, s2, pc(v));
+    el("text", {x: sx0 + 4, y: 66, class: "mut", style: "font-size:11px"}, s2, lab);
+    hover(r, `<b>${pc(v)}</b> of the failed attempt’s training text: ${lab}`);
+    sx0 += w; });
+
+  /* what changed on test120 */
+  const row = (label, from, to, delta, sub) => `<div class="ddrow"><span>${label}</span><span class="v">${from} → ${to}${delta ? ` <b>${delta}</b>` : ""}</span>` +
+    (sub ? `<span class="d">${sub}</span>` : "") + `</div>`;
+  $("ddcards").innerHTML =
+    `<div class="ddcard"><h4><span class="tag on">changed</span>Habits that most pairs shared</h4>` +
+    row("Final reply length", n0(B.final_reply_chars.P9), `${n0(B.final_reply_chars.DPO)} chars`, rel(B.final_reply_chars.P9, B.final_reply_chars.DPO),
+        `the passed side’s reply was shorter in ${H.final_reply_chars.chosen_lower} of ${X.pairs} pairs`) +
+    row("Reasoning per turn", n0(B.reasoning_per_turn.P9), `${n0(B.reasoning_per_turn.DPO)} chars`, rel(B.reasoning_per_turn.P9, B.reasoning_per_turn.DPO),
+        `the passed side reasoned more in ${H.reasoning_per_turn.chosen_higher} of ${X.pairs} pairs`) + `</div>` +
+    `<div class="ddcard"><h4><span class="tag">no change</span>The decisions that pass or fail a task</h4>` +
+    row("Tool calls per attempt", fmt(B.calls.P9), fmt(B.calls.DPO), "", "") +
+    row("Write actions per attempt", fmt(B.write_calls.P9, 2), fmt(B.write_calls.DPO, 2), "", "") +
+    row("Forbidden actions", `${fmt(D.behaviour.harm_share["4B+SFT"])}%`, `${fmt(D.behaviour.harm_share["4B+SFT+DPO"])}%`, "", "about the same") +
+    row("Success", `${fmt(D.success["4B+SFT"])}%`, `${fmt(D.success["4B+SFT+DPO"])}%`, "", "about the same") + `</div>`;
+
+  /* training curve */
+  const S = X.training.steps, NSTEP = S.length, TX = 44, TW = 352, tx = i => TX + TW * (i - 1) / (NSTEP - 1);
+  const ff = X.training.first_step_all_ranked_right_from_then_on;
+  $("ddacct").textContent = `DPO had learned every training pair by step ${ff} of ${NSTEP}`;
+  const passEnd = [1, 2].map(k => S.filter(q => q[1] <= k + 1e-6).pop()[0]);
+  const a = $("ddacc"), AH = 96, ay = v => 12 + AH * (1 - v);
+  [0, .5, 1].forEach(v => { el("line", {x1: TX, x2: TX + TW, y1: ay(v), y2: ay(v), class: "gridl"}, a);
+    el("text", {x: TX - 6, y: ay(v) + 4, "text-anchor": "end", class: "mut num"}, a, pc(v)); });
+  passEnd.forEach((b, j) => { const xx = (tx(b) + tx(b + 1)) / 2;
+    el("line", {x1: xx, x2: xx, y1: 4, y2: 12 + AH, stroke: "var(--faint)", "stroke-dasharray": "3 3"}, a);
+    el("text", {x: xx + 4, y: 12 + AH - 6, class: "mut", style: "font-size:10.5px"}, a, `pass ${j + 2}`); });
+  el("polyline", {points: S.map(q => `${tx(q[0])},${ay(q[2])}`).join(" "), fill: "none", stroke: "var(--m-dpo)", "stroke-width": 2, "stroke-linejoin": "round"}, a);
+  el("circle", {cx: tx(ff), cy: ay(1), r: 4, fill: "var(--m-dpo)", stroke: "var(--panel)", "stroke-width": 2}, a);
+  el("text", {x: tx(ff + 1) + 6, y: ay(1) + 18, style: "font-size:11px;font-weight:600"}, a, `100% from step ${ff} on`);
+  [1, 20, 40, NSTEP].forEach(i => el("text", {x: tx(i), y: 12 + AH + 18, "text-anchor": "middle", class: "mut num"}, a, i === 1 ? "step 1" : i));
+  const line = el("line", {x1: 0, x2: 0, y1: 4, y2: 12 + AH, stroke: "var(--muted)", "stroke-width": 1, opacity: 0}, a);
+  const hit = rect(a, TX - 6, 4, TW + 12, AH + 8, "transparent", 0);
+  hit.addEventListener("mousemove", e => { const pt = a.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const q = pt.matrixTransform(a.getScreenCTM().inverse()), i = Math.max(1, Math.min(NSTEP, Math.round(1 + (q.x - TX) / TW * (NSTEP - 1)))), r = S[i - 1];
+    line.setAttribute("x1", tx(i)); line.setAttribute("x2", tx(i)); line.setAttribute("opacity", 1);
+    tip.innerHTML = `<b>Step ${i}</b> · pass ${Math.min(3, Math.floor(r[1] - 1e-6) + 1)}<br>pairs ranked right: ${pc(r[2])}`; tip.style.opacity = 1;
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 290) + "px"; tip.style.top = (e.clientY + 14) + "px"; });
+  hit.addEventListener("mouseleave", () => { tip.style.opacity = 0; line.setAttribute("opacity", 0); });
+  a.setAttribute("viewBox", `0 0 420 ${12 + AH + 26}`);
+
+  /* where the gap to the 397B sits */
+  const lv = [["never", "never"], ["sometimes", "sometimes"], ["always", "always"]];
+  const tot = lv.reduce((t, [k]) => t + CF[k].gap_contrib_exact, 0);
+  $("ddgapt").textContent = `${Math.round(100 * CF.never.gap_contrib_exact / tot)}% of the gap to the 397B is on tasks the SFT model almost never solves`;
+  const gs = $("ddgapsplit"), GW2 = 412, shades = ["var(--m-397)", "color-mix(in oklab, var(--m-397) 58%, var(--panel))", "color-mix(in oklab, var(--m-397) 30%, var(--panel))"];
+  let gx = 0;
+  lv.forEach(([k, lab], i) => { const v = CF[k].gap_contrib_exact, w = GW2 * v / tot;
+    const r = rect(gs, gx + 1, 4, w - 2, 30, shades[i], 4);
+    el("text", {x: gx + 4, y: 52, class: "num", style: "font-weight:600"}, gs, `${Math.round(100 * v / tot)}%`);
+    el("text", {x: gx + 4, y: 68, class: "mut", style: "font-size:11px"}, gs, lab);
+    el("text", {x: gx + 4, y: 82, class: "mut", style: "font-size:10.5px"}, gs, `${Math.floor(CF[k].tasks)} tasks`);
+    hover(r, `<b>${fmt(v)} of the ${fmt(tot)} points</b> the 397B is ahead<br>come from tasks the SFT model ${k === "sometimes" ? "sometimes solves" : k + " solves"} (${Math.floor(CF[k].tasks)} tasks)`);
+    gx += w; });
+
+  /* takeaways and the decision */
+  $("ddlessons").innerHTML = [
+    `<b>Pair at the decision.</b> Keep both attempts the same up to the mistake, so they differ only there. Only ${X.clean_step_level_pairs} of our ${X.pairs} pairs were like that.`,
+    `<b>Check the training tasks first.</b> We never measured whether the mistakes were fixed where we trained.`,
+    `<b>Stop after one pass.</b> After step ${ff} there was nothing left for DPO to learn from the pairs.`,
+    `<b>Expect a few points at most.</b> test120 only reliably shows changes of about 5 points or more.`,
+  ].map(t => `<li>${t}</li>`).join("");
+  $("dddecision").innerHTML = `<b>Decision, 20 Nov:</b> DPO is closed, with no retry.`;
+
+  /* detail: where pairs split; what the first difference was */
+  const g = $("ddgap"), GX = 132, GWD = 220, rowsG = X.gap_buckets, gmax = Math.max(...rowsG.map(r => r[1]));
+  rowsG.forEach(([lab, k], i) => { const y = 8 + i * 38, w = GWD * k / gmax, hot = i === 0;
+    el("text", {x: GX - 10, y: y + 17, "text-anchor": "end", style: hot ? "font-weight:600" : ""}, g, lab);
+    const r = rect(g, GX, y + 4, w, 20, hot ? "var(--m-dpo)" : "var(--faint)", 4);
+    el("text", {x: GX + w + 6, y: y + 18, class: "num", style: "font-weight:600"}, g, k);
+    hover(r, `<b>${k} pairs</b> first act differently ${hot ? "at the mistake itself" : lab + " the mistake"}`); });
+  el("line", {x1: GX, x2: GX, y1: 2, y2: rowsG.length * 38 + 8, class: "axis"}, g);
+  g.setAttribute("viewBox", `0 0 420 ${rowsG.length * 38 + 12}`);
+  const KN = {"same read tools, different arguments": "same lookups, different search words", "different read tools": "different lookups",
+              "same tools, different count": "same tools, more or fewer calls", "different tools (a write involved)": "a write (a real action) differs",
+              "same tools, different arguments": "other"};
+  const s3 = $("ddkind"), ks = Object.entries(X.diff_kinds), kmax = Math.max(...ks.map(q => q[1])), KX = 210, KW = 160;
+  ks.forEach(([kd, v], i) => { const y = 4 + i * 28, w = KW * v / kmax;
+    el("text", {x: KX - 10, y: y + 15, "text-anchor": "end", style: "font-size:11.5px"}, s3, KN[kd] || kd);
+    const r = rect(s3, KX, y + 3, w, 18, "var(--faint)", 4);
+    el("text", {x: KX + w + 6, y: y + 16, class: "num"}, s3, v);
+    hover(r, `<b>${v} pairs</b>: the first different action is “${KN[kd] || kd}”`); });
+  s3.setAttribute("viewBox", `0 0 420 ${ks.length * 28 + 6}`);
+  const E = H.final_reply_by_edit, last = S[NSTEP - 1], dip = S.reduce((m, q) => q[3] < m[3] ? q : m, S[0]);
+  $("ddfacts").innerHTML = [
+    `${X.located} of ${X.pairs} pairs have a located mistake (found with the mistake finder the SDPO feedback uses). In ${X.mistake_is_final_turn} pairs the mistake is the failed attempt’s last turn: it stopped early or sent a wrong final message.`,
+    `Each side of a pair trains a median of about ${n0(X.trained_tokens_median.chosen)} tokens; the two sides differ in a median of ${Math.round(H.median_calls_one_side_only)} tool calls. The mistake turn holds a median ${pc(X.token_share_median.at)} of the failed side’s training text.`,
+    `Part of the shorter-reply habit came from our own data step: we trimmed ${E.edited.pairs} passed replies (deletions only), and in those pairs the passed reply was shorter in ${E.edited.chosen_shorter} and longer in ${E.edited.chosen_longer}.`,
+    `Room for any preference method: ${fmt(P.share_failed_on_sometimes)}% of the SFT model’s failed test120 attempts are on tasks it solved at least once in 8 tries. On the never / sometimes / always groups the 397B scores ${fmt(CF.never["397B"])}%, ${fmt(CF.sometimes["397B"])}% and ${fmt(CF.always["397B"])}%; the SFT model ${fmt(CF.never.P9_other_half)}%, ${fmt(CF.sometimes.P9_other_half)}% and ${fmt(CF.always.P9_other_half)}%; DPO ${fmt(CF.never.DPO)}%, ${fmt(CF.sometimes.DPO)}% and ${fmt(CF.always.DPO)}%; SDPO ${fmt(CF.never.SDPO)}%, ${fmt(CF.sometimes.SDPO)}% and ${fmt(CF.always.SDPO)}%.`,
+    `Training: the failed side was pushed down more than the passed side was lifted; the passed side even dipped first (${sgn(dip[3])} at step ${dip[0]}). The loss left at the end (${last[5].toFixed(2)}) is mostly the SFT term on the passed side. A perfect training score does not mean the model writes differently (Chen et al. 2024).`,
+  ].map(t => `<li>${t}</li>`).join("");
+  const lit = [
+    ["Chat assistants: following instructions, truthfulness", "Ivison et al. 2024", "about 61k per dataset", "up to +8 points; little on reasoning or facts"],
+    ["Math answers, 7B model", "Step-DPO, Lai et al. 2024", "5k", "whole answer +0.2; at the first wrong step +1.0"],
+    ["Code checked by tests", "Xu et al. 2024", "own samples, labelled by the tests", "below the SFT model it started from"],
+    ["Web-shop agent, one kind of task", "Agent Q, Putta et al. 2024", "11k training tasks", "28.6% → 40.6%"],
+    ["Restaurant-booking agent, about 14 steps", "Agent Q", "fresh rounds of its own attempts", "whole attempt 67.2% → 71.8%; step-level 75.2%"],
+    ["Instruction following (Tülu 3)", "Lambert et al. 2024", "over 270k", "pairs differing in one checkable rule helped; math and code pairs did not"],
+  ];
+  $("ddlit").innerHTML = `<thead><tr><th>Where DPO was used</th><th>Pairs</th><th>Result</th></tr></thead><tbody>` +
+    lit.map(([w, src, pp, r]) => `<tr><td>${w}<span class="sub">${src}</span></td><td>${pp}</td><td>${r}</td></tr>`).join("") +
+    `<tr class="ours"><td>Ours: office workflows, new tasks at test<span class="sub">this page</span></td><td>${X.pairs} pairs on ${X.tasks} tasks</td>` +
+    `<td>${fmt(D.success["4B+SFT"])}% → ${fmt(D.success["4B+SFT+DPO"])}%</td></tr></tbody>`;
+})();
+</script>
+
+
+</body></html>
