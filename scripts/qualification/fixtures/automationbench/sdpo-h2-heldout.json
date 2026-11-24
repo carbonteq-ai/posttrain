@@ -1,7 +1,7 @@
 {
  "name": "v6-read-h2",
  "created": "2026-11-19",
- "rule": "The 102 held-out H2 training tasks the SFT model solved in 1 to 7 of 8 attempts; used to pick the SDPO round, never trained on.",
+ "rule": "All 102 tasks of the H2 half of the 204 training tasks (train-d204 split into H1 and H2, stratified by domain and by whether the task is in the SFT data, seed 20261027). Never trained on; used to pick the SDPO round.",
  "task_names": [
   "finance.commission_calculation",
   "finance.credit_card_reconciliation",
