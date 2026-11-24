@@ -1,0 +1,67 @@
+{
+ "hr.benefits_enrollment_review": {
+  "ineligible-note-brianna": {
+   "accepted_failures": [
+    "021f590c0126436094f51fd156b51926"
+   ],
+   "reason": "Request: anyone who doesn't qualify 'gets a short note explaining what's missing'; this success's notes never name the missing item."
+  },
+  "ineligible-note-carlos": {
+   "accepted_failures": [
+    "021f590c0126436094f51fd156b51926"
+   ],
+   "reason": "Request: anyone who doesn't qualify 'gets a short note explaining what's missing'; this success's notes never name the missing item."
+  },
+  "ineligible-note-darius": {
+   "accepted_failures": [
+    "021f590c0126436094f51fd156b51926"
+   ],
+   "reason": "Request: anyone who doesn't qualify 'gets a short note explaining what's missing'; this success's notes never name the missing item."
+  },
+  "ineligible-note-graham": {
+   "accepted_failures": [
+    "021f590c0126436094f51fd156b51926"
+   ],
+   "reason": "Request: anyone who doesn't qualify 'gets a short note explaining what's missing'; this success's notes never name the missing item."
+  }
+ },
+ "hr.exit_interview_scheduling": {
+  "employee-email-delivery": {
+   "accepted_failures": [
+    "6325d4bfc92947e18627bee341cce858"
+   ],
+   "reason": "Request: 'notify the relevant parties'; this success never emailed the Engineering employee and marked Olivia 'Missed' although her last day is in the future."
+  },
+  "interview-invite-employee-and-manager": {
+   "accepted_failures": [
+    "6325d4bfc92947e18627bee341cce858"
+   ],
+   "reason": "Same attempt: no invite (event or email) for the Engineering departee; the process requires inviting employee and manager."
+  }
+ },
+ "hr.safety_incident_reporting": {
+  "serious-tracker-status": {
+   "accepted_failures": [
+    "4cb22fd30ec0439384eedc21f9ab5590"
+   ],
+   "reason": "Safety manual Ch.3: Serious incidents get Status 'Investigation'; this success left the three serious rows with other statuses."
+  }
+ },
+ "marketing.industry_event_tracking": {
+  "upcoming-q1-relevant-event-recommendation": {
+   "accepted_failures": [
+    "9dbd4641cb414ef282942073fe51c73f",
+    "eb5a80b282004031a6213a0b87751b1b"
+   ],
+   "reason": "Request fixes the vocabulary '(sponsor, speak, attend only)'; these successes wrote 'Attend' / 'speaker'."
+  }
+ },
+ "support.freshdesk_journey_mapping": {
+  "journey-hubspot-update-ju2@beta.com": {
+   "accepted_failures": [
+    "9c572ad43d374601b8bcf199f3f7ee6e"
+   ],
+   "reason": "Request: 'sync to HubSpot'; this success made no HubSpot update for ju2@beta.com."
+  }
+ }
+}

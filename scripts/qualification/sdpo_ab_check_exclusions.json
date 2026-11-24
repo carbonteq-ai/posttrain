@@ -1,0 +1,15 @@
+{
+ "schema": "sdpo_ab_check_exclusions@1",
+ "note": "Checks that must never produce teacher feedback (plan D24). A native check is matched by type and parameters (integral floats compare equal to ints); a manifest check by check_id. Curated by the coordinator; candidate broken goals from detect_broken_goals() are written elsewhere for review and are not applied automatically. 2026-10-28: entries for checks repaired in the environment (f593359: hidden requirements made visible, broken goals fixed, ap_turnover given slack_list_channels) were removed; the registry is a safety net only.",
+ "entries": [
+  {
+   "task": "hr.benefits_enrollment_review",
+   "check": {
+    "manifest": "skip-benefits-legal-hold"
+   },
+   "kind": "broken_goal",
+   "reason": "Manifest-native conflict: the manifest guard exempts \"Not Enrolled - Legal Hold\", the native row check fails on the word \"Enrolled\"; the native check decides success.",
+   "evidence": "docs/research/sdpo-automationbench/task-dossiers/hr.benefits_enrollment_review.md:61: \"one episode wrote \"Not Enrolled - Legal Hold\" / \"Not Enrolled - Missing Form\" (fails native, passes the manifest guard)\""
+  }
+ ]
+}

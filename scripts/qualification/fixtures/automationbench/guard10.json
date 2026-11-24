@@ -1,0 +1,17 @@
+{
+ "id": "guard10",
+ "rule": "D72: regression panel; per domain random.Random(\"sdpo-ab-20261105-guard:\"+domain).sample(sorted(never-run always-solved tasks), min(2, n)); never trained on; reported separately from test60b",
+ "task_names": [
+  "finance.invoice_file_organization",
+  "finance.xero_po_matching",
+  "hr.grievance_routing",
+  "hr.twilio_emergency_notification",
+  "marketing.email_campaign_analytics",
+  "marketing.product_adoption",
+  "operations.calendar_airtable_maintenance",
+  "operations.office_supply_budget_monitoring",
+  "sales.zoom_calendar_conflict",
+  "support.hiver_quality_coaching"
+ ],
+ "ordered_sha256": "f79111ef94528fc21f703e5748f9922235168c57fbd03abe9bdef84a25e29e13"
+}

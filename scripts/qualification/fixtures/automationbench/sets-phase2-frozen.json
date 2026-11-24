@@ -1,0 +1,3042 @@
+{
+ "checks": {
+  "env_worktree_clean": true,
+  "train_list_matches_phase1": true,
+  "train_test_guard_disjoint": true
+ },
+ "environment": {
+  "change": "task fixes v1 (defects only), approved by Ali 12 Nov",
+  "commit": "86994309c1b90efb443fbd36c70b5cc03796a963",
+  "previous": "bd655be",
+  "src_tree": "6e32ab99dbc33e89e5d85e2a1ffe1e89a67dc95f",
+  "worktree": "sdpo-work/env-fix (branch task-fixes)"
+ },
+ "sets": {
+  "guard10": {
+   "names_sha256": "f79111ef94528fc21f703e5748f9922235168c57fbd03abe9bdef84a25e29e13",
+   "per_task": {
+    "finance.invoice_file_organization": {
+     "assertions": "397d97c580bf233e09b312ae20f236edd747ed0e20c3fa2492529950c4221976",
+     "data": "47ce194a01879c200a7306765fc36449840d6789bdee73f517b3bf6712a887af",
+     "initial_state": "2cbaf82df35d1b9a358e1912ccca5c5b3e7c466210f12f9c35429236b84835d4",
+     "n_assertions": 7,
+     "n_tools": 8,
+     "prompt": "7c482d5dae386a5fe60e9344c2551f23cf64b517a3481bb8e111774253d8da60",
+     "tools": "3a1226186cbc92f85555a28b768d1b599a0d974f717b25867e5ceca1131f3b28"
+    },
+    "finance.xero_po_matching": {
+     "assertions": "746d09c413fcc9329b55041c4eb6db41b9879e1d7cb1ac9c697c998f0bee1bcb",
+     "data": "315512ad82790a13b6980ae50a976866e990f259a48f62b6ad289947f1bc644d",
+     "initial_state": "e8f77e70cc63c1bc30d0bdad6dbb479008b7a0255aa094498812ea246415996c",
+     "n_assertions": 10,
+     "n_tools": 9,
+     "prompt": "225e76914989aa177e3417077f3ee78cee328828e84490ce13b1fd1aadf0a548",
+     "tools": "27c2faa97741f0e21258fb657e1daed7fb55d90ee248317fbdf5eeaabdc4d73e"
+    },
+    "hr.grievance_routing": {
+     "assertions": "3f9dfeee0de39fd5a279f5106ea4ce19537734b88a42e78b262c694efd666704",
+     "data": "3c6c5915127cf1c2fa0a21e2dc0524382bdfdc6c99fcf0f7ef1a488e987f6c76",
+     "initial_state": "95240a4a1214714fb6bf666765e6275092eba40b055b6e48b600cb5c092b1868",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "6697132bf238d4427e40c07b94b883bc6d4db3c08b1e472bd5f793f744c8ed20",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.twilio_emergency_notification": {
+     "assertions": "4793958473ddc63664ead1d94a3278e0772e2905ba79b3d8aba1d7a70769ed88",
+     "data": "902dc3882ed9166f38e674f7001046e4b3fd53510ad082e5248b2bdb7a4fc2d4",
+     "initial_state": "61f16cca52f161ca3f8fd0e2df339db45c5c2f119de043e7f10eceb0c7441014",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "b9fb39e91f28d09769a6e349a848cbc1d3c128845df55e3215a6cd89cde55fca",
+     "tools": "72462d4b2c9ee993ed64af5cb1619e997f0fa31f319349c9363a6557ae4f2b1b"
+    },
+    "marketing.email_campaign_analytics": {
+     "assertions": "76c9631da6916746b9b7f7bdebaea4ad3c212f467b94a04f2cf877858224972b",
+     "data": "b0a1e77c45520318d293781d7ac8ca209ceced7babe927c280c17a4b8ad03272",
+     "initial_state": "e51809c827c4906a27dc60f31018cba8a780506c06cf99894dd41eee341dbaa8",
+     "n_assertions": 14,
+     "n_tools": 8,
+     "prompt": "7f47b7aa181dd7455ea214d52ba3693c654e1a936d2a59f5437125438db16f2a",
+     "tools": "ba7528c226ddb437be72abfe6d4d80c0822b39f6e95b9ef0532e6174cd900639"
+    },
+    "marketing.product_adoption": {
+     "assertions": "877bc7f19caef1c5bbd0671cf3aa95382950cef37297cc1e647e2233935a6a58",
+     "data": "f623a4500b843d67753cd522afa70a5fe71a6657653c0722c3a303858349c93f",
+     "initial_state": "513ce75b02351e21a40782a71d48f4f29de85077afa7963dab3f2ba08c64dca2",
+     "n_assertions": 14,
+     "n_tools": 5,
+     "prompt": "b44d15942fb4a5625b5d0c3f3342f2f818318e0e46df0847b780f6b2dbc2bbc6",
+     "tools": "96477fab6044e15a2d8cd0d01338b9bd619eab4fd77ce22a6dab43e19cd2bcbc"
+    },
+    "operations.calendar_airtable_maintenance": {
+     "assertions": "977fcd67824d73d05fb5ddbad7962cb95e65aa0d31fb35545f3a48846eff1fc5",
+     "data": "662baf2b1ab8759a12239c8bed67e2612ec17d31fb31bed640a8df231e2b79a3",
+     "initial_state": "5aef4856706dcb4960a2a564c64604dc60728647cbe1f0b6a9881c8ec836db95",
+     "n_assertions": 9,
+     "n_tools": 8,
+     "prompt": "4ce9d99a4090411e198ea951a44236d554116fd03d617813cfadf0fc7414b785",
+     "tools": "73fc1f4f7c75559119fc928a189c941a17632d3b428929468912c167351de9a8"
+    },
+    "operations.office_supply_budget_monitoring": {
+     "assertions": "375c7b9e4df1730be052a2ce2fce20239b2e6fe2cba09d2eb807ef7f55fc404e",
+     "data": "b7cd9b855b418c7d8142b04ccc472d4be066d54f5bcf0c6dd48aabbf78cafb4c",
+     "initial_state": "51c2e7ed0c60f81b898d92bd8b73f355c8f2798423e3cd93640a2866d4161f32",
+     "n_assertions": 14,
+     "n_tools": 7,
+     "prompt": "cba019dfa1eb3688e8faf2027e5defbf840ea010524800e95b6f21cf0fed67b4",
+     "tools": "301aef3b63a6178a150f0fbb8b7296c7ad868c0a5d632f92b20c4b4dbf2c3c29"
+    },
+    "sales.zoom_calendar_conflict": {
+     "assertions": "c169634c3af18b92b644426992ee47954a82b177c97486bbbe1e36323053a5b9",
+     "data": "72fab8a34bf8dcf6c6021e1df62fcb3724f69d5a508a88e36f3acd116f228eac",
+     "initial_state": "9f868cf23e4582fb7f2a41e404f52acb4fe7d7bf12ab9fdbfc3dbc47da8f1fd5",
+     "n_assertions": 11,
+     "n_tools": 15,
+     "prompt": "3fe9fc62dfad8052cd3d3f57b055c9498c695c5c4f5e7d0181940efe4947d310",
+     "tools": "63ff67d1a01006880f8481bd585be8d26c0cd2deab742fa446331893d0573aac"
+    },
+    "support.hiver_quality_coaching": {
+     "assertions": "85b511ae05dfe7cb22dd4ff950d470c3b19cd4f98d16503314db3e0e627c2781",
+     "data": "f5968aaeb74c038fcee8d4cf19aae226c7820a04246ffd6346b1d200d9f28e52",
+     "initial_state": "bc7bb84c3f03e7de28b9176c59edbff3ab132d2917ecaf732fa0738ffc0eb433",
+     "n_assertions": 40,
+     "n_tools": 11,
+     "prompt": "e6f275a63d95cc81f3ae2cd96948b5bcf952e9a95aa21e65789579f5e540628b",
+     "tools": "8b4a425a7a9a20bbf211211b28079caad3786ecd4f607b2f4b5a1f93266f7790"
+    }
+   },
+   "tasks": 10
+  },
+  "test120": {
+   "file_ordered_sha256": "3026a9aa6336cab346f16392dbfd80c1ef878d9e5cbfca69ff8ab799c6be0423",
+   "names_sha256": "8165a597b1743ec79742435c9c6cbbdb72aa4d65cf477d55471de7229eb5d2ab",
+   "per_task": {
+    "finance.ap_aging_report": {
+     "assertions": "2501c9f0841de47297b74c58d79ddbebb568c9687847dc92fc4f7fd1dad65f4a",
+     "data": "50cc3d789b515a3903eb0bf9d55b50d21eba08ce1d672db0f5c698114410dfef",
+     "initial_state": "f4884adec95b25aa8d46ef3659cc01c8ad25ccac233ed2d23c52afccb0ce9e43",
+     "n_assertions": 6,
+     "n_tools": 6,
+     "prompt": "33a07e45cb56bf5a4f86ea678a56e2a82365ec566ca152c49a33c2ac4bb3b58d",
+     "tools": "0048c71ad51208181b525a6ce25b094bc670aca72ff61bc591ecbc87f6fc77b4"
+    },
+    "finance.bad_debt_writeoff": {
+     "assertions": "5677af84ff3a696ab91875f9ae4719a2f577848d872b06deac0cc7180f6fc802",
+     "data": "1c2d5340c95613e716cae77c02dd8ada559e237d080132f2fd59239926b3492a",
+     "initial_state": "8afa17998720017ad1fd7ba3b8fde2c58ec051be4fc0bf35963265edc0ec86ac",
+     "n_assertions": 10,
+     "n_tools": 9,
+     "prompt": "38196d12a39433a9ea8dd9fe4cca74af6034fc791bf3363be1057e873022bd95",
+     "tools": "366d2f04bc515f298daa1ffa3a8114a0235217cd3d1b87c64fd66908d4e63b98"
+    },
+    "finance.closing_journal_automation": {
+     "assertions": "7fbb66ebcbb78ed339ba85dcc18ee1a8d408f80a41e0eb97dc343f220b87d8f9",
+     "data": "6be8db058628e964137d4b7b30b2d2aa46db973382b8cf40d8e4bd87a9cd2e1f",
+     "initial_state": "ad97210ae5360aa37f548e8644b3e53cb7d341e8e7932816e6d2ece927632183",
+     "n_assertions": 5,
+     "n_tools": 8,
+     "prompt": "afdfe8fc515882ad614574038a2a1cb768ef0d6c048a88f8054ab4fd4db43f8e",
+     "tools": "3f8b151309034e146508dffa894001abe4e50dd6a8821478a7b5a6fd92801e02"
+    },
+    "finance.dept_expense_rollup": {
+     "assertions": "fe50d38a85042a1423a71656f69a48c5a9de9d921c1b350bf0ccce8fe1a07e00",
+     "data": "df9b11b01405eeb73634beba1e5cfd6e372adc6bde0e1ce944eeced05fabd172",
+     "initial_state": "026970c682f731f7326cf47a560246a28ed7dc31ddedfcd988e240b907725f1f",
+     "n_assertions": 4,
+     "n_tools": 7,
+     "prompt": "93473b4b11728b511409f96eadcd157ca679a746eb2afa7df670c4331d22ce33",
+     "tools": "9b82a0e341b1bb30b001db183ec8294905eba1e026042eae01e8f548525067b5"
+    },
+    "finance.expense_policy_violation": {
+     "assertions": "31d45c3578191d5bbb0e3aa39d9fec5211638609f10350ba9125caca83401117",
+     "data": "6fed84a4a959a98f1ee2dc3789cdd94b1cc895fe5c3c6a5fb6b082a966d53b41",
+     "initial_state": "335e1c8bfaeef776809847f90ebaaeab6ab3a4787b3f3a2a833843d25706817f",
+     "n_assertions": 9,
+     "n_tools": 8,
+     "prompt": "36fc9d2c5798d632091751fb4c40a7939ca6fe19a3ddcb89c3febe7869ab1430",
+     "tools": "e1830b4ec4ed2bb43c78e997870a23ef656ee366a747ae6c7f2774ea67016f97"
+    },
+    "finance.financial_close_checklist": {
+     "assertions": "c066808fb57500ebe4ac18902c905c809a5acca4ca90bbb32de6947f3b7aa20b",
+     "data": "84000f86cc21eee7ba1534a16ea033bbe6598f3e4b1980aa91a9539687339bf2",
+     "initial_state": "90ecb320ad09927e716cf901e5da7770bac67e17e9ef0aacbdb595763e1f7f6c",
+     "n_assertions": 7,
+     "n_tools": 6,
+     "prompt": "22d26d3a7af5b5287d7506550c7b72a0bcafec6ee8a902ea1b98fa6500dd8d8f",
+     "tools": "0048c71ad51208181b525a6ce25b094bc670aca72ff61bc591ecbc87f6fc77b4"
+    },
+    "finance.forex_gain_loss": {
+     "assertions": "6c6f66265c1f3b6fb52e1a70a7b5bba9b5ac388ece7ddb23f0cc954219e92684",
+     "data": "622887799e0be5bdda0035f17be035c9c426d7312bd55f2e732d3bc0c67f5461",
+     "initial_state": "82f1411e5ae02b0a664a15a15fd6d432486fadf73ad9c0979128746611eee129",
+     "n_assertions": 5,
+     "n_tools": 5,
+     "prompt": "b60f83915a8fdf52b27dbc041ea220bffb5021ad75a78df1f5d49bf2e52029b9",
+     "tools": "e7890a3a22337440cdb201b4c4c75cf4565cf1297dc017c62feb2596cbe50d4a"
+    },
+    "finance.inventory_valuation": {
+     "assertions": "8f3d531e85050f2abbf1fe21c493b6152a99df8c5435b4d420029b05c4475322",
+     "data": "346d634f0538c65ce77477107fc54031c212b622d3e818452ae2e373c78374a2",
+     "initial_state": "6609bade771e295ed822bf696980aedef200fc258c5d7a37cd4a213bfe4b146a",
+     "n_assertions": 6,
+     "n_tools": 8,
+     "prompt": "f204e98833d5da5b62facd6297b8163d551cdd768c549e85235f0359e9f6306c",
+     "tools": "e1830b4ec4ed2bb43c78e997870a23ef656ee366a747ae6c7f2774ea67016f97"
+    },
+    "finance.late_fee_calculation": {
+     "assertions": "e400f34c55efe1f67244ef2f07bf45f146a7e4686615389570861f93542599dc",
+     "data": "91fa4a28d16da6eea03f95efd7b71d50ef0a8836dd6720e2fafa222ed34a5535",
+     "initial_state": "0923d395a640f7bd31134bb573a8967211baa1cb9cfb64362d247847a1c96160",
+     "n_assertions": 7,
+     "n_tools": 8,
+     "prompt": "9c7260ddcd066d1abfe23c685d0e1fc092006f6b005ac2cb55b80c80cd62b4aa",
+     "tools": "b62df48fba712c8248a5ca06af176f1740a80bf6942049d34dd04396ae6798ed"
+    },
+    "finance.multicurrency_invoice": {
+     "assertions": "f63c4b2de1cd67334f06643ee333b4e0f07f72fe39efcb41c17af9b89ff590d3",
+     "data": "9054625cb23f6c3603492c1aeac069d11c8d347116e90af1299bb58fbbe171dc",
+     "initial_state": "15aeb2ebed6a82f8baa1c615cac02bfb93c1ceabed5efdf91f9d490fe4b2c444",
+     "n_assertions": 4,
+     "n_tools": 8,
+     "prompt": "dbaea5ef218b4784268c3e647a0580330adb821b9aa6099d8e9f6d13c18d9183",
+     "tools": "3a1226186cbc92f85555a28b768d1b599a0d974f717b25867e5ceca1131f3b28"
+    },
+    "finance.profit_margin_analysis": {
+     "assertions": "6418a6252179449ef9e53a26f1cfbf58729f7d37a822520a761bfa84ddf01612",
+     "data": "408b47eccf18a371f8b46525911f937191e0415ba9d948fae7695ee3e71957c9",
+     "initial_state": "48e30aff39cbbf0efe75f469b401d5cf88cb67d88f1e4d4db5930d59c4c3c9af",
+     "n_assertions": 6,
+     "n_tools": 5,
+     "prompt": "0af64ce1ed52d4531e0c1155ee7f9c18744624dd4f5990e0daab8bb08bd6d9b5",
+     "tools": "e7890a3a22337440cdb201b4c4c75cf4565cf1297dc017c62feb2596cbe50d4a"
+    },
+    "finance.project_profitability": {
+     "assertions": "07b3dfb3ad42fdcb2e2905ecb93da7ad8269a8fa5004561e98dd5169e8300263",
+     "data": "0e1e89770adfaf312329204abf8334a4260fa46f6b9bd26d14ce0660b5d31cf2",
+     "initial_state": "873ad8f83e20a6e7eba810d147ab28042db4b761f36cf63778d65b405ae5d224",
+     "n_assertions": 6,
+     "n_tools": 7,
+     "prompt": "010a3b173d6c57e128b92932486c1a607b750db04d1ac15a678532073bcdf9ea",
+     "tools": "db88edb9537e3c5a444e71beaa89e9925197d7b64e88acb54d775d5db7c5a4e2"
+    },
+    "finance.qb_customer_balance_review": {
+     "assertions": "3fcfd7455d855c61be66b7cdeee23db1497c418a52aacf4d358cb2935db27b9e",
+     "data": "ef5c69d5addecd83ec30688036648c325d9ea265a38acd15c6c698de8735008a",
+     "initial_state": "c32642e69bd7bbedd84723e723b54b531f4fef5a23585425913fd045c4465030",
+     "n_assertions": 5,
+     "n_tools": 9,
+     "prompt": "77446afb8a7c08f521e60da6324e00a278af728667d09cd043c7a67b5d3a1e5d",
+     "tools": "bb3a5e7c80b19191e04dd8f935b8f10e8d64a1099dd93f758a04b536a10d8522"
+    },
+    "finance.qb_customer_onboard": {
+     "assertions": "cddba7d4b4f18e7820c54a8adfe3aff5bde1177baf96b0527e83fc1fc11455bb",
+     "data": "195b359f2a4fa429011840964ff3369a24c0809adefe2b4d23f49ecaf2fe7850",
+     "initial_state": "debb9d35308000e8dc046de603f50860665dbd02f9d1c30dccbd9beade003785",
+     "n_assertions": 6,
+     "n_tools": 9,
+     "prompt": "1c4c0c5f99fc764e761cd6d4a26119fe2f9958e47fa749e3162d45ea6b3e27a3",
+     "tools": "4c0ab7e08d87c62185c8ff1ad2b7bbcaeb51b6dd2c1c9e30f6031bdc8f5d4c44"
+    },
+    "finance.qb_undeposited_funds": {
+     "assertions": "670b8106e984b5a6e3c20f5009ddcbd8d4f312df9f12ca661c8cc536cef085b5",
+     "data": "d8bbe0da281c831e13e5e371d69cd1a9bfaf471b15f4917e68cfbdf05f4ca434",
+     "initial_state": "e8d66e0b3ba08845c8b3d9ba5ce54e100d00a1ce1bcc4b0a4c977dac7854aa14",
+     "n_assertions": 3,
+     "n_tools": 9,
+     "prompt": "2743a7c0f65cc72b11a09d66ca766c62392ae6a541586d73d70691086fbd9063",
+     "tools": "2de4b24dd1c8e134981e759fa1ea4b4977c88d41b2bca376045f308d77646584"
+    },
+    "finance.quarterly_tax_estimate": {
+     "assertions": "4baba6a765ff80317570e7f1c71bda1a33d8874f9a57c562b88d51a8f55f104a",
+     "data": "50df143233e35ac09360429da43c15601dd5889278a51436c1e3b756fb5edd3d",
+     "initial_state": "0978d3b10c48bec6139772ad3145cc249b1561290e74890088b7dad94b5bb2dc",
+     "n_assertions": 3,
+     "n_tools": 9,
+     "prompt": "607727eb30352eaf7c09994d400c6e7c9f51292c4e99a62d8e62fa1c6bb74291",
+     "tools": "5e2c21ca709bab036d4fec8dba6634561bf204cbd584763be90c616b9c2f18a8"
+    },
+    "finance.revenue_recognition": {
+     "assertions": "922fb13eb8cc3af9deabcc289e7b818418e8404e665c598fce0c8f61949165e3",
+     "data": "0c5583bb5a19f68edfe9e2468e5e1a9c31dd9740389f7c54ee66589518ae8e61",
+     "initial_state": "b2116d3a55dfb4c0c51ca77567a0587d26bfbc97835bf63a5eeccee79892ee32",
+     "n_assertions": 5,
+     "n_tools": 8,
+     "prompt": "57d7ceafed3b87ac21d769da2db68af3cbc448c9ddb3ba282403c8d6dcb5b716",
+     "tools": "3a1226186cbc92f85555a28b768d1b599a0d974f717b25867e5ceca1131f3b28"
+    },
+    "finance.subscription_billing": {
+     "assertions": "34c0d7fd0a014cc78ff0e12149806dc57bef48fe7ab35d3a15c094a145771d44",
+     "data": "7ef10f57ef54ea331a3b4a3b0f1378457247c2b95dd8cf9240eb21a9738e0dae",
+     "initial_state": "e79997ae56d296b823b19c1f11a4b91661fd96c7414c0de597527cbd5e28ba72",
+     "n_assertions": 11,
+     "n_tools": 10,
+     "prompt": "e26d32dace32d12f49fc42eeaf4db37a26bdf47b82ae064c49b646c6e83a5c63",
+     "tools": "d9f5a984adc64d7770b94dcc642b6bc0be8ebdc5a62946edda4ecec0446cf87f"
+    },
+    "finance.vendor_statement_reconciliation": {
+     "assertions": "1752b4f88f28c7ca34ee456024cc32f1890caa96ed174d471455934c71e0b763",
+     "data": "84e6a7da8a00867b40310343841b767608daa4ee475f28af100db683954a0b00",
+     "initial_state": "b1f105329df9fd29675eeafeec2b21c8154c4676f0cf4c986bad04728b08fe08",
+     "n_assertions": 6,
+     "n_tools": 5,
+     "prompt": "2e5f07a2ff85854aa60fce3533343d9615bcf912128d827a200776d7ecc73b5b",
+     "tools": "e7890a3a22337440cdb201b4c4c75cf4565cf1297dc017c62feb2596cbe50d4a"
+    },
+    "finance.xero_multicurrency_payment": {
+     "assertions": "4efadf7df42b5d074bc29200495d9c4e2e72dc5cb2d5bc71755293e2ce305b86",
+     "data": "eef1fdb727be70c05b6a23526a4a1bc191c9034399c37871d6748a48e0747004",
+     "initial_state": "2a6ae87b38ed2b262bf3a1a67e6039c348070d229faf37ae040063c5aacbe59c",
+     "n_assertions": 8,
+     "n_tools": 8,
+     "prompt": "1c000677a5623c3521c18ad4d72ceae57ac856d64a043268bf0e69514dd9f9ec",
+     "tools": "f0e5a84f277399aad3f8f79b4e4661cd95424de94dde9b1939ab32568b12e11f"
+    },
+    "hr.comp_review_preparation": {
+     "assertions": "8a01788ed9b3879ffa8ed76f5f671007dd5fa091055bf1a9030b865bef7edd3f",
+     "data": "cfdfca54f5a9a8a36b67e10109829c380e0b869c3e3f44dd790ae0bb9ccfbb83",
+     "initial_state": "c7434cb4960f800ce0f1d5c89beaa60c04c92b95f4008868ad2966ebe971f480",
+     "n_assertions": 8,
+     "n_tools": 7,
+     "prompt": "78e464fc5d1ee4292aa84bd375dd8f20acc3aedcc5f8a3155994158bf1841520",
+     "tools": "3042905befe0ac1e9c610e370c10f5e38d05ea8922a80b96b49cb2c2f482ae8e"
+    },
+    "hr.docusign_nda_collection": {
+     "assertions": "39d804a9d8bd6d614b263f264a4f5fc44b48aeee52a44b0590e91eddb61ff286",
+     "data": "4ca6b6af09e1b627b848d0e56e50c1c01af60f8e688e93435738b3d6f7b285ba",
+     "initial_state": "5498ce7450c722f48bd6cf37187c15bc3daf268a59b9e7e424f129d297de1dfe",
+     "n_assertions": 7,
+     "n_tools": 6,
+     "prompt": "19f15de47cc1eb62354c477fd30201a52658f8bd9aa35fdb7487555f2ed2385b",
+     "tools": "91b0b40d1cb493290f2c5a8f39a6a04a8acabc8b7f19c4295f356bb3f2a8fd8e"
+    },
+    "hr.employee_directory_update": {
+     "assertions": "0c9c257b0e30527a22784dfc94693b64e90a8b6787abeeba0700267b57034434",
+     "data": "284120102f900d24c1af1806ffc6c3b5a71f331211368285143ca26642cd5b0a",
+     "initial_state": "012905cc67e9af18bd9d90e7ffedaf7042d0d72531d780f6251554fa3ef8630c",
+     "n_assertions": 8,
+     "n_tools": 8,
+     "prompt": "cebf50538701f3810058c14edff0416725a6ce4c9c7a9562e4f20cfddcb69434",
+     "tools": "9a914bff72fdec5870c499708be9e94714298c8db9d163a1dd87d99d14f241ef"
+    },
+    "hr.employee_transfer_approval_workflow": {
+     "assertions": "e5b9d9bfc013462dd4c4558ec5a51d9a93c09432477d818d20503a347e53232c",
+     "data": "6fe02ba6f530f3799e40f0703279610081e7a1feac8abefd640713ae789c7adc",
+     "initial_state": "111b3bba130bc284877298fc1bb6847968da2fa18b92c57532312fd69f062bcf",
+     "n_assertions": 9,
+     "n_tools": 11,
+     "prompt": "76a3ebe6a65bf73c945eb06359e12345566a3c38902c340737d6cf9afc567668",
+     "tools": "3175bac01fc43ec2ce9be8cd768c79b52f4336bfa983f6f341b3cb49ab56599e"
+    },
+    "hr.intern_cohort_onboarding": {
+     "assertions": "7b375c380a6aa00fbb13648df996d55735ee24e42a11c03d64e671ffc8f770aa",
+     "data": "32d27b8bd35cd8ed4b003e7576740162e6bdf1dc6539e65229bd214946abffdf",
+     "initial_state": "ec2ffd9d48a1b9adf0bb840819cb47913e9496b08b5eedb11c565b93095fd8b9",
+     "n_assertions": 17,
+     "n_tools": 10,
+     "prompt": "4fcf651a25089b773533d748d85569e137a7c210d05c538892ad1b12a01da7c5",
+     "tools": "1f8f21cde3d1f79d99dcf54808dc0f351aa5b27d74cdaf1579b9041926731cdc"
+    },
+    "hr.jira_security_access_review": {
+     "assertions": "d015861c05f3d3daa891e0b479e3916dd86be2f9421b2f3a6b39fa8b75c943ec",
+     "data": "66ca2644ffb32c675e7089b986efe8dc33169729e4e1cd83a661acbd672acdd1",
+     "initial_state": "f3841103a2013a9dd08388aaebe276390a46cecf1048c904dbed47b42c474827",
+     "n_assertions": 12,
+     "n_tools": 10,
+     "prompt": "9c39904872d7d73c725aca34792c6c3d4fe9efba10db047d663ce03f436b7932",
+     "tools": "c87520201fdef5e6ce6c4c536f2aa8998635b6011a1c26b1c02bb788360ab659"
+    },
+    "hr.mandatory_meeting_scheduling": {
+     "assertions": "61fe417e32b4c7262ee37d44c5d93d33290720d2d492996441fffbc3dd63d35e",
+     "data": "ab62eb18b49bf9ff986785b437efd8516a3748ca3d986bae8dd0f7ec4e03de20",
+     "initial_state": "e6d3fc05be58c7e22a37d7b5f7194622e1f28b9881ec467662d80d1ba9e4b6fc",
+     "n_assertions": 10,
+     "n_tools": 8,
+     "prompt": "7ff3abcedbe976e512603b47f3728c0cffe98ebd23eb6d53ce85649fac8a76bb",
+     "tools": "e766ce1454cf3a517ae871e0f2cfaf5298b9b4da2d50236e2f5f241be3bf631b"
+    },
+    "hr.monday_succession_planning": {
+     "assertions": "8de0c0d59b85f491c65e4692b5318490e2d95a4db7e26806e932b53296f15850",
+     "data": "88f0430067587a439cd32f6d44665eca82e6dab05e6e7283036d3742870b2e60",
+     "initial_state": "5f09a5a7f003d8ead09b98338f6c1d208dcecacbc623710bff05f5842c24e1eb",
+     "n_assertions": 8,
+     "n_tools": 9,
+     "prompt": "c7b972fb9c5ad307e54321bd811e4e8deb0665a847bc9b95f1469c623feb193b",
+     "tools": "c3745529fb6b166ed20e3f98b7422f1d47082721e45fc269d8e3d9fa84a09d99"
+    },
+    "hr.notion_meeting_notes": {
+     "assertions": "b8ee4aca9adc43bc4ea4f9683414ad4359a97775d7b9e140c70737482d417f7a",
+     "data": "6fb1c154aa6c46832c02a98a9aad304f7bbba04790054439c4916e8426bd9190",
+     "initial_state": "13f8dda02f15286dc67a7b0d1437908be577fb65d6bc7ff76dc2cd4f4d103a05",
+     "n_assertions": 7,
+     "n_tools": 6,
+     "prompt": "92e7a893ec4f410c513c00204c53601bb39c78b1abdad9618badcf93e261a8cf",
+     "tools": "8d0702ed415d62265a3fda0b4e42a422c35bfbc064fa913dde77025f887d5e35"
+    },
+    "hr.offer_letter_generation": {
+     "assertions": "a099d8085b1c9de30c25b31e24b367b3e9a2fc3020cb1aff6ca11bfc01c1d252",
+     "data": "b3a6d8482a8a63e9205c9daedc1c63467ebdb2f5aa7d2260ac7767e02a912961",
+     "initial_state": "b5a4032d5662923282fcd4db3005114c567917fa9a49541651ef1dc47ac56fdf",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "d9284d9e828f90704339c018ebf30d2d7f2534b4f358c2dae1e6daa2a78387a3",
+     "tools": "73581ec604410ead55f54c322b83d1d2c26f6c097e4d12295be8b1349633df4d"
+    },
+    "hr.performance_feedback_logging": {
+     "assertions": "46201b1dbb10ac5a4be3c34b0dc4633af668186b3cbed794a5aeaa3442624343",
+     "data": "1e5cbff09e3f011cc5aeda35443fa583cfa9e241394d3d0a6ff7ef59b997a212",
+     "initial_state": "49ccb08983051ff39e9c76b65bc5dace0ff3f362289b7d02f226a9b311ff1433",
+     "n_assertions": 7,
+     "n_tools": 5,
+     "prompt": "24f1c0146fd3981b0d24616dfc14fe7cc6c8cb55bb5f6bd817f5c5876f5ac058",
+     "tools": "5d85d8c23b56c963abb18a9d1ae068591991cf3fd73617fb3eed354b510fd046"
+    },
+    "hr.performance_review_cycle": {
+     "assertions": "a0a8ee3ef55064589b4c62f03b9aca351484f9436c77d9fdb4159488a695f09c",
+     "data": "de55077bb91ffaccf23de3c06165879e2c901f76b5b4589a74074aabe602a9e5",
+     "initial_state": "0031cec02c5aefd631063d88a344f3dbb54c0eef1df5a90ea72a0db55e3c9a7c",
+     "n_assertions": 7,
+     "n_tools": 8,
+     "prompt": "2c144c58e365ca212a96604b11d80a12c819e6ad15e4f64b4ff4539b767de16e",
+     "tools": "4f93d83d315e19c84c5fad82c2f35bf647ba467245819f1ad43dacac3140af7a"
+    },
+    "hr.quarterly_termination_queue": {
+     "assertions": "70f42ffef29e4df82eb061dd219f4adaac3a3d57290bea92c7ac14ee26bcceaa",
+     "data": "3f48498a9e678b6dfc4caca403497624ef952bba0c1996a9cc3e2244f7ca23e3",
+     "initial_state": "8f594d53ab083bac31fbf37252864cd078b986f929800845f57977096952940c",
+     "n_assertions": 17,
+     "n_tools": 9,
+     "prompt": "9c1eaed992c4f148345b6dfd16645b786611442dea6fb7ba4fac2bba2453d51a",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.recruitment_channel_roi": {
+     "assertions": "cdb5620eaa717fbb8910dfcac580db6f3a1c236e1020d32458709180dfc2f921",
+     "data": "f17995d70be51348e8b7ac4c114cdf100c7cbdc5858b2dd806924dc524583a76",
+     "initial_state": "9fb963ed291c9599b51196541b330169037aefadc6c9fa3b73b024064f88b6be",
+     "n_assertions": 12,
+     "n_tools": 9,
+     "prompt": "7cf57039d6f04dfb1af547f79ce248d56700cd569ce89efc995adc40dea78de1",
+     "tools": "6b4fdf9602e652689195cb9b18e24354d19b16860e0b75564bfb07cfb2b9b1ec"
+    },
+    "hr.recruitment_dedup_alert": {
+     "assertions": "f8b22cde1fc3e7d8e7b2cfdb64d48c042645309d1f991618736a09d86d4d458c",
+     "data": "30776ca177249f02d5e829da68e677431438a7d47a485a49cf933706799113bc",
+     "initial_state": "4b1ed2ad9c569f4db265a16bb2ba50ed213d8b96b12b787ad9666c43266e0cee",
+     "n_assertions": 7,
+     "n_tools": 6,
+     "prompt": "13334af5a137625d86e5d9b7fd0d58a0f25bb42b72e562b2d8be09846886fb53",
+     "tools": "90771229b2f72efd77563396c95dd174dafd7842442fb3efd9bda228a7503bda"
+    },
+    "hr.slack_benefits_inquiry": {
+     "assertions": "1bbb1e82a99c9e305b31159a7d8ab61e95b95662cb5787c1f76b330352d926aa",
+     "data": "b927e57b0346d36759596d59436778d55cdb61dfb1b2e02c09e832ec46507c3e",
+     "initial_state": "10c70a394a574455959d5489577a3f346269165d29430a8c74a5c9306bba1d48",
+     "n_assertions": 7,
+     "n_tools": 9,
+     "prompt": "aa1708c31404a25adc30ffa88c416983decb171bac3b8a38ca0b2a3a94f2e5af",
+     "tools": "ef5395d3bf58bdb492ee7e2de3614119772b09db6b21bee6ab411d21e4640e7d"
+    },
+    "hr.survey_distribution": {
+     "assertions": "a3f12efd7e40fecad86f839421be7e135c6aca232cdb1f0fc197ef0f71bc2aec",
+     "data": "76885f9e9c1e2e916c85733cfa7418733ff1874063559ec7dc082405698e547a",
+     "initial_state": "16a7a66632da71103b081b67083e992a75ec9d4f0fbbbae398c5496dadedf692",
+     "n_assertions": 8,
+     "n_tools": 8,
+     "prompt": "f9deee34a628d99830d48c37ee21db4cd1bd69fe98f7dbf0c17cf213f080f13e",
+     "tools": "e766ce1454cf3a517ae871e0f2cfaf5298b9b4da2d50236e2f5f241be3bf631b"
+    },
+    "hr.termination_checklist": {
+     "assertions": "4d13ab00face7a066067b98c5a2a8975f5844bf2b6f0c9270dfb9d1c43d8bc5b",
+     "data": "6e74438efb3e69f07965582622d509a19c0074f5f8758bcc9d5f9f9d7b16c9d7",
+     "initial_state": "b833946a55fa5960f4453f3eec73e421a48983be25e974fbc1eeeec19ad79ce9",
+     "n_assertions": 10,
+     "n_tools": 9,
+     "prompt": "ad719b0fcf01f873d386660f80ba23ac207aded9a43fd5f55822bd661a6e3877",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.training_compliance": {
+     "assertions": "0e6d91c9b31b6b5b189b5bf8b8100e95028cf3381282504cf769a593a6341ae4",
+     "data": "c6916e46e31526e8d18f87940e1814f78d01e5d9db203c7d75a1953e0808cf16",
+     "initial_state": "36eeaf3eb23e54f0a50365301f09d6fdbd5ccdec22b94841af2bece35c7c1cfd",
+     "n_assertions": 10,
+     "n_tools": 8,
+     "prompt": "47100221fd54e413cc730d93d01aefaa481bc661f58234016a0bf9976f864d92",
+     "tools": "0cad5f172be6f407ee7b65db1e48a774c69ff49c0bce811a977a12a17b5a2d94"
+    },
+    "hr.visa_expiration_monitoring": {
+     "assertions": "58ddcf64bafa6cb5a081aaf65e8b3e9785fa8ebad3ccb2b2e5a37c8ffb9441ba",
+     "data": "2fc157a7146898ae06d0ec335606a1fd4152180a965bc0d7ca63b801fa26a373",
+     "initial_state": "6fc78452ee788c09c237793fc72e03a24c27e6d815290437b22bdb54647811e5",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "7c1caa4487b64eb362189051ccf7381a22340e1fb69ce7c9576b5325ffcecab1",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "marketing.ad_platform_audit": {
+     "assertions": "8ca8e730187881e25132d773d9dfabf2eec105ea5b89d5b40fa31bec15d5dd71",
+     "data": "1a6dde5cf006d337bf155fc395b822f9406a5175202fb4d049611c9064982478",
+     "initial_state": "405928ae47831fd0301def6c1cd11b630c74a2cfb1447f01530df806bce47244",
+     "n_assertions": 15,
+     "n_tools": 9,
+     "prompt": "d0d98de1ca38aa283c72fdb6aae45a24fe5f233b0edf3c9620237823fa83fd94",
+     "tools": "d30d183352de53a1c43c7304f8d5e8b8c0966e0f2beb3b4b798620017a5dd7b7"
+    },
+    "marketing.campaign_attribution": {
+     "assertions": "05ce39b0a155d415954ef5c8161bc9bff9686c8497d8f62a7244d76560ca391d",
+     "data": "e6ea35f8a779ed2a4b8ccdf79ecd236c28832784ebb0ff7f2884a20b0359ba5f",
+     "initial_state": "1619b0faaa9eef81cfab53efa023b17cf6fe59a8b85acaf96dfb3320ff7fd920",
+     "n_assertions": 16,
+     "n_tools": 8,
+     "prompt": "434cb3d88246d8a0edefc1faaeb42193bba491208b8c08973fabb854541297b0",
+     "tools": "9be64bff74405a028aadec6db5d8a4f1cdfc890a1783b7909335d1da58859679"
+    },
+    "marketing.campaign_retrospective": {
+     "assertions": "158460e67d1d64b24abb8d8c84e0394045f476e434a90938a908f51c84153b45",
+     "data": "6d1d60c8760d7d0e5e6d65fe222eae6601d854cc6214b12ed2f2fa7b001fc332",
+     "initial_state": "d3b3df0ca9bb96cc1518b6a9feb2c8abdffd9493cefb63b1c84833590bf6637d",
+     "n_assertions": 22,
+     "n_tools": 7,
+     "prompt": "0cddced36520733594ee4534a3e3cc1dc69e0dfc570c7fccc1ca93964d0bd589",
+     "tools": "eaffa007e9f17300ded7116a3dc6f146417d37b27c34eac1ace58163dbc66957"
+    },
+    "marketing.competitor_product_launch": {
+     "assertions": "f87f1de4fe322dba4df629623f903972e5762fc2ebe102c6b930f8781e133b9f",
+     "data": "5e4bb4f812adddfcdf82b04ec17448b754beec16e34cd749b9ac43c985f64008",
+     "initial_state": "7e01a2dc5be492c2cd9928239ec3eae83e8c10c216bdba6e26df76e1b8f8be83",
+     "n_assertions": 30,
+     "n_tools": 11,
+     "prompt": "cd595b4c304fe85f674701209db3cd669f57a2f56dc6ee2fa5ab37e76a9200a2",
+     "tools": "71bd8be8ace653e0eedf552483f79e4d1fe01560cd55ee1b5895f168e3d11b1c"
+    },
+    "marketing.content_performance": {
+     "assertions": "7429c2865bf419a177575baee024bd77a08d1badc20bdf40cefde8bf079610eb",
+     "data": "e7dbca22cd82db0b99bf6331b4e0cda385a74aa5daef591cbbe01d149aecc8fd",
+     "initial_state": "76dad81a7b1fc5ec57f3efacda21e73d5d5c46fce63176a7264f5091774d2425",
+     "n_assertions": 8,
+     "n_tools": 5,
+     "prompt": "ebbd1bb5174e2a0c23b1734bf64d3803a5f3cc75b823ea5a39fd07f5c42bdc48",
+     "tools": "96477fab6044e15a2d8cd0d01338b9bd619eab4fd77ce22a6dab43e19cd2bcbc"
+    },
+    "marketing.content_scoring": {
+     "assertions": "8db9f581e4b0fa38b2a4fcbced311426d5ab911d47eb07784459f90df7bf0ff7",
+     "data": "0b65e520d413385e79d8f8962bad3e7c0b101955b2e46cdf2ed1e031d8588b01",
+     "initial_state": "ac11a3df872deaf7ecd3faee66cbe02e71d514fe447e8e17db2d9198ad60829e",
+     "n_assertions": 16,
+     "n_tools": 7,
+     "prompt": "4d1eabb8e4e97ce0463582ad31d9321f8a667d152d9f3762ff0d07e3fa7349b6",
+     "tools": "eaffa007e9f17300ded7116a3dc6f146417d37b27c34eac1ace58163dbc66957"
+    },
+    "marketing.conversion_tracking": {
+     "assertions": "0cc45ab5d2d90426ef70cfbe1fa7293339c918fa4c8e85a8dc005a5177f8c447",
+     "data": "5afa04150272ddbb118e7441c03c65a1bb9e6ad56618d79e38ed4ef918e122ab",
+     "initial_state": "f37b5cdc67011592dfe013ab1a621215704888fa217b991b38e2c38be4be8c12",
+     "n_assertions": 15,
+     "n_tools": 7,
+     "prompt": "5b2f51a85d76ee34eed4cfe7ec21991f62e3383de2db5b3932affc0432f64c38",
+     "tools": "6651133c7d196bce7e1d18b7c45db294199aa6004caf4262a220e6f9d889c9a2"
+    },
+    "marketing.editorial_calendar": {
+     "assertions": "70b592452300f99b78a4849241771d7548122f84b7b77a4f9ee3fcf45b57a70e",
+     "data": "2638f79fbd44b7238abc8cd2faed68ca007624ac494831e4916bfbe47f7a3844",
+     "initial_state": "6853e5dbc7c66978ca1960769a4e40c189fbe2b70a6c1ded9db246b21b35d801",
+     "n_assertions": 30,
+     "n_tools": 8,
+     "prompt": "be54c63cd7a9b04b65f3241e08bab8e1456017b9b80288c7c9d007292afe9f72",
+     "tools": "9be64bff74405a028aadec6db5d8a4f1cdfc890a1783b7909335d1da58859679"
+    },
+    "marketing.event_sponsorship_screen": {
+     "assertions": "aee01711cec7088f685c3dbbfa30cc5be651b3727f95b4956082656426eff065",
+     "data": "f592f76b3fb34fb632528650c93f99204cd6e729dac8b4c3e18abcfb2ea8f82a",
+     "initial_state": "ca01f6ed02f5dae16cc10dd51f6b04a0d61d7c43aefc1703b76e769c264a349b",
+     "n_assertions": 57,
+     "n_tools": 9,
+     "prompt": "3212324a4337c4f8daee9fb23c2042403f08af24cc44837a18485d228a46f43e",
+     "tools": "49149ad5c7862060cc8b2553e4cfce810a2661eda67e70f9fd5c603949f1a994"
+    },
+    "marketing.facebook_photo_highlight": {
+     "assertions": "784147a88d10eea9eed3d3b3fdf7eb645999d53f7a04b7aac13813c762e09e5b",
+     "data": "7b94c227a6a2171fe049218853f9d27967bf949815cead686e27819fe15df415",
+     "initial_state": "b7b95c79c06580cf360501f548d3ba9cd3dd72607f3e352d3abb5e1985eb5519",
+     "n_assertions": 10,
+     "n_tools": 7,
+     "prompt": "b4b358b3843d1dc8d2e8eba987c4de68b1701ffbd15dd538c1b15b0cf4563184",
+     "tools": "2456652f513b3a22c65daa47f72a15c2b8a2c8e3cacfc539ce6961d8bfb94b59"
+    },
+    "marketing.google_ads_pause_low_ctr": {
+     "assertions": "acb2ffa6aae474e2e2e7ee43b6b402c06bebd009c471577cf8cc65fbf8f2fa49",
+     "data": "06d84cc152c0e2de85c800e055b0d165754dc01436512895b3c37167291c6a98",
+     "initial_state": "00b35419022eb5f22955a08e2bd1e7e4a8e0d728bbb9ad4f689cc05cd6cb9169",
+     "n_assertions": 10,
+     "n_tools": 8,
+     "prompt": "3fe9ad1cc7a7799e9c09bffc767f56ba6217c9b359fc5b55f08a3f173c906267",
+     "tools": "b070db717efe1d6dc54c09cb6ea17d1c73ff2897a219ba7334a5f6283ecaa85b"
+    },
+    "marketing.lead_scoring": {
+     "assertions": "c20a5abb0f0aa1804eb521882d9a1095061456efa61b59e67f79afe5da6b354f",
+     "data": "32070e757602fee0644abf422cb5b492fad9c015f92f70c5db03d26b04122275",
+     "initial_state": "b6ce46e747c9113438fdf2e405d4a85e7bd8a8c8b829f618aa2ef950edc99f01",
+     "n_assertions": 13,
+     "n_tools": 11,
+     "prompt": "6268de50af997f2615d5817d2761d4c952f26cca2b8d145e4fffd539b9c12d4e",
+     "tools": "72b9439d5f44f03a8d60403ec1d6ab7d2f5897d470a935af9312fb17c45257a3"
+    },
+    "marketing.link_building": {
+     "assertions": "341b28e866ae92be676f88d2fcddae74e4739bff33f570777d204517031b037c",
+     "data": "b12284133cafcfcb47fd8fd273dff4d62d82b4410d3bb606f549f32dd6c1ad5d",
+     "initial_state": "8dd54679539f32f9cffc982e837dd5aee5d0b525db2ae9da938499b337e9e0a0",
+     "n_assertions": 17,
+     "n_tools": 12,
+     "prompt": "63ac86ae6a7f5a5dcafb5940752b798d502c0e62171bc631cd3beeb993ae8557",
+     "tools": "67891a6c0c6ccc9129f0d77b6c9b2eaabd385c7bbe64877bad7324fb1973c6a9"
+    },
+    "marketing.market_trend": {
+     "assertions": "1935a7d9de878f6c495b84868b86fa04112ac902079813bb9aeba9e498274709",
+     "data": "7ef1b8f09337495595611ef484dfda490d3476fd9db4e3aee2ba31e21a35c074",
+     "initial_state": "cf310c1ad18b9863900ab1e0eefa48e13468f206149822de8baae33b31f2b045",
+     "n_assertions": 13,
+     "n_tools": 8,
+     "prompt": "f5ff3d6808de6a61e9f7d9e04ba7605139af9c48829c54465f4c54a2360ebf0b",
+     "tools": "d4f8f4ca30b154fe4226dfca1cba3b7e7b740577bb14548828f5b55e9890a757"
+    },
+    "marketing.multi_touch_attribution": {
+     "assertions": "f92751518686e24ae3e43480653edec78460e6140b00ebcb5d5a0929d2e0fdd4",
+     "data": "5841bf13ae836610d9fc911f9081c5006041dc3e447a391a1b9d91d414bb29eb",
+     "initial_state": "49e965d44c542ce760c01aa55b01258db9fd4dac34cc1a3a61e519640e8b0c9f",
+     "n_assertions": 20,
+     "n_tools": 8,
+     "prompt": "ac33f7ea81a2a67494e6e139fc79af7eb8c3ca4c96750954a23ec8b3b11f138b",
+     "tools": "9be64bff74405a028aadec6db5d8a4f1cdfc890a1783b7909335d1da58859679"
+    },
+    "marketing.partner_comarketing": {
+     "assertions": "be3f08bbef6bff84df8f13725e5fb709e0437e053536db8d1b752f8f900b1de0",
+     "data": "15b80ce2b9efdddafff4be7c533bc395d7e012231c34f2d16ef68aede2f077e3",
+     "initial_state": "36bb00ed27ccd223cffd770442f806e79c640bd76e5012969561bcd9e3884113",
+     "n_assertions": 21,
+     "n_tools": 10,
+     "prompt": "2de47eb22d7653028a740012e675aa58399adcc707edea11446db6adf9d8e8fd",
+     "tools": "20e7336f466ae9f30cccd3fe97c182465d7261916c5b41b6e1452a310b7aecf9"
+    },
+    "marketing.patent_monitoring": {
+     "assertions": "ec36ee42803ea6e49971bb0f2550b3bc03ea6e5a7fd96f5c37dd049ecc118189",
+     "data": "b8458c83c103b5f18cc6044dd693eebbf6250bf1d5acb9fb0362045d0f8ed59a",
+     "initial_state": "51df78267c9fa1c83852edf50cf30daed1eb6ad092cee39146ebf2394783b966",
+     "n_assertions": 8,
+     "n_tools": 5,
+     "prompt": "56b80066c9119d8f8f0e6b2f1de52ae9634417c732e1aff8187991881c3b0485",
+     "tools": "96477fab6044e15a2d8cd0d01338b9bd619eab4fd77ce22a6dab43e19cd2bcbc"
+    },
+    "marketing.social_benchmark": {
+     "assertions": "a0c63c695ee570f263e44e79dfefd2ac5e0d4924465fa31fc12172bcae98f44e",
+     "data": "8704fe1f623db28ad3ee7cfea79410d8d4967d9a7750effac43b88d7b3fb62ff",
+     "initial_state": "a761d9d76f0a5b2fa440e13dd1f5f89887432f195407e617c797ae6e0d2cdd74",
+     "n_assertions": 52,
+     "n_tools": 11,
+     "prompt": "9ae333dd944e8d1d72d70233782eded4e06ac5084fbb1a6f1c1ae2316963e380",
+     "tools": "56aad67bc68b0f014f46bbdbf843656ace831e62238ba10e01d95331836f40c7"
+    },
+    "marketing.social_engagement_response": {
+     "assertions": "e98ff42ae69db286cf8b1ad1118fbf1c2d4014ff0e5d30eb1dfcc327125269c2",
+     "data": "75259e2a360d7391021ad6b6295885894f11f25b1a72eb556bcd61d8e5cca5ff",
+     "initial_state": "76a546f26f8c1435835132de37ae329cfd2ea8b4ace9f674a3af09717a2e759c",
+     "n_assertions": 15,
+     "n_tools": 7,
+     "prompt": "aa7d494e8f51a94ff5267055d9a5df32ac9b4c1b85e1574ffb009a22d772b9f1",
+     "tools": "2497332cfd3a6a5060e13b14ebfb215787af10c0b7bc8d6e6f120dd9bdd4b3b3"
+    },
+    "marketing.twitter_influencer_followup": {
+     "assertions": "ce86745cfff1606eaada98865f7b5b2373d6d5e4101e23607fec29007c426e8b",
+     "data": "61d8f1b8c7518596d3c0d12d85aabb837bda90ba1c73a8710a28da8be71fd966",
+     "initial_state": "72c676e0f3ccc050ceb11944bda2785cf870e48b63bd0fa4cdc5f3ac771f8de3",
+     "n_assertions": 15,
+     "n_tools": 4,
+     "prompt": "770e4add26c0d88f61945e3014ba68a95c5c9e005931c9438142a035351bd2a9",
+     "tools": "12038c17d4065e0488971fe688b41143bfaa94b7967efdb4992b433b5602a732"
+    },
+    "operations.asana_slack_sheets_audit": {
+     "assertions": "1d42cfe665102ee22cc04fde6ea12840d0468e9d5fe9efad23345374420798a4",
+     "data": "fbf8557bb4ea30a1e791b67a3b3a5a4d8e356ac37fabd3d6bdd9385106f8a8f2",
+     "initial_state": "b64eef98526d288b16564abf58eebb546834023ba91a7d194f3cba36b392e067",
+     "n_assertions": 10,
+     "n_tools": 12,
+     "prompt": "839e7916a29e8a6b0c1c996a0db2c68954b3155f39ed730bfd28f95b07aa8cff",
+     "tools": "1beef325cd7fc4d2690992303ceefe3ed6cd4b2c7c1ba8d158e780f3be0bab60"
+    },
+    "operations.calendar_airtable_gmail_maintenance_notice": {
+     "assertions": "02ad6658cb28a3b214a39082df012cc1c35d59b26346f51c20af044023234293",
+     "data": "ccb9ceb5acf8a8e100cc30412cfbf4a9c4dd4238d56fa0f00629135dd8f0ec04",
+     "initial_state": "ab484f7b8a31a9df1736be788423da6850949ba8c44879e116087cf5fa0e88ad",
+     "n_assertions": 11,
+     "n_tools": 7,
+     "prompt": "4418c25d1b32f80c2f1dc9d733057894a7c44953e73637a7c6343b71c5be571e",
+     "tools": "7406231e88db356ece3ae1805d4a545e330d68d20cfbec2a35b203ce82076862"
+    },
+    "operations.calendar_slack_training": {
+     "assertions": "f6464a55344bcce347271cd2ccf02a7a84d85fb59e96a9ad49ed96844059c445",
+     "data": "85211c22d189f2e9c6ac8ebf844e8e63f168a326a3068dd47798340eae56907c",
+     "initial_state": "805c9d4394974805689ae2c25a84eb2a9ffd8c40cb635ae511abbffc707bfee9",
+     "n_assertions": 15,
+     "n_tools": 7,
+     "prompt": "472229fea641f815def8ce4d42ca408b87f754e33d4cccb7d73c348530aa4dc2",
+     "tools": "c9570f248a67e8fc122d9cbf46c74440e4be7f2a5e9ad8dc36de005f8b061f9f"
+    },
+    "operations.contract_renewal_pipeline": {
+     "assertions": "9427a0f5ab3f7485f9e8c897ee820436948133122749dcb459a4496dbfc3cd72",
+     "data": "77dcf6a87b3111948ec816a320702e3e183c3350c32aa9369fb953d0de855ec2",
+     "initial_state": "b9ab597255b57fa003af199447e9ce0b7be53fa72da91db5ddddd0bddb81feb8",
+     "n_assertions": 20,
+     "n_tools": 9,
+     "prompt": "c5a1ece7ad5f66de86c53b95a4bc2f6032e34671768c269c201dd8ed7e17d878",
+     "tools": "e29f5f2eaf474a65cc2d884635e5f798d68afc4e96673d40a9fc80e9c9f80eef"
+    },
+    "operations.contractor_onboarding_workflow": {
+     "assertions": "7f9000c8f9211025d96af1f355731069e29ae87569bbb258fccd3a3a372403a8",
+     "data": "88ce884356fea5533851ab81745b6c32ff3ab273d2a146f525132c9dff9f9fe0",
+     "initial_state": "9e104f9623ce521fc341bc7b104790537bf40c3a015f155157e43c79f977f724",
+     "n_assertions": 13,
+     "n_tools": 9,
+     "prompt": "94ef41107744ff2f27456134b994a9dcc76e6e91ce07cc556fbe834d7931d618",
+     "tools": "a3a3ff3436048072b2f82ab6c7ece4e20986e997bb8054ae3196510bcab77032"
+    },
+    "operations.cross_department_budget_reconciliation": {
+     "assertions": "94f800fcbeb4323540a150f594fa0dd9135f143c03e02a7c021d91405992ec95",
+     "data": "06e71c565bcc53b2caddc25b52654d872400e8f9aaacdb6f90d144188473f137",
+     "initial_state": "72e6890f0fb135b449f1fc635d1b07c0f0456a11deb50b5f113836f3e1622240",
+     "n_assertions": 20,
+     "n_tools": 7,
+     "prompt": "fe4fdc5f20fe59285d454f3731096063053c04219b3ab788266b539f9ecc7004",
+     "tools": "afc5cfeba46f508799ec0f268b7d57b8948a305a1d127c938fe7da251495c98c"
+    },
+    "operations.drive_slack_dock_schedule": {
+     "assertions": "d4ddbc3627be31a4cfacd7dd5f2c5bf67d93b57d2427f4ce3d60552ead82a081",
+     "data": "ff790f76d93b778f282da4aff8fb3a507becb9b55f5351ff59cd80e8a7bcec9f",
+     "initial_state": "5a44706ee30fc4ab1e7818718d83e68096abf01da74d6f08daa9f58727c45a75",
+     "n_assertions": 21,
+     "n_tools": 9,
+     "prompt": "d23f73a1b8a4bbc615be3e6d13650ba086557406264d3ecfa1a7d6341f8669b4",
+     "tools": "d0ec7be1d7e8abcc82adb5206c43d7dbae97638fdbb64ead3be78ac7d5673a57"
+    },
+    "operations.equipment_calibration_scheduling": {
+     "assertions": "5595d146dbd08581d9f5662f8133186b784f37c362f752a5bfced3ca64cd44f2",
+     "data": "a1e6ed071c7a22e7a76cae9e33694549a51f3ae791ec3f1cf715bf1fe56f0eb2",
+     "initial_state": "1d1893fc26586a9ed377d75629bb6c6bb664cf482cab355082c6b44168b3405f",
+     "n_assertions": 15,
+     "n_tools": 10,
+     "prompt": "764677c4181fffd17e359f11af901eda402cf6df03e43f6a18af5b4f94ad8032",
+     "tools": "c6905fc8e0b55e0833208771a32a6513c4b523380383250ed0c29cdf4936084c"
+    },
+    "operations.facility_incident_triage": {
+     "assertions": "2d34a45d2fc30127b163772ea50f5b32eafc458fc6c68a8cb7fb4262ca549b83",
+     "data": "1244f98ca43f0d95610d8e30d9591ee973d256435dae22d0f53252b42fa8a507",
+     "initial_state": "5cd468d17abcde408420c64fbd41d8563a8851cc23618356f199c2211aeedaa2",
+     "n_assertions": 17,
+     "n_tools": 8,
+     "prompt": "e642ebadf69ec67e0846ffb0ab7074cba6c4824a4b4f30ea582092b87bcd9368",
+     "tools": "46f6034bdf688070b49fc69405f028a3057f4bcfc6ba6b0c375dd203853d7d08"
+    },
+    "operations.fleet_vehicle_maintenance": {
+     "assertions": "8bd369a1b5b8b6a13fde0f44f2d9b8b841400186c0154a581f97450633fb3503",
+     "data": "a874e48145010be20852e01c5d40d918b3886ef4bdbab0d7bc5b1392ea522083",
+     "initial_state": "9127bbb4c5efccd97eed9ee4a4ded69c77b21f83eef54d90b279ac8d6edb8d1f",
+     "n_assertions": 18,
+     "n_tools": 10,
+     "prompt": "aba4f8ec83b1ec89945aa0deb0835be951718a0dd3420619b1f7a8b288a4a763",
+     "tools": "2c76ad6685f76044c116ac230b7b4780ecde9986702ada5aa6ada715596d1878"
+    },
+    "operations.hubspot_ticket_escalation": {
+     "assertions": "336623104972474360e29acc3b9d9ed13f309635ef23d300d429466270746760",
+     "data": "ca6f9580cf1c4744a1b2a7defee778ebbe5a038b3484b8b2484c4cfeda60f1d7",
+     "initial_state": "6e00aa769bb317f1d6d1deb3c8dbc5a44772e7e5a2454e2005496b261eeff5e0",
+     "n_assertions": 23,
+     "n_tools": 10,
+     "prompt": "211567371578819600e88f07edda04acbd58dac10ab2c3328657aee5a178d9a7",
+     "tools": "63401f3d6d495851e1d85a8b1abb15a7f9a19fb5471160dc41f2a78b6de2f20c"
+    },
+    "operations.linkedin_abm_outreach": {
+     "assertions": "5616a3df08194cdee8a0872e66c1bbe7c63d1e1d5970d53f79b96a693b4f6eeb",
+     "data": "f8c0b9ca68827f96dab4a077d33e027e267b22c2aff51d836d61572fec8cce8f",
+     "initial_state": "a79623b5b7d19c4be0e7f7a15aa9256f52fdff7a9c6aaf970375724ceb0d49fb",
+     "n_assertions": 13,
+     "n_tools": 13,
+     "prompt": "ca574485b754db3fdf7850541c3d9f1680aaac0ca98c0208dc3ab435a28ed777",
+     "tools": "1eea697a54d2db44ae0091b0dfb0792899d7334e37024da6b16a44c6145ea8f5"
+    },
+    "operations.mailchimp_subscriber_sync": {
+     "assertions": "b4149dcd3087acad559aa3ac712d2a562885b83d65da59e9969b0a7ebb1e4786",
+     "data": "dba7c37425711c89b92887da09a96745d7b37c0c760802a47a402753eb7f31ea",
+     "initial_state": "9c0f745ca6c2450ad6d626136698b32c7713656071fd11f28d76f74e129a56a5",
+     "n_assertions": 17,
+     "n_tools": 10,
+     "prompt": "f4abc3f95312d8a7b929f321dbdac3a86cfb255cc5be057dbe3f5fadf90c9e72",
+     "tools": "7bb3674be861fc8a14d327be6e1544a854fa0ae364088a52e69f6f6bbe54a992"
+    },
+    "operations.pipefy_vendor_onboarding": {
+     "assertions": "febc55bf87f714a67c1fc017858033da4a3eb9a01bc5203f12e6757411730749",
+     "data": "63bbdebd4754a6e00779ccb88d155c2ce9da655e016080a8140325cb234d6c1d",
+     "initial_state": "f2089bb276801605dc7165d49065db51662ca7043c9977324baa1a8ed7b72561",
+     "n_assertions": 10,
+     "n_tools": 11,
+     "prompt": "33ac6e0f45b9484297f16d62258389db7af716418c8b8bd1a5d0be9dd7196c04",
+     "tools": "a257ef3167988e7fda70ddb791e262fdcfeb3dc6bfe763d5f54e83817ba90e51"
+    },
+    "operations.purchase_order_three_way_match": {
+     "assertions": "9a6a8f304f856fa754f477ae9c38747292584cc553bc66b56c158e33368b7ce1",
+     "data": "f03f1a52611c236dc21044b26ec4342b3c2957df19a746932f8f7a15d3a96ffc",
+     "initial_state": "dedc3ac0b6990d036933b2924ed98e82b8a5be7a181daa2c0cc1666c6425a805",
+     "n_assertions": 9,
+     "n_tools": 7,
+     "prompt": "4814cd663db9f721a18d328974ab267a0072688452fa5efeec12d007d779cd48",
+     "tools": "5bd2be6b19550e235367519ed71ab5dacfd5d916eec647876a0941ee58ea378d"
+    },
+    "operations.safety_certification_gap_analysis": {
+     "assertions": "42465dc98c2fcd090ed465aed5b2de0016ef27415e2bf333fd6b2551ac0c5d42",
+     "data": "b28c7b6eb18c1764b713bb746c8f8a42cd705954ce83efc080a1568d14c43e28",
+     "initial_state": "c539f158d7f3a30ae56be85b6bb2a94dd2f3fd681c61fc0f9ad441e865f5d07d",
+     "n_assertions": 10,
+     "n_tools": 6,
+     "prompt": "827732161f8b17475e82a9ecb2aff7c3e466ba07a7b23caa380097ed286e00db",
+     "tools": "e6916dedaaf6015cf102d6fa6a5d4fde6a2a2d5af5e8f67b1afcbaa12cfaf36f"
+    },
+    "operations.safety_incident_investigation_routing": {
+     "assertions": "a7097de7545e08e418de988ec87c2b2f90a0aa4b440587b40e32496a5fdcef1e",
+     "data": "f664a39aa2eb25467b2cccbcd06d831d313d2131e2f00e073ad6fd349ec1f82c",
+     "initial_state": "5a20b0ca4eeabf1216514d760edbf1cba4d78e6b4cbe33b7572fc5eba672358c",
+     "n_assertions": 18,
+     "n_tools": 8,
+     "prompt": "c05aa91d808338612437eddb3ad0e19fd7a23ce5694ea698847bd8e53784b212",
+     "tools": "46f6034bdf688070b49fc69405f028a3057f4bcfc6ba6b0c375dd203853d7d08"
+    },
+    "operations.salesforce_escalated_customer": {
+     "assertions": "01b6e9a0b19e43abe88ae86dd9b7d127d504409354519a5631731bbbaea66007",
+     "data": "532520e69db3bfec5ddfda23b38a7318b4469caf26721db85db4523d61f26c94",
+     "initial_state": "83600b9ee7d44c6700db8dba46bd20c250a0003ad4b3070f01b99561201c4eb3",
+     "n_assertions": 22,
+     "n_tools": 14,
+     "prompt": "d1f883da845ea83c6ff7d71e6eb3e723dc7f13e4568e247c377a89909baac76a",
+     "tools": "7e8265e2e3fc7ca1417cde50655c402551f335fda701f238e1e3b5d5a4f702d9"
+    },
+    "operations.zoom_change_advisory": {
+     "assertions": "29f03c5596923d561f7957a57712067988f8712a6f85574fc7c955aaafdcf903",
+     "data": "6696fb29ce94f0497db95e30510a664cdfcc9413811fa1b2dbc7085668556efa",
+     "initial_state": "071fb258988eda903a865b2d71ebd31593c54ffd3f65c2af0afdd20ec1556629",
+     "n_assertions": 7,
+     "n_tools": 10,
+     "prompt": "e048cbf5c57d66720fc30bb8c9c901bcd6e16795c8c4d9356b04506685a4b6cd",
+     "tools": "256edb4f9e7c7abe7995aaf5a3c226f2c4aa3c99c6fe9bc97c84d9b45f63e505"
+    },
+    "operations.zoom_training_setup": {
+     "assertions": "7e9b41998e89e21dcf87a0ec8dda72a2fe8bdd5c5164eaa47f3e98d5a86fbbf4",
+     "data": "2a0c05235293145d703fd1b9b1540b6800d83f7ab613a84dd65090c4630858f9",
+     "initial_state": "734feed30694d77e7c93b4edf3504a7452f05eea1d219521a6f8b204cf67e187",
+     "n_assertions": 8,
+     "n_tools": 11,
+     "prompt": "c417835ff9078264df8e0779d34ad12be68a778d43136aed76c769f6babd2281",
+     "tools": "f69b76b2cbed8f426b68a356e9d37c5c328717aaf6c1442a9370ca699a43bc1a"
+    },
+    "sales.add_contact_to_campaign": {
+     "assertions": "52bd8c2f1c9c59f174f7ecfa26be319adb29782c5cf5003c1694d0571db36202",
+     "data": "8a13f1ff59ecc123e5a378593766b3dd6c8ca2492b1e7d1b1c68bd011bd67217",
+     "initial_state": "3badf787fd8af5c880a1a133e409e63a670d794ae1c5347e905786bc17c4bd49",
+     "n_assertions": 9,
+     "n_tools": 7,
+     "prompt": "c295511458e1ee17fd45a99e5f8a4ad3967cd519c75b96950f71472af079a30c",
+     "tools": "5b202962e5ee731e30d04abf680b07674416befcbcd3f0cb578e7f32381764e8"
+    },
+    "sales.calendar_crm_meeting": {
+     "assertions": "5b2477cbd074b95c30067b62b981bc146b830cf61bb7d3f0979dcc2a031acabf",
+     "data": "2dcf1e4f9515a8fc29837ce8bf9ab9887b1e0bfcecd39c654ff58f8fc6f74dcd",
+     "initial_state": "fdcddeb25bbb0ef459d8bb5a022435a7224e06d6073e2588cc88bdb5c20b0ce7",
+     "n_assertions": 7,
+     "n_tools": 11,
+     "prompt": "b6ac8f55be4b93634dc533ce5f169fc2add5183104b01a7a0557169e634624b2",
+     "tools": "10ce2460375f9591363181ef4bbc30e2ca07532e2f56101ae719171d91483be9"
+    },
+    "sales.calendly_discovery_call": {
+     "assertions": "8315b62ca52c5bd5e307df0fb74b0cf09b4f61ca699e62251b55acfc7b083658",
+     "data": "5055c07c11bce5cccba7d4bcb5db0b199ec2c5df9e647e9e79c480619dba6bc2",
+     "initial_state": "b343b1f96c65881a4fd60235b040699a6bb40ca3618b6cbb1f900b142c31cfdb",
+     "n_assertions": 9,
+     "n_tools": 11,
+     "prompt": "b78c76dcb0b7cea3d10c081eecb76283621a24e17065868a89fc5d8ab44dcd50",
+     "tools": "5c5c818891135ebf3db68ca8089225b6e116c6ed680229f4eb4d898527308e0f"
+    },
+    "sales.calendly_no_show_followup": {
+     "assertions": "7677a46e6edff1e047740e8934d8ca6dc9bd10e7f61e30f2431fd51482c3b0b4",
+     "data": "32bf40ef13ec1191d9a161a03ae4742ffdfa8a1147523cd58e1e4e97ae2c23ad",
+     "initial_state": "952fa44c195e5f360148c31cd852de2159de58edc9c666fecde18aa4e6c26637",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "67e4428f9d4e9341846c0665e82e30416e0b529c06e2537e3c177ece5f888cd5",
+     "tools": "655eff0c3d58cff80f0406b3dfe486eb82595fbefc23bcca6022f3a8fbe6984a"
+    },
+    "sales.competitive_displacement_outreach": {
+     "assertions": "ab03997392f641e72a10d2c342385a2c9cc0fc908ad8b537cc14e37ab50eb292",
+     "data": "9c06e372d228c31a1777622495c3449ff93ccc136b40de65c0c9b08866e47aee",
+     "initial_state": "22a57a6935bea2f62a9f1bd87c04451be67992258659577fde0cc74641a037c2",
+     "n_assertions": 24,
+     "n_tools": 11,
+     "prompt": "09d1795e7bd3586334df59658c741b745597b49f0a4bf3e503a758c328824b66",
+     "tools": "e487f535725d0724dc90c6a655b2ee199998b51c41e8d76415669998bba8aab1"
+    },
+    "sales.contract_renewal_coordinator": {
+     "assertions": "8b52e7f26c959cc5ed94ad802a4ac99e2f505be9a667a8ca01bc5619743500b6",
+     "data": "6a6d384c07549dafbafe656a536b0baf8d8f52069d65fc751706e334f1a05050",
+     "initial_state": "6f0ccb7d82602b01809268198a632e0c5d44347ecde69ace3218e101b08da5ea",
+     "n_assertions": 11,
+     "n_tools": 16,
+     "prompt": "2cda18f98f5353cb27b7fc382a39354adad85e14ebce8f636f42e9dbb05ee79e",
+     "tools": "79a9471d92cfae74636c29376064583bdb7e60ac737ef6408dd1e010cf60cddf"
+    },
+    "sales.cross_modal_renewal_processing": {
+     "assertions": "420d3cc5e595063bb74bff4da5553e3e983daafb51c898f0ea6746b2ee795d57",
+     "data": "3e0b307284aed2da8730d28df0be18cb554b6c59248ca5de6434087c01993578",
+     "initial_state": "6d9479b2d4218724b472f41542f6ded14e8c56743c2d784942bb0932d109e6c8",
+     "n_assertions": 11,
+     "n_tools": 12,
+     "prompt": "0680fdf72241425d844c74165a1d13de4d0b2b1ad33f9eb1f0d496670ecd2e0f",
+     "tools": "cc81ba15fe6ca493f19f2847348a533007f367638c41794451e66d9cbe7913cf"
+    },
+    "sales.docusign_bulk_nda_sender": {
+     "assertions": "242aed907539eb8dbcf47791b58f370b8d0fc6ff5dcbc4676d6cc4416ebdb5e0",
+     "data": "8aa4a3bc59c13cb1c5670974f8b96b0868a4dbe427333e798538c7bf5019c647",
+     "initial_state": "883b5ae29e51f308cd0b1b2b5ea53b2445a8f5e34eb3787d3193870e0ffff558",
+     "n_assertions": 19,
+     "n_tools": 14,
+     "prompt": "854300d1fda52277f2ec8885a8d46243412a45a3d14fba10209714e38ca3466a",
+     "tools": "1651e127eba8e2064c64f6345fb94b69ddf8ee6448c0895c5a616f8a770cd03a"
+    },
+    "sales.five_level_conditional": {
+     "assertions": "95d18874d29c54c544734cb8322f38502ee51928715921e6fd5733915c33dbb9",
+     "data": "adfd638cbb7308209def082a3bafc351255dc86743e77079b94f225bee10333d",
+     "initial_state": "5dd40f4d8df55ad44509f5c7a9db488e9c56d209a513fa828b8e2c634d4088af",
+     "n_assertions": 11,
+     "n_tools": 7,
+     "prompt": "fb494c9f457e330c18125493ef75edcc4f7747deb0949b1b02b58e13303bda54",
+     "tools": "728f5cc51e3575df1b02a08ca4d20dd5fb43bdf62ef144a485769eb5f5a4070d"
+    },
+    "sales.full_sales_cycle_orchestrator": {
+     "assertions": "564f83ae26e4f08adde90798abb371f399892f4891bd4f4403c55aa2b85704b7",
+     "data": "6de47ab8378852bd3733d497302ba571dcd4142535b00997b4f86fda52322953",
+     "initial_state": "1e0ec6356ebdfad821ab5e7636fc78382790ce2a3752bb412cc6288a9a8dd6ac",
+     "n_assertions": 10,
+     "n_tools": 19,
+     "prompt": "d2b98b68c43a7c99cffc99717280a67039644c3c8f26c788ba84ea04f82b53ba",
+     "tools": "892740aaa3c4df16b08c60c6ce648f40315cc96f6d328f2c7b5be5abf028f7bc"
+    },
+    "sales.gcal_deal_milestone_tracker": {
+     "assertions": "9af24d15c262059c01b4ccab119f4270f9716cd1cb5811096d051c4a63f52f2d",
+     "data": "d4ca7ccbbadd86876a74c4053b16847051694d26a70064ab47ac4099611341d6",
+     "initial_state": "0014be48cec3563e02cdd6d6f20cad89267fc6d435714ca0160616193402c12d",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "3ba7ef47a1f44b7dd295c604dac6db3932766215e871c1a5b97e06030406d1d5",
+     "tools": "c49dbaf1af58288ad2ecb74bbd4d9b9039ead4781c677d8bb929acca549ccda2"
+    },
+    "sales.job_posting_contact": {
+     "assertions": "5a013df825c265ff65b843c3b8e86700c45d295dd56601b4536a48369afebfc5",
+     "data": "4d3115d4166be58c5ed7bcffb73f9537624b6880eabcabf5fde330e756ec7fa4",
+     "initial_state": "509b2ab2601e81a6ce6ee34f3147e87491b8e8eba5281096c22c9174773e6dcf",
+     "n_assertions": 9,
+     "n_tools": 13,
+     "prompt": "bde374c4156ea6b7c4b25e10ece34985f1a43a2aef33e865b3528977714122d7",
+     "tools": "c06b638021c867f5456be1540e13453bb811c6c570f8e2aa6a56356550a37860"
+    },
+    "sales.linkedin_profile_enrichment": {
+     "assertions": "fdb4ac986fbc84180f8db0b8c079048e5bf50e6f8d7f915c7fa296485e7d93ee",
+     "data": "38fd809cf4d33bd1af6af760d73dfefd9def4eeb0288a28fc2a32d5585fdb52c",
+     "initial_state": "e5fab35da7fe964b165b74e528b98b57854f74116539781551be301ed68cebac",
+     "n_assertions": 16,
+     "n_tools": 7,
+     "prompt": "159f445049ab9688ffffb39b2fc2d433458baabc5f9319472612daa56c96ad67",
+     "tools": "17e8884ab1abcd55fe02a22490fe1aaec618685521e7299fadbd724a0d5905bf"
+    },
+    "sales.linkedin_signal_monitoring": {
+     "assertions": "6857cc71d2d6f9af9a98d8bdeecfe5a24197d3fc1d65b86e10d93e1b27c6bc3b",
+     "data": "89f1fab5b942c9705108e689e4a47d4d3143cb9f0dfd300a45daa28499397e12",
+     "initial_state": "a41d77a8cb27ce3b433aeede8a186501c3e86d5a7614e79c5ec7507b2c870ab4",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "979713defaaa67b74ecc31709ee5bfc2a5b560113798ad4e29700ba40c916f42",
+     "tools": "c1f75d797d9687abfbedb59113986a08a4fe3fa8fe01a5f85497b2bba3efe62e"
+    },
+    "sales.multi_step_drip_campaign": {
+     "assertions": "a1d0eedd2c7d18a190572067f42345992d426632a86542272e99e60e222f2fe7",
+     "data": "c726b64177f979624768626108ad6fe01e7ee6b023733f6a65dcc78a63175efa",
+     "initial_state": "b086a48e807f55a2ab454e2e8709fa469ee2266a56badf5dcf84b43bb7e178d2",
+     "n_assertions": 13,
+     "n_tools": 6,
+     "prompt": "ad62742919eb6a16ff325c55c3b68c51b84f7af0120085ed6100faa501ecbd65",
+     "tools": "48fd4b735175a3776cfaba486de42f9a7ff344e1ec6fb191dc95d9351261da2b"
+    },
+    "sales.slack_deal_notification": {
+     "assertions": "88bc1b68feb40012cf0b9132f0c08df05ef911185da65445d745de440debdce9",
+     "data": "4bebe155adf2bbaf5888aa2d9c04280152cf53c2e174daddc6fbc2ea5d720f9c",
+     "initial_state": "374dc05f981dfb9ef574053ce666efebfeea36ea1124a0e08f83e3a832e2a1d2",
+     "n_assertions": 13,
+     "n_tools": 10,
+     "prompt": "4a61f5528b7260446bdf80c49036b129ff789a8b42983ecaea3ef177a5e6e609",
+     "tools": "2aade7205f0475f9cd78af165efd9c95ac6edca7300a30de47eeb7b3956f7f21"
+    },
+    "sales.unreliable_label_account_review": {
+     "assertions": "4315afe981fc77aa4bd3d44447a8100b1ebc5ac2482138ab99b1a665de3329ba",
+     "data": "b53aa2b073da7c3826912691d08c32546baaea2d7b1a16c34ec3cec1c4106a9e",
+     "initial_state": "36d9179e195373e93282af15a8af93d79962dcf42f732b59070b52764032d14e",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "d45d57acef8e9029a201b21203f6fc8abe7a773a0050d735c31a69bec26a7c4e",
+     "tools": "e779429d41cb1f3d59aa6740fcfdf11a4240337e16a6b5746cbb9684acfb4e65"
+    },
+    "sales.weighted_priority": {
+     "assertions": "5329a608e491a950ebed2dabc7d4eb5a933b5a22516a910c859e780998d803b9",
+     "data": "3d82b9768c782c6d77946cd777d66947b9be07decf9732461b4205f8ce9af686",
+     "initial_state": "27866c0b98cbae805af6620d3ed71eaff48295bbaa5390466ed9284a193a2ee8",
+     "n_assertions": 4,
+     "n_tools": 5,
+     "prompt": "d10600f60dc6f96cb64cbf7de64e312166421271835864ec5780612f8af5d31c",
+     "tools": "c7678c4b15f7dc3047ebfbcd859f5038dbeb65bba7976f628d2b41858199a9d9"
+    },
+    "sales.zoom_customer_health": {
+     "assertions": "a1d6477e049ef50f9ba766f8181c2d0392eb714097f8947e88c331a724ab01a7",
+     "data": "8af5165748c198c3a1d43269fb7f333b3322fe66691607f8d879f9dad03a61f4",
+     "initial_state": "1c5099f0d4cc385ddd86682f34d91d26680c9768048b3899b646001795a6f18c",
+     "n_assertions": 6,
+     "n_tools": 13,
+     "prompt": "074b15b41d24ce6b66a82040b82f9677f51957ab932ffa230b9917b888eb81cc",
+     "tools": "d4190e884246807a6d6589b02ab8ea2817247cb3cbf01a5e36b0f0f32f579160"
+    },
+    "sales.zoom_webinar_lead_capture": {
+     "assertions": "71ef16a1234bcac7b6335f387cf27d873466ea1cec863362d9c49b19d619b9f2",
+     "data": "196a179b56836160ecb7a6d767c17bec7b73bec6e5326a156d992970b0448123",
+     "initial_state": "51da46324a53909b7027302d519714d5bfb6dad4efd76875fc973b138594c874",
+     "n_assertions": 15,
+     "n_tools": 9,
+     "prompt": "bc7ae2741cae9d8547d8e6b59ff67816f5b2cc1f227ee98016f5e2ae7d168b56",
+     "tools": "803ca613a5c58a6dfde44eaa6af3ba670903ce3d8d7de08da3891b0e99352353"
+    },
+    "support.freshdesk_contract_renewal": {
+     "assertions": "71ae8ce27c18ad5dc75621664412c82ad30e0a64f3e1a5547dc10b4dbf78cc87",
+     "data": "d0fb30cbed9fbf04d3b4c370cb7ef310b30a609bcab9d8074aa3823c1154ff7e",
+     "initial_state": "87ca8ded4c8476aed103d9a38c3f3e34f8aa55355ffaebfd0ef53241bab9c804",
+     "n_assertions": 30,
+     "n_tools": 10,
+     "prompt": "2eaf53a35eec072d8a95cc4523adc510c6c48df031b80b6a0d22f5e42bfb68d2",
+     "tools": "33fe5a08d726f69f66a416a92261483d676391394b37431eed9791e3dee1bf6a"
+    },
+    "support.freshdesk_reamaze_migration": {
+     "assertions": "ca483bd6e62777157a643e2649c32b50c4001c1e5f47ff79cdc7e4f37fd0ce30",
+     "data": "e5cb7a402dd111a05305e7c69856804ed061ca2eb384da022cc8ae445be55980",
+     "initial_state": "0e2904fc4a899b55a788a45528372d1bcf4b10ae31e3e4fc759a35cb1286f08f",
+     "n_assertions": 34,
+     "n_tools": 11,
+     "prompt": "79e8b48dc9caa7f8e24ffa88e20ea04e9298c5e56ccb40de36e09b871f4f227b",
+     "tools": "87f2a542cc3390aabbf4dbc64627ca78a211dbb5833a5fa732c9412c6f24946d"
+    },
+    "support.freshdesk_sla_monitoring": {
+     "assertions": "42463d1e1cfe0d265c6dacbc0e5728969ff35135139a89d2af56733b5f77ae63",
+     "data": "0a566a22a61c8467f31ab718b5514362276d9d2db416d05e84faf5ed65001786",
+     "initial_state": "84a89491af2961cda422f6ec21e3d8464ad541f692365c46097093b4ae9fbbcf",
+     "n_assertions": 26,
+     "n_tools": 14,
+     "prompt": "2c5a7a83302331679659c009fb564dee57fda138546c86767a647a1770ece088",
+     "tools": "2b731ac4f7d7bc82be4d39738ac8fc5293c3e7f871ce013687a8cacb71972af8"
+    },
+    "support.freshdesk_warranty_adjudication": {
+     "assertions": "28c47264d5c540d7989dfaf1ee1b06ff69923c7cb6087f76a3d6026237576fca",
+     "data": "66081e4735108f77a66e25bf85dfdbbab83a478e096595c5f4aa36f02616f1b6",
+     "initial_state": "f38ccf86531849f54a71deba21cda8fca59cc3e397886998b409298b32915c85",
+     "n_assertions": 42,
+     "n_tools": 13,
+     "prompt": "0b38e0f4eb505af138819454c03acedbfa5256e8c5be38772cf387676c224be2",
+     "tools": "e3d52acc607d668d8bcf5677243214a5b1da5bbbca50f4135dabae58f77c3310"
+    },
+    "support.gorgias_loyalty_program": {
+     "assertions": "f3da219d027eeec460b3c1265fef880bd4e8beecd55d2779d24bf70f9bd21d10",
+     "data": "ad346a8842980054d41a62907372bae162879780f133baf60f4404a4cb4165fa",
+     "initial_state": "822aa6fe78dae3a5c464654b60f88cf4472eeaf238f55bbc16c000d953e50f9c",
+     "n_assertions": 32,
+     "n_tools": 12,
+     "prompt": "f373d1640c57802fad03ce20c7b13d1b3cd5086d627523cda062fc756d6f5e30",
+     "tools": "fc2f0c79ef224bd8eb93d00116a9ceb67c6061b2ab60066ea66d4c8a382aa3d9"
+    },
+    "support.gorgias_refund_processing": {
+     "assertions": "4c9385ddacd8a15c45087a2d01393b8f8ee32726a6d4b139b602c65b595270d1",
+     "data": "80eddcc3b469f828f5a6e47ba56cdcff8eb1466876bb2ee88c826d3899e466b1",
+     "initial_state": "a413d5d1c1d0861a074640d5b9e99036306b6f17287c8fe4f365500ac483fbf7",
+     "n_assertions": 63,
+     "n_tools": 11,
+     "prompt": "54216d3de84ec181bc86b2c8dd770ccd2d53b4cdc72ed441181fbab1df054ad5",
+     "tools": "b789ac486c506573e50d6b3ad0d2ccf7063d6cde89d6a4688442a485e4153198"
+    },
+    "support.helpcrunch_trial_nurture": {
+     "assertions": "e18b3d06df68c1cadf6677f1e7bee88b042715d892d6f77ef42b5a86df62edea",
+     "data": "07112735c7b901283e000d9589f6ebda257569d0f33e8520073b1c391a3769a1",
+     "initial_state": "4ca7a5ebf5fe9ab757266d2e3848c52dd336abd71729bebc221d55349cece901",
+     "n_assertions": 29,
+     "n_tools": 11,
+     "prompt": "717de4a4999e45fae95ea18fafbbc3e39348e811550c5e876e4d86453f167678",
+     "tools": "eaf4aa6713c6aa2a7c8a95434d379ca8266c7cd568b0bfd1feba953d255b0cbe"
+    },
+    "support.helpscout_customer_merge": {
+     "assertions": "55df1b39423ba1777e74090122080343505a99582e5825241963eea1274abde7",
+     "data": "2ba052eec58dd2e5232f1cd60f7e440229e4783b1786752847437e5a80fc184f",
+     "initial_state": "075fed969fd4382cf1d6e48755dce73ab075012342bc56e500e50db4aeb158bd",
+     "n_assertions": 30,
+     "n_tools": 10,
+     "prompt": "7fd999ef9331b6bb1c7af88bbbb3b6a86c8f4c9a6d02e9498f36308d7fb6c88d",
+     "tools": "37b5c2299bc11d8445fe5e46cb96c2f78aace3132eda04692cfa794649e95baa"
+    },
+    "support.helpscout_hubspot_deal_alerts": {
+     "assertions": "3d5fe43080f7bacd38c9e8bf4238619950ea7dfaaba024ce00c5b78a83b4f340",
+     "data": "fae5f0843efd318c4dd3caeefc97f952946d6c9f727bea7f63b3f4e55bd3d622",
+     "initial_state": "94b1840bc88e885a44f13d487324c547a7bb54475057f0d250470649333ce414",
+     "n_assertions": 30,
+     "n_tools": 14,
+     "prompt": "0e5b1c9666d952b3d5fda0256394510ced360799a9eebcbc938487abc716efb9",
+     "tools": "9bbc957001e3c750f1c629932e1f681a21dbc940a6de0fe4e7d56e9cb459f76a"
+    },
+    "support.helpscout_reamaze_migration": {
+     "assertions": "529efa2d806c919b443e675ec7c2dde96f016d9de61a9e23b8a6c534cc2e4df0",
+     "data": "da6be11d4d9da42db925feeca4349e646fcf2cd8e61a7f99596f4a1111a37359",
+     "initial_state": "881660294048d8227ead98e285ca4da237a6488b8981e86d318153ce58acdca9",
+     "n_assertions": 27,
+     "n_tools": 15,
+     "prompt": "f0054cfdbd3455a08773e604ab979f932899d7d732786c7a763be4bed09d2675",
+     "tools": "84c492f4770bb95ec7400d0b338aef0e43fe0174c8060d4f5dcec92ea7da5d02"
+    },
+    "support.helpscout_weekly_report": {
+     "assertions": "1d766f03a61a19dffb82e1f0f79ca939e373f7039e1cc7a2fc21f5a5d749f458",
+     "data": "e1eef4e87d4b07c581dbee203ae9ca793ac670f8f6168371f524ff53f6783208",
+     "initial_state": "56b7b4f0a23b24c807fdaab7ff25ef4ec702f2aaff803c29b317f1cc1a7f7b1e",
+     "n_assertions": 38,
+     "n_tools": 10,
+     "prompt": "a32f57fe42c2f9779d216510c377fc0ee1635c8437b81de4720f816e8ae11239",
+     "tools": "5727081f6e1e493a57f637fb0d0d57b873b0061d9311a6460db18a903c2f3771"
+    },
+    "support.hiver_csat_analysis": {
+     "assertions": "fda2b38cb678f610c3c361bb6d513cc4246081f590f75fb1e73e9525d20acfd7",
+     "data": "f1d5dec28c08fd83e5ce426ac18df63ad081bee75ea8e445f4233786e4f68e8c",
+     "initial_state": "6915aad6ccc01394cb9dee022141d1330405341e1402af2518ea19a1c3365681",
+     "n_assertions": 35,
+     "n_tools": 11,
+     "prompt": "fcecd9008ab8a9c5eb511c46a35fc03e9d2bc52df022b1f2f54d9ef5eb04643e",
+     "tools": "8b4a425a7a9a20bbf211211b28079caad3786ecd4f607b2f4b5a1f93266f7790"
+    },
+    "support.intercom_zoho_customer_360": {
+     "assertions": "207b75eb1cae0f2a63f98e99e845a3d78ea8817fbca63399385859db1ac00510",
+     "data": "b944435a233519e5cb623c2cbd46b259478e82193b35ec1287aa008b7283424e",
+     "initial_state": "6f84d27ebeac97752c4af10353544f596bf27255910de8a8d9fcef69e860e33c",
+     "n_assertions": 33,
+     "n_tools": 14,
+     "prompt": "4e42509ddaeb896e4906e0e6766191ee592fdf0620a4aa24db7df2acf323e06e",
+     "tools": "9838339b9853cdee5f0db809a2df5513d446dbbc9d58c13d265556fbcf9ab379"
+    },
+    "support.reamaze_feedback_sentiment": {
+     "assertions": "694ca4dd1b059edfddc8625cd507e1a6516441de85c47242604547c8f98ece54",
+     "data": "e39e17ae3942a77e698b9ec75531953fb460074f631da70d87dfba7810b8f3e8",
+     "initial_state": "ae9591abd901b03d93de8622859d5e99afaa9205c2f5af4981dd80e3a89f3d33",
+     "n_assertions": 32,
+     "n_tools": 8,
+     "prompt": "fdb975bb739286120e80b814a86a405878b4655a669efa8860b375e0d3232b8b",
+     "tools": "dfc51135e0b579436745bb1f9c2d780ee66adddae84a9a484dc0cbd3a2873a20"
+    },
+    "support.reamaze_intercom_sync": {
+     "assertions": "596695c1861330f73a79f591b1718e26eff2867f39942400db4a786059f867b0",
+     "data": "bc62844e2b96a10d552adadb330287b7a527a26d58797e861598bf7c781f2f9b",
+     "initial_state": "a5295e9711d7ae29f1d8062961d8fff131c3cdb6e3d7fd48238b169ab3cdcdf7",
+     "n_assertions": 39,
+     "n_tools": 21,
+     "prompt": "e5511f54820942077e7f8eb79edac115db5bef9d8697dbcd6b8944ba74b3ed14",
+     "tools": "66cea39a4fa13465d374233be12a7e187c0bdd69838516b4cf99f383027283b2"
+    },
+    "support.reamaze_knowledge_routing": {
+     "assertions": "d3188e357dc95011042396fcece8cdebe25e0f21e9d4a4ecfca3bd52b23dee54",
+     "data": "5fed61f4f9c79946c9c486934dc33515a977922306e323f94a9d91e69d8c3d0a",
+     "initial_state": "d2baa4fcecb6ac2a2e34ac3bde407e4af7437f487882923b1fa61e2bb1dc8909",
+     "n_assertions": 39,
+     "n_tools": 8,
+     "prompt": "75a35c68aa1ba99a289d941821d9b340772714abc8a42979b851856e0d2719f4",
+     "tools": "25768109cf088510ddfd103b282c8abb61d59afa0b0e4c604a908bc282e245a5"
+    },
+    "support.zendesk_cross_org_merge": {
+     "assertions": "db78d573b7ff6ca9a7403b9d21a4bebb171f24c31ccf46a400ca81e463130a8f",
+     "data": "251a293bed9f783fe4109a5e26a316a6962520f7a034d3e03b9894b533c0f60f",
+     "initial_state": "f02dec048c26a0ebf19938c428fc8303760930fd70ea63f091fee3a91ad0247d",
+     "n_assertions": 32,
+     "n_tools": 13,
+     "prompt": "91b961538033a321f7a00d0ce088081c6f810fed7b15efb84e4a65cf06c177e4",
+     "tools": "35471a6074d003b036675757f4c173662ba63e883099d053f0aea224c9f83348"
+    },
+    "support.zendesk_freshdesk_reconciliation": {
+     "assertions": "123affc81b649db7580b7cde11f440a6264d7b4432d1570f2a6c7c468d8581e2",
+     "data": "71f1386dbc5ad8e160bcbb52c4d41e13583f20d527a1820afdce00be0d418452",
+     "initial_state": "aa9d06eeafd870b51e87eb3dbe894363ec2989225cdfe6678a814c18cbc8a3b6",
+     "n_assertions": 32,
+     "n_tools": 16,
+     "prompt": "8f7ee9fdc17ecb5026801fa55f75bb43b6ecd6a2827f69b4a7f5d6a0bfea3f0b",
+     "tools": "9786e7a5cc013558bee38300a43221786be82e4ac235e2d476ce2b7c0a9fbe72"
+    },
+    "support.zendesk_gdpr_purge": {
+     "assertions": "620792f677da9aa00fe10c56f60f6d4b9ce385c700e0d15daa3d66b0c8db75e0",
+     "data": "e7c2a2b91af9e097afabe17a6cfa03a4e06613fb472afe7f8b2d0f4c69aa557c",
+     "initial_state": "ec9ea89b565199820e14e37f0cb73cf414c89812dce5e206a6197dcb651dc76c",
+     "n_assertions": 30,
+     "n_tools": 13,
+     "prompt": "e6c10ca44327842122dce990d234b4dd35f9b90155ed8f58d1a7b07692a117c8",
+     "tools": "985de8d47c14ad8f4d9858c3eeb2403fe003ac9ff285e665132f03c4b1368228"
+    },
+    "support.zoho_desk_customer_journey": {
+     "assertions": "c49d4664e9f019e5e2653f634642023e7597c90eaff871983172230dbeff954c",
+     "data": "3023b80d1a382133a38a3cf20834e4766ab057c8a14292d6f75482ebebf6abc5",
+     "initial_state": "79b9f24bcde895dcb1a49456e29e1bdd399ee63f726501b02503a75e9949f54d",
+     "n_assertions": 29,
+     "n_tools": 12,
+     "prompt": "cc75aa9f52cd1e4516791ad0148ca9aab9fb886b199ebea6f8111d01e75f6d92",
+     "tools": "5379772884920344ccd6b6e99982d6f6fe5313bc243b0047f7b4970ec97e6645"
+    }
+   },
+   "tasks": 120
+  },
+  "train-d204": {
+   "names_sha256": "802a435b06907a05e921f20959b99abbd1159c8e5f3dab81be18e4a26d2e66f4",
+   "per_task": {
+    "finance.ap_turnover_analysis": {
+     "assertions": "4c1e7837492024f55b4e83e59029ff19a9bb6f13d4b3f4242e2405d79e3f10f0",
+     "data": "ef76be3fba025f43a5b7b04ef6feec85d89ab2c52732c1c78821fb194de7f735",
+     "initial_state": "a82c9a2932751268a84c58119af278b4c3ed16a5449fe1e5cfae95b71b0d897b",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "ea2b58c0d6d22b4c9ed09255a3e4899828557f6edb8e0aa8d4a9de818f827d35",
+     "tools": "569553c4c4ad7c33c4cea9ed3c2988ccc2a2eb7d95c1a450bff262f0a0cebfc1"
+    },
+    "finance.audit_sample_selection": {
+     "assertions": "d60d3de98d51e0d38a0a4da3a319e3db29adeec8bce74ed6ce793b8a195a80f6",
+     "data": "1fa1f9beba30f5f718196d715f29685ca5f1a669106eeab68443131a1352741d",
+     "initial_state": "cdbb8f2fb46045d1b5abd59bbfeaa95e54a3b2dd935ffb8ccbb3883bc5de5906",
+     "n_assertions": 12,
+     "n_tools": 6,
+     "prompt": "e309d69ea6570c5d746dceceb2a59b21192a27ce9cc26d72ca10298d8bb9d6f7",
+     "tools": "b17086a88c19bdbed1fffa6f7a37da45799e9a8c11915ec22adecc35ef53b55a"
+    },
+    "finance.cash_flow_forecast": {
+     "assertions": "b6a016fbf24204fcce64f9e1606ea805f531bd2050c7de35824f8e3409945395",
+     "data": "38dfafd01036e889ee8b4df39f8f486de40d781ac2a41d01e3409e49dba58d0f",
+     "initial_state": "d8b654984c516c1e65d99a6e0c3d629abb625a9fb667449027812548268f6d1d",
+     "n_assertions": 11,
+     "n_tools": 5,
+     "prompt": "57b49ad931d76957603ac4a8cf74e2cb94e9df6ebf0c92c389df9b06f88a7523",
+     "tools": "e7890a3a22337440cdb201b4c4c75cf4565cf1297dc017c62feb2596cbe50d4a"
+    },
+    "finance.commission_calculation": {
+     "assertions": "9206db518d9e53a52b565222d8afd0068eb881abb3dc6b9f41b0f54bf1f225b0",
+     "data": "fd42e583d814c67c1d076b834d664278ac11820804aec789213cdd9dc752969e",
+     "initial_state": "a46eecdeae452361b36268c2665fc61bb01fe65e8af4daabbe2a3e2ea54c8a7e",
+     "n_assertions": 10,
+     "n_tools": 5,
+     "prompt": "775a94017bed8765b2509cf02a161845db310477e860438e4bfe1d05664aefac",
+     "tools": "e7890a3a22337440cdb201b4c4c75cf4565cf1297dc017c62feb2596cbe50d4a"
+    },
+    "finance.credit_card_reconciliation": {
+     "assertions": "ae79f5dae32017164619e40b389f285a94a6a11e8b23f9b01644841d634a57d9",
+     "data": "93d7276ec59e1b939599877797d68451d44740e5796ef0f98dc4c274c314a099",
+     "initial_state": "e1adbfe0f51dad4fd02b10c50cc49aa9ee5d11ddf17f56aab22ec54c508a433f",
+     "n_assertions": 5,
+     "n_tools": 6,
+     "prompt": "7448bba30439335259dbc9f2710adc62cb6d80f2be95c21b3579021f59aaccf7",
+     "tools": "90771229b2f72efd77563396c95dd174dafd7842442fb3efd9bda228a7503bda"
+    },
+    "finance.depreciation_schedule": {
+     "assertions": "84bde6626685677b0ff3e3f22bca269aff5c6e30b0fbff650e8fe4030d2842d6",
+     "data": "35aff85311c2ebd5544d29a51e39c44d37db7cdb281ccdace504d8ddbf087afd",
+     "initial_state": "97ae1c77f7f0bba2d4067e4d35309bee73519050e302c5576c4f490fde90ff97",
+     "n_assertions": 6,
+     "n_tools": 8,
+     "prompt": "ffcc3a19986362f7c7cb728ce79918feeb3de8eb0be3cbd52591f32efc80cb1b",
+     "tools": "e1830b4ec4ed2bb43c78e997870a23ef656ee366a747ae6c7f2774ea67016f97"
+    },
+    "finance.expense_split_allocation": {
+     "assertions": "7c2f84fc4070d8fdc1e8c4cbb1660b87afc001c16e163285247eb83362d02f72",
+     "data": "d40d0f51bfbbb0e64d1d40d611727de267b1b10d533b51d22807e06e85d9f54b",
+     "initial_state": "57ada814732897453415fe4c71b8b6007ccb0ed2f7a8e10777104c005304721f",
+     "n_assertions": 8,
+     "n_tools": 9,
+     "prompt": "2bb04719b7b8838d75768ffefb63efe96f59bb6d082a3a4557d9abe79c4db08c",
+     "tools": "e0083372fab7455bc5f5ebb5ddeb85f4b32a861981149bd5b24222702c72de25"
+    },
+    "finance.gl_variance_analysis": {
+     "assertions": "9114e9e0a6ed7fc8a9c167000e16829db6a9fca81653a0c208bc8dc6e4c05f95",
+     "data": "1c4e8075f90b2bda46353305f0e66030ecb5ab37f724f0d1824d537c0111774d",
+     "initial_state": "b8b750c52f72faf011b51e2caab0790fafda3fb268cc7674c504a020e4bdc97a",
+     "n_assertions": 5,
+     "n_tools": 7,
+     "prompt": "4b0a40aaa5fb7634c3c6cbdafe79e8e2584f8b54ccb95066b3c0f4491dcc54c2",
+     "tools": "db88edb9537e3c5a444e71beaa89e9925197d7b64e88acb54d775d5db7c5a4e2"
+    },
+    "finance.grant_expense_tracking": {
+     "assertions": "ba539c49ca2d2fed167fff667bab6f1478bee0e5317330a36927f6d5b4d6259f",
+     "data": "3ded438421b78cee9fb150cdc7851fccccf47234bf05d2af8921c56be147d0bf",
+     "initial_state": "998fdc87ec2bccba7642307250b5600fcdc9f510df2326e66ce91f886e1c9be0",
+     "n_assertions": 4,
+     "n_tools": 6,
+     "prompt": "74bbbab33fb947a150a4f8e2b656b381bf3867ff0e915ca45c56f35cea557488",
+     "tools": "90771229b2f72efd77563396c95dd174dafd7842442fb3efd9bda228a7503bda"
+    },
+    "finance.intercompany_invoice": {
+     "assertions": "54b6c7cf77d32aed67c8be9e1290cbe87a202af9422b7aaeab152c3c1bce0a2d",
+     "data": "89e9d5b9989830462c35e78620b21c2e16d2a2e5340f64062782bf909333dff7",
+     "initial_state": "ef1f6b342a7d2b196e59677121ea276b3c804eaf397ec2759cabe4064c89582e",
+     "n_assertions": 10,
+     "n_tools": 8,
+     "prompt": "72fb1997f049fd8b4004ec6fa7194eeec004fdbad81fd54175f360b039cc436a",
+     "tools": "cb84ff2c4cfb1a2af352129f6389f946cad0344a9873d81e60ff680819942554"
+    },
+    "finance.invoice_aging_followup": {
+     "assertions": "e2692035b9e6482ae154214507bcda92995482aaf34ef26a00a67b238e7d06fe",
+     "data": "4fd27fd4521237618444d79ed77795a7eb8669baf5c4833832bcb17e73e4fd04",
+     "initial_state": "20cef2243853c6ee66220cae41f3ce1febb5b60d3b1a0ed72f3d8943946bbc7e",
+     "n_assertions": 7,
+     "n_tools": 9,
+     "prompt": "85b7b8ce3fef94b48ec1b85b3d398280218679919be86f85a663a991d5f42ee7",
+     "tools": "366d2f04bc515f298daa1ffa3a8114a0235217cd3d1b87c64fd66908d4e63b98"
+    },
+    "finance.invoice_dispute": {
+     "assertions": "d737d04008366c9061429e2f0b5326f9ba8fae6f1115cf9147d109ec49e6a86d",
+     "data": "c6153e7e1e7a2f494441ab3efc68e135af6da482031dced167df13bd65bd8bce",
+     "initial_state": "3ae19f86abc7f407f2456fcd42d247e0d2a8d4de6befb1f381e6d1f7bee6b2de",
+     "n_assertions": 10,
+     "n_tools": 10,
+     "prompt": "57892777b360f51dc8a78bda16f346650c717cfeed825c71796ef2ff3367881a",
+     "tools": "a002d1a6920d1b2a1e8798cf991d6963ae3a42a8c5cdaf408a06d497c0a9154e"
+    },
+    "finance.overdue_invoice_followup": {
+     "assertions": "214981bf5b7e081df89ae5a1c8c77068fab4ccae2fc90f3d1c092417d45b80db",
+     "data": "21e27dd81ddf07755267f44e5de2d82bee9afef7186c18f6075f2bcf00c2a0c5",
+     "initial_state": "d9eb90a4cd95285dc5fb547abe62c9eccfb1461929d36052b386fa7958c22fab",
+     "n_assertions": 8,
+     "n_tools": 8,
+     "prompt": "afd10bcc69a97faf4c402b0884e1c9b841e36d04c9dd09e2b8f7f1d8d367eb71",
+     "tools": "b62df48fba712c8248a5ca06af176f1740a80bf6942049d34dd04396ae6798ed"
+    },
+    "finance.payment_fraud_detection": {
+     "assertions": "e30cb1b6772e968be6b3a451b16053f0b00f4406322cde523ccf0d4a1be581cd",
+     "data": "efeb4c5647e3715405099cbb53c383992581ecf874a1fbc09414af94f4e89587",
+     "initial_state": "496a50aa5202e21e2e5c3aa3b2d1708cbf8b28dbede607365ca5a14b6c4bfcfc",
+     "n_assertions": 9,
+     "n_tools": 10,
+     "prompt": "c771fc08985ada7f337f2f476836d13972e626bda24c94d6e179959de294ac90",
+     "tools": "54dfbe756b344dd40980b75c7d20b1257a5c2c7f46218b0a6b90d3a480579809"
+    },
+    "finance.payroll_variance_check": {
+     "assertions": "111d307c764dd8a4d558c035fd0c69f506d5563c2be5c7cf41f547bbb03af9c9",
+     "data": "5289f6f16f8ff633336286cb226503e4626146cb5398703d80471790f199474d",
+     "initial_state": "773f126c26a4b8c604e9c0f596e2c7c27a8b179b17483cac130a310d24f839df",
+     "n_assertions": 6,
+     "n_tools": 7,
+     "prompt": "f7b9ba87fc5f3d66e3449037e2d737e38c283626cdf70e4c1fdfdb21fd31fe31",
+     "tools": "9b82a0e341b1bb30b001db183ec8294905eba1e026042eae01e8f548525067b5"
+    },
+    "finance.po_three_way_match": {
+     "assertions": "0d94b89d2ba9b7c9a089b22909b81e4edfee2c452d596e00ae8debe270bff11e",
+     "data": "a353a3c634c124c9daa63ee23f6191a838351bdda93524a1c5581138dc300a1e",
+     "initial_state": "b1ad00f599e280c78c152b1992537ac924d604432bb22461a85225451393cd61",
+     "n_assertions": 6,
+     "n_tools": 9,
+     "prompt": "2c39cf4177494337ed547e51eac3b8bd756f227bd2d1e22f07afbbf768ba18f1",
+     "tools": "2802a3b246a02751f05fde91292159ca1a768c5529665670dc314cc7fbee946e"
+    },
+    "finance.qb_bill_payment_batch": {
+     "assertions": "bb298ffba767e0974a33e83c31d53d7f1fb9516dbd97be424c20ee469d5df45a",
+     "data": "f26afecb1265d17c62833eb65aba472f5719c92b5143529e9deab9a827c77460",
+     "initial_state": "119e25088dad0bacffdeb5db5f73b77b50b28d3300b041d230cb10d8cab15858",
+     "n_assertions": 7,
+     "n_tools": 11,
+     "prompt": "8e0dac81243ee72ce8382df7f861daf62116847f9637e1813d20f27ca2365bc5",
+     "tools": "06edce51a70963437a0b4867c175206ba8014ca815246ff0b647c20ae0fcb3d1"
+    },
+    "finance.qb_estimate_conversion": {
+     "assertions": "4c687eb168da1aeea0363b7e387b1fb227e57d2077279966f73526d9fcef6898",
+     "data": "694f3a2359e50faea8aac638dc53ff49d817b9e4b1f6f064278ab085e4e4f283",
+     "initial_state": "62c786a63641cde10acafb04190661e1c4456936e6e9e7b529a51909ad706dbf",
+     "n_assertions": 6,
+     "n_tools": 11,
+     "prompt": "15f30ec1796177dac2598bacf1808b2377ab3a4e5e920304edd367be79b0f993",
+     "tools": "611418ae36c03cb96e889c0d3d90c1af1eb85f75965fdc60a2fe0d66ac26e7e7"
+    },
+    "finance.qb_invoice_from_orders": {
+     "assertions": "8eb6c87ca35db1de8661d996fcd712144d913b55f1230126b7773b94fa47ab7c",
+     "data": "63f45c4560f240eeb0f8dba5c2065e66ab8914b5b5295bfcd8131935dc278955",
+     "initial_state": "25a58cf5808b3158d24092304c31a60b43c4640420cd078c1667035c500dfbf7",
+     "n_assertions": 7,
+     "n_tools": 10,
+     "prompt": "df25bbf6fda33fddef6b0ff09c124b75ca838a20610c89a2c6ca4c86a09ac303",
+     "tools": "9219c3b0a4fab5175dbf4c2aed2e4b033a124bc708a65fb186aee5f24859a21a"
+    },
+    "finance.qb_recurring_journal": {
+     "assertions": "b64a36fd8d996d773a42582fbe5115626ee5cea2cab3f6ae4b3b7dade432c654",
+     "data": "255fc9bdf6213d978d00f0715b095558a98afcda2190f0eef94bc97e4bcfd0a3",
+     "initial_state": "79363c48b6b12de33074cc4d4a0d318cd91df4c79e4abc1435459d382f4e0c25",
+     "n_assertions": 7,
+     "n_tools": 8,
+     "prompt": "0bd997f5be2c0c0ce6856b165817180148917a6812dbe40a0215a420b11cd834",
+     "tools": "e1830b4ec4ed2bb43c78e997870a23ef656ee366a747ae6c7f2774ea67016f97"
+    },
+    "finance.tax_prep_summary": {
+     "assertions": "dd23aef46948c21db3fd6da823e7298595538541a9840e5cead149f3103fa4f7",
+     "data": "012a4ca8d22d8e4294a3473f8604a61874ca31dcdf85f7c1e7df2388c7716b4b",
+     "initial_state": "03869fb28e41889efe8753aa5895684fc610df7e24497303cf8ae8bada8300ca",
+     "n_assertions": 9,
+     "n_tools": 8,
+     "prompt": "3682872c4f4ea443f8bad82d486e306ea3bc58fb7efbf65d661fa364a634c0e0",
+     "tools": "5693854629f54d46474f20619dabf480db815ceb0d50eea7202f0f27ba20522a"
+    },
+    "finance.timesheet_to_invoice": {
+     "assertions": "b767c1efc2d94efaf694b9c543561941f6f76012080e01872a355c0c38d8d3c9",
+     "data": "e5eb3c4528e44f870f2595b54a8238468c104e8a55ef686e7a5ed078e6f691f1",
+     "initial_state": "41bc657d9a6bef80c6ad6606cb825a178b7548e46117ffbda1949e5f3e52a6be",
+     "n_assertions": 3,
+     "n_tools": 8,
+     "prompt": "05a921e92fa571043c27f11bbba81168ece60d9e9750136096f764a7036939b6",
+     "tools": "cb84ff2c4cfb1a2af352129f6389f946cad0344a9873d81e60ff680819942554"
+    },
+    "finance.vendor_1099_prep": {
+     "assertions": "6fc32f3b5358ad2112fad03ae08601c71f60eb5c777af41826dd6543b13b7535",
+     "data": "c0dff52aaaba91c88039557ae48e3aef737286e729fb3c62f34dad6ccde793ee",
+     "initial_state": "10b178627b844a26aa912ab26b754e3a826ed81bdc44c71eb251ba7d2d4473e5",
+     "n_assertions": 7,
+     "n_tools": 6,
+     "prompt": "3eb72d2ca51efbdd1905f7c706e306c4b3db6cfc9d7f28b39c416196cf76d4a1",
+     "tools": "90771229b2f72efd77563396c95dd174dafd7842442fb3efd9bda228a7503bda"
+    },
+    "finance.wave_client_statement": {
+     "assertions": "47f7fa3eadcb94516b3d54b3088854de103e372c3b1e1ba7c1442ab4435a46a7",
+     "data": "26e3d45b99e8a8b2b1f92feac850c8d8c19485aa75142fa12393c8bdfa2ebcb4",
+     "initial_state": "d08b485629f061d54be47971e2aa03b5cc6237043bd28f340c4d6c74aeb91a80",
+     "n_assertions": 3,
+     "n_tools": 6,
+     "prompt": "e956bc28483d090c8fba75dde88b1beeb0d26446beb26a0d63b2e9ae1748af41",
+     "tools": "b40668fbd0d2ddbe9c8bd6051dc656ecab62f7684b0014921d1007d33a476ab7"
+    },
+    "finance.wave_expense_categorization": {
+     "assertions": "a441aca9d55f3ac925318cfddd4853e0f1378907ceb3d04b948fc07215c44e30",
+     "data": "cda06bf23ba88f12c379663407b31f57888d2b13aeb928912b234be2328e8f0f",
+     "initial_state": "805c83f4e84b84711e669722476eb1a705a439acda380e9e9422e16f94b90dce",
+     "n_assertions": 6,
+     "n_tools": 6,
+     "prompt": "a51909371b5a11b98c6369b0a01848e644a32de45437f3a1f08a6cd884c1a77a",
+     "tools": "90771229b2f72efd77563396c95dd174dafd7842442fb3efd9bda228a7503bda"
+    },
+    "finance.wave_freelance_invoice": {
+     "assertions": "db8fb325693cdb082ea3edce3feba7ac450d3798942b28de2bc132513b0120f6",
+     "data": "18207e46ca25b634aed7eb515b6e5acec1647b642dca0f8fc5ee2752162d7d9c",
+     "initial_state": "d248bca7241e133d03668b30ff08e4c69c35463981811dcd6cc52e04d3a3562b",
+     "n_assertions": 6,
+     "n_tools": 8,
+     "prompt": "2408bacb2053228c8a01fdcf9a1915dbad0abc2caad76f69ce7f4c35435d439e",
+     "tools": "65089cb48e08876c10f26ef87fd971632c52b0216c27dafd39750b58d8b3a51e"
+    },
+    "finance.wave_product_catalog": {
+     "assertions": "9e7dbe040fa8d7534d6b761291614d6f0cfe0fdb8af8715a0657ae8fb12edc3f",
+     "data": "bd41362a676a5ca3a154094fd15c18952ab1b83f48c6cb36f856b69450c04dc7",
+     "initial_state": "633a6179a78f998e4f340e801f87948080cc0ffd785dc293a74a15a89ea61065",
+     "n_assertions": 6,
+     "n_tools": 7,
+     "prompt": "39404c36383120172e6f9a985600e483f76fd6b327f2eae6ffe1d93c0de86f9c",
+     "tools": "fa06104b937fedbc44d5da303d83d51f591a91f9f4d4b7395cb5c6244a69305a"
+    },
+    "finance.wave_tax_compliance": {
+     "assertions": "4553366d7b0bb7e00da07605920675d89cc53366393923a66e5cd8d6bdba1af0",
+     "data": "b3259b3510bf9994de27d9dddcdd667164b5b6289995c61956dc80b9e18a6f21",
+     "initial_state": "e763bb56b94b54e660fc26009bbe9d3b9946675ea3c611cf9ab53229c5744422",
+     "n_assertions": 5,
+     "n_tools": 7,
+     "prompt": "a5fa8689a6bfd8dc96fc471de2a19102a5c7b1b0196dd1f6c1f227a53155ad39",
+     "tools": "cc211079c953fde4b6151eebce0278cc38eae50bf3f72eaa73c589f9fd6fa4d4"
+    },
+    "finance.wire_transfer_approval": {
+     "assertions": "5fc603c8474a141a26d5c66e63788a84108c3fc0d33eb2e4f4b256a333ca1f5e",
+     "data": "dafe6c3bc636e90176590c53e0e35d3a6b70ee8541fe000890f7ef69a64167e6",
+     "initial_state": "3e28377a0eb96725d53c3e3f813c03490a6b3a30cf35708679034c50e75ec4ff",
+     "n_assertions": 6,
+     "n_tools": 9,
+     "prompt": "61651cca656bad37ce64c2ea3c70ae119b9783a614dfecf47bab70d84a1ddb6f",
+     "tools": "366d2f04bc515f298daa1ffa3a8114a0235217cd3d1b87c64fd66908d4e63b98"
+    },
+    "finance.xero_bank_reconcile": {
+     "assertions": "b49c406e41b7b4beb742629b017aaa88d9dfb0498ddcc34ea16a3c207245996c",
+     "data": "1b39b88473aba9f444b91024246aa35579dac60c11d3b968f6d53bb53ea24341",
+     "initial_state": "aa25c3562f86aaf5e3307e26bbe6469f896db8a65f108c8a4682b4fa4b6ecb35",
+     "n_assertions": 9,
+     "n_tools": 12,
+     "prompt": "fcfe8ecb13897a7fd5378568ad16933c53b7abc6d7fa5aaa0977f8ca1a2ce1fe",
+     "tools": "5efbfc62c28ff5813187d81f969c19086afca184e8bd506ef68b7b6dafb6295a"
+    },
+    "finance.xero_batch_invoice_send": {
+     "assertions": "9abfae914225c9b06ddec434fd3e37cc78728b61b956625a066139337f292185",
+     "data": "4c77ddbc75f5199234a1bf9d3fefa6b90279366cd04246da2493262ea3120bf6",
+     "initial_state": "01f25e0aa2b3b4da68fee556fd2a4569776f1401e38189820e56839b729fee31",
+     "n_assertions": 3,
+     "n_tools": 7,
+     "prompt": "ad9bd0afd28027dab8c0ad7d85e61afb1117507ffe2d53a978809ebd5471e8b7",
+     "tools": "2c9465eadbc7d720b55d0cfc9ad0a75ad992d55cbd864af475daa2df4caab642"
+    },
+    "finance.xero_bill_entry": {
+     "assertions": "b17424a84e8cd745b81312a0524b15006f82a8d1f76ad47f4b65f0ba405c98bd",
+     "data": "e99235318e80d3041568fda85b399815335dfb92e9d3810da37cf90a839dc745",
+     "initial_state": "240da299bd388d4bed153df128fd0454defe8c28d116157d866784aaff105947",
+     "n_assertions": 8,
+     "n_tools": 7,
+     "prompt": "e3e7b1bbb606a62924a6eb5795c93f2af062553d601b9e8e55dc444bbe44429b",
+     "tools": "4d5487f878ca860e4135851fd92d672717c99838bfd0975572384762b7b66dc6"
+    },
+    "finance.xero_vendor_onboard": {
+     "assertions": "0df464719251986a09a1766099e50125955a8c9a8736b9f1c2ed36c1bcb2bf61",
+     "data": "a7f3eef006ddda8c029f2e3cb512d057d33dca4a5858099fe0d9acf4f9d33e4a",
+     "initial_state": "fc9ad0696016bdd68e84716ce37c79a912eb21b716a2604ad326c18745037dea",
+     "n_assertions": 7,
+     "n_tools": 11,
+     "prompt": "e92391de6d5b32d29fdf24acb00d835b09212fe58857cb706e6c8a7e632fc02c",
+     "tools": "027700775df5bb4633fef3ed5f12e5b6740ab37d7aba63cf584a235a93f6ba95"
+    },
+    "finance.year_end_audit_prep": {
+     "assertions": "8cc0c31ca41f75e68e6b2f8129f0ad553e1bdb545f5b51945231e333a151f179",
+     "data": "2900b042d62c65d6237ce893ba99ba0493c3bfb346fd26d562af535247b7997c",
+     "initial_state": "457105bba0e5fd5478e640efc7b44f1783abc252bfd787e76311af0cd8ef79b1",
+     "n_assertions": 10,
+     "n_tools": 5,
+     "prompt": "89cc6fd5d12416271d7a9c153fc3e196f03186dd8b8445a8a30baedc4452d567",
+     "tools": "e7890a3a22337440cdb201b4c4c75cf4565cf1297dc017c62feb2596cbe50d4a"
+    },
+    "hr.asana_compliance_tasks": {
+     "assertions": "75ad1c80b53c9b1b0b42e34d2575fb704748cbab3de70c27567002213493166b",
+     "data": "50539fa7c3723737d25f6ea1bccc72893e4b9303405f961c0618d539efc68509",
+     "initial_state": "60e4fc7aac6bf5cac421a001f54ce383a83d12aa8bae875ad2728da44e4bb8ff",
+     "n_assertions": 11,
+     "n_tools": 8,
+     "prompt": "c7d5fcc7de3db0771ca49e8f9633b8b66fc0e5ae9b98479fa54654370005627d",
+     "tools": "aab5e58034a3cd581c9e013eec07e2093b5defc5864fdbcea2b6923de27c94b1"
+    },
+    "hr.background_check_followup": {
+     "assertions": "8a387c169a8835d9af592150170bec4812f4e624e388512a38d5baf3167018a2",
+     "data": "36241fff9d9c1ef378f4cfbb12256110e6a67d91b5c645b05e0749547d7fd36b",
+     "initial_state": "a2d55a72e3494ef8147144f6fb945a73413205ba6ee6460d4eb5a3ec411a96b3",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "f5a167796b697eafb152b4c959e1e91e8fea74527f526cff7612175db0c146bb",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.benefits_enrollment_audit": {
+     "assertions": "5f599bea28a59bbb1123b45d33f033c80a1e73a944fa88d6dab73492b683a84f",
+     "data": "8aef1958cec4d47475c9e3e24cd4221613487b9e1731a9da5d75d084144e7807",
+     "initial_state": "97ab1227e2bc5579c5ffbdcac5af612f5eace9cb1342d63e79222d4ef83a70f1",
+     "n_assertions": 10,
+     "n_tools": 8,
+     "prompt": "ea5986df1e0d8a887f9de489bc312c784968ad9f9ced132728859df442bed4ea",
+     "tools": "e766ce1454cf3a517ae871e0f2cfaf5298b9b4da2d50236e2f5f241be3bf631b"
+    },
+    "hr.benefits_enrollment_review": {
+     "assertions": "0ef591850c004000eea6813bba4e0a094e72a918b8045f2324b6491c8938bb0f",
+     "data": "5f458bf37d5fc687d8a9e1fa28fb3d3347b6743bd63cc1bffc4a20bc94984f92",
+     "initial_state": "d1949037230dd6b8ef283855f49c96096dfd027764ebfebb6d4011db283df995",
+     "n_assertions": 16,
+     "n_tools": 9,
+     "prompt": "90bc7ecc4990cdc4bc3eec3fefc020c2c81d29f9f909813337f5d3aa1b693829",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.break_schedule_processing": {
+     "assertions": "e97efc26dd5cb7eb2ba62a8267e20db88d4f2961c79fea8815042f10283bb5c4",
+     "data": "4b60955295d04458b8500551bbee5abe40079570da69377194a4967fec94e78c",
+     "initial_state": "7cfa1cfbd6d84dd825108fd6538506c6fa5073a26eebf0438f0aec80bf9826e7",
+     "n_assertions": 10,
+     "n_tools": 10,
+     "prompt": "71f63ed0d7e4d5e54afcd2e54fcec1c1b637d843f0aecd421b3231ba91beb39b",
+     "tools": "f98fc2c11a3687e72c348b9065e5d7f18050e66fa6810fa9d19dd21875c56ef9"
+    },
+    "hr.candidate_pipeline_report": {
+     "assertions": "fe45573b803088de8ee441b4bb7a8bc55465948da27d7d1a8d6654c742bda295",
+     "data": "4f4131380b6442281423ba516e1da191ae6e81ce44da32f39bcd8a3f59149c4f",
+     "initial_state": "b9a0047a7b85807370995203b0304b787722b0dc50320fb7fefb92872d5ed99f",
+     "n_assertions": 8,
+     "n_tools": 8,
+     "prompt": "1632824635a9a6348cf0beb62406018534e000f5364063527758236909d1615f",
+     "tools": "ce1eec7a0d1ff316c7aaba860015f12435c3dfee920e523e6821d7290f5fb863"
+    },
+    "hr.comp_adjustment_batch": {
+     "assertions": "40d9b774e0309edc31a2f7e126f2ae298745f231a8760e3097090f82588e9f27",
+     "data": "d19bb9f2e419efa64ab8500bb3a8a3ebc910a3691f13b55afb14c9bd6dc8bc3e",
+     "initial_state": "15f6c9753e8bc24750ef7fdda5bde706819b1bc7b64c5d7f3c2c8b2e77a71a61",
+     "n_assertions": 21,
+     "n_tools": 9,
+     "prompt": "cd52aa1e83d20181ba5c11fcebdc7691f3ab19d3e865647fa7fe4080b65a8e21",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.compliance_training_enforcement": {
+     "assertions": "5b3334d0c0da1f5b226696ae5da25a0532f9aff6627159f34dfd05f1cc5d612b",
+     "data": "b74b61dca184fa61b7cded2ffb76b5b78af53083eba9534ff95d3d5378c527d3",
+     "initial_state": "24bc68735cb2ec53e28e3e40fc74384b999d3a474dc78e6ff593a2e28ea01893",
+     "n_assertions": 13,
+     "n_tools": 9,
+     "prompt": "0c732f5274fd867d68062b2f671249216b4f178025cebc7a9dc50e969f8c2956",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.compliance_training_enrollment": {
+     "assertions": "e0e44e7e71a74501f1e5e02362334bf1b4dc0dfe2e64fb9f2893739d991ec064",
+     "data": "b789bf3cefc937885cdd931acd1cc3805fa9336a706925d496197793b356085c",
+     "initial_state": "d9f62b9eb00606f1b2952747f0d11dace145cc7baa4d738c40f78d1342bb2bc4",
+     "n_assertions": 10,
+     "n_tools": 10,
+     "prompt": "95c03f5db46751815ea7f831fbb1c2ffcb5a2b288862cc68414b6dca6202deb0",
+     "tools": "f250247ae4cecb97acda481ba777c7885d40bf885ba7612be5a0f4707662ed69"
+    },
+    "hr.confluence_policy_migration": {
+     "assertions": "0475359f9b86cafd3e27df20b995dcb4453269a80769ead8b57fc29a607b34b0",
+     "data": "e03f3688977b63957d19a7600de3c62de279cde82dcc911056eb773d60631aa1",
+     "initial_state": "167071777405f3a3d4c88596889c564a39496e2a87810a66eb5efe7c02aae76f",
+     "n_assertions": 11,
+     "n_tools": 8,
+     "prompt": "ed2a5af1d4ed695c3c5b899d8e8e45b1560a62623459fc4f513fa8d82b20bc19",
+     "tools": "c28ec3a1f21771ae153d1b6efe9178d926872d4458736bc82105a385035f0e0e"
+    },
+    "hr.contractor_renewal": {
+     "assertions": "43bfd3927b7ee04e23e6f92aa0d87170572c9fed26b4dda5c00f35f523e4be63",
+     "data": "e7dcb4eec0f5e0c78c3e554972563e350e564b1e2a21d44cf6e82d450fec9c61",
+     "initial_state": "b16bd4697c4f357097aa98e22ca59ba208bfe458863037068a067aa8be564a38",
+     "n_assertions": 13,
+     "n_tools": 9,
+     "prompt": "2b053c26ccb3d88d0a2012f7bf99f42e62abb55d674017c6d5f3e18929369f29",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.data_migration_validation": {
+     "assertions": "153f499ee50d029d9c11dfbccca5d34a9dcbead088e4d7db4c460b27193b0111",
+     "data": "ca2520e65c26e0597804c900accbe00a39529582e5848f7a6180deeda5c02006",
+     "initial_state": "c404b772f2551c37100c91d90e5227ff727ad94e7429636010d1348bd72433a6",
+     "n_assertions": 7,
+     "n_tools": 9,
+     "prompt": "8efb449190b6de0317a68b50acb4f951d03ed3ac75ca985d6b47044c9fc1ccac",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.disciplinary_action_tracking": {
+     "assertions": "1d2945b4914aacee6bf9f00b37a8884449857c63dd10d07c4da8f2de675fdfec",
+     "data": "bbf806d64453540131e0a8e7d6220883c334cf8347494dd75767553dfbd03c5b",
+     "initial_state": "f049192d0f1def51725b60549e6def4aaf960868c6e476df3206930b769fabf9",
+     "n_assertions": 12,
+     "n_tools": 9,
+     "prompt": "59e209cdd75a8813a481cec1d5a56a9f94fcf533a54b00d5d7949a52a891df17",
+     "tools": "6b4fdf9602e652689195cb9b18e24354d19b16860e0b75564bfb07cfb2b9b1ec"
+    },
+    "hr.diversity_metrics_report": {
+     "assertions": "f9cfb06ef8145c729981df1d1d2825e9db358b4ebf14a22df614097d29f9c92b",
+     "data": "69dd296da064d568847916000581ed5455889b0e22530d0c2c631e9bac445bb5",
+     "initial_state": "d5756c4759b11bbf51f9b55a1e6e894bd11deabe5de5324d9e6e23211ac26d99",
+     "n_assertions": 9,
+     "n_tools": 8,
+     "prompt": "7f9a8e0596be4eff5791fef46503e8f6282c598f4b98badd1a301662520e15ed",
+     "tools": "e766ce1454cf3a517ae871e0f2cfaf5298b9b4da2d50236e2f5f241be3bf631b"
+    },
+    "hr.exit_interview_scheduling": {
+     "assertions": "b98463294af6d6649309d33ae009370a042dfa4e51a317fcd4652e7467ae1d75",
+     "data": "2c2a8b563c11df5b3fe42c2221f4adad30abdc975f17459a26ffc6c4e5d0d828",
+     "initial_state": "77e627df0f62b7f569d65cc8e50a25798e69c4dd73057e0c5bf65c631528ebe3",
+     "n_assertions": 11,
+     "n_tools": 9,
+     "prompt": "1afae0d3d7cff3dadcef2f0f0fd54e7ed5f6cd12b503f264647c86c59a21efb3",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.expense_report_audit": {
+     "assertions": "3073c97c91870c3ac9852c20bb65012494655d7ff49ac3523a6332a3221b7330",
+     "data": "ad4435ea5bd10d773d99681fd0cc3ac413e126e7eaf03e8484006bf8655156d7",
+     "initial_state": "557699d2803bda8e324de13532df739cc2cda3bf6237d46fe1f201f248e8f186",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "c1c3b0b5d80494cddf54c3717d7cfa7c76f4bf799448d1d0f6a0e9501b4738b7",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.handbook_acknowledgment": {
+     "assertions": "e5369311d851842ede913849e46a7d06f203a38cecc0b755b964fcbba19214c4",
+     "data": "57a6411cc1260ebc40dce7a98542d9cfcb61a0e52547f9c6d47f88ac37d8f81d",
+     "initial_state": "94ad7ef2cd35be4e87b6a46252565b8dbb455a0b1fa5c6b186cfe189772cf3e5",
+     "n_assertions": 8,
+     "n_tools": 9,
+     "prompt": "d9bd40cd293a0267ad96f66b28797467cae14488950d418278dd942da13656b0",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.i9_verification_tracking": {
+     "assertions": "e45463b9bceaef405da13ba00a09f8ac97c7ac07ecb9b9a7a70a24e359a71339",
+     "data": "9584751aa6cde7de0a42ff5778c7aedbfd5bcf7c43af1974a9670c0558515168",
+     "initial_state": "88978ac53e72eec9faf95ad0f6083aadca1a083b8d20dfedd22eb6dddc20ffca",
+     "n_assertions": 10,
+     "n_tools": 9,
+     "prompt": "5a1c832dcfc779df04ef7086d8741bc98c1029370d394463339b4e2fc0c914c7",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.interview_scheduling": {
+     "assertions": "7c0a006ff0adb974ca57472969fde5f8b01d009eae11e3818572273f2463bd86",
+     "data": "a308a2cb4219a74d4671e9bd88e49ecc6712a82095ff8ac1e76ace679f3c66e1",
+     "initial_state": "91c0c001f2600952a73d39b0e74d3c431f186d9637b99f89d241ddc1c9cc7aa0",
+     "n_assertions": 12,
+     "n_tools": 10,
+     "prompt": "4306a190cc740a12271fa2825216b0b09fbe90189ea6a946b807b5a3bfbb6a87",
+     "tools": "bbc53be7f67f0f95a26f0b0de15f6f325fa697d40948f3e01df52f1155295339"
+    },
+    "hr.monday_pip_tracking": {
+     "assertions": "1e4ff7a32b6d71f8187e51af67fce24dddf70a26e77c5beabc7d5d2258158cc3",
+     "data": "ae68d8c5d69853b68aaf3a14b591d0aafd6e0f3daa757421b23aa390ac346933",
+     "initial_state": "c414cf3d5575c824ff28d0e6f8b86fc59fca0c9f3c05c1b035979a2a8c87d69a",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "59d432e3b575175e8769e850b6e30d4eea8869b08213d1d150e71fd385de8f6f",
+     "tools": "7edcb9dc06061df06a02be6ecd98a6589ced310f2dea4d5ac3f0c4d42d211af5"
+    },
+    "hr.multi_app_new_hire_setup": {
+     "assertions": "050a5622d459daf848406fbf554cca5bffdf23a49f151bb9daed89e8fba478b7",
+     "data": "6d5db31acf537cb04028adda67f1531c17df1719c915a6c1bd154b9ecedeadfd",
+     "initial_state": "3333ec1ee31df1748550af69d805c69ac3d68273b807803bf6748da769313045",
+     "n_assertions": 11,
+     "n_tools": 8,
+     "prompt": "162bb922fb764c185c512e5d19746391a87ceb482238fda181aef9ec9b82dd7b",
+     "tools": "2a590958c187cbf5a478cc417f2b3a0eb4e1857565de84818486a567cc04e0f9"
+    },
+    "hr.performance_review_kickoff": {
+     "assertions": "291dababbcb4dc1bab1cf012d20b2204880f4d9d613253e0459d9519aaabd837",
+     "data": "2138c5aca26bce82305babd595dbb5738822fa4c4044201eabdeaa75a65c1aaa",
+     "initial_state": "b766993cc57d53177ec394a4aacf9710e6db264759915d1fbd189af029297b82",
+     "n_assertions": 8,
+     "n_tools": 8,
+     "prompt": "95f87edaf13ca8e12aa2bbe6b529188077a24bfacabf871a9bf0f1dfd2387bd3",
+     "tools": "e766ce1454cf3a517ae871e0f2cfaf5298b9b4da2d50236e2f5f241be3bf631b"
+    },
+    "hr.probation_review_reminder": {
+     "assertions": "d56b714bce3e44c6d7cda0ee6c163acabd140fc1ccfc6b5c61e600348b3231dc",
+     "data": "4e4eefaddd2310e4a6073de74141583714a8faf3f941bc7adf01e22788bc1a04",
+     "initial_state": "f248c0a2aaa4a096f582e467a943b0286141aa11c4247a9841ad5f3245b07738",
+     "n_assertions": 7,
+     "n_tools": 8,
+     "prompt": "fc358f7f05d0b32c40835b209fc64013645e12e5b2ab84bdcf643b4799f0186d",
+     "tools": "abd3ebbbdb68b38e973652dc42596d7d8f05b6d42324432d18dcafcc38842be8"
+    },
+    "hr.pto_balance_alert": {
+     "assertions": "50800b58b60e3475c2a518e42788c0c44668896aaad4d14981e60ba36a19a4cd",
+     "data": "0a77d20c9c1113db71d91143c550a60b42d2a9002141b562a9c850dff636a3ea",
+     "initial_state": "76ff7db7de6ec7c845124241c838002a3c780229cc24f76bf551d05ccae2fd61",
+     "n_assertions": 8,
+     "n_tools": 9,
+     "prompt": "c6a65eb6ce3f09d37dc3a2b6218386fe709aba5f30f186e42af0074c29b66d2d",
+     "tools": "29c77d3a59b973301f3f2400c973cb49216d40597c2e66bfeba46daf9f9ecd3e"
+    },
+    "hr.pto_reconciliation": {
+     "assertions": "9bb560852f4efb30f26fb09fde05bcaa5de945a186f393c4c7dc95e74f2e73aa",
+     "data": "7ab3c66ce5146179d7041cea0a88c62037b1b24f4a25389738b83c2fa5c11540",
+     "initial_state": "8f45bb7b6f17f26896e6b0961fb76bf888757b2f7c8b759b3a3d90a1d81aded4",
+     "n_assertions": 11,
+     "n_tools": 9,
+     "prompt": "f8a01795f6ae542cf1fb50b8fece4f69021c5a9b2ca7f87f332fb44a55a7633d",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.recognition_nominations": {
+     "assertions": "b51fff94b044e7e520ed430e977caf45abca853bb837a103a167e230bc6133f5",
+     "data": "fa4feb9d2cb8876fb3e6370c0641281334250ae9cd29050616801ccd323b0be4",
+     "initial_state": "35cd71c3372b50dbef9c4ee2180dd17d7e4eecae8e1645f6474034e9b84c77a2",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "abc34333f9318bac58a88d82e4929168581f4298be3efefbefdb1758021ee86d",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.referral_bonus_processing": {
+     "assertions": "d88cf9f5abc2c1a5074c28c8e14390ab0bf3130dc0e291e607fc1a3a5c43eb35",
+     "data": "2b9be3c0d8adb3465d897fabaf57da495f53eedb87eed725b6da4dbfe0bedc07",
+     "initial_state": "83da9e7fc96048c698ddb40e92b15119b28fc3245f45d670fdc8af964ed89609",
+     "n_assertions": 11,
+     "n_tools": 9,
+     "prompt": "4475252f0bf13d4046439253cc42d82fa3f2267cab4afb8adf975c5081d2c6f6",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.referral_bonus_tracking": {
+     "assertions": "de42bbd936e9e060e69da029916616fe905392aace6e16edee02ecd0c1bacf40",
+     "data": "3afacef6176d70733b470539747774cce280da1b116ebe2b62bf397ed2f53b36",
+     "initial_state": "94c9224e047d61338a03580ebfd1903cf4eada02e9e494a6a66802992b609d0c",
+     "n_assertions": 15,
+     "n_tools": 7,
+     "prompt": "ba5c174cf6cd3206fb12ff982c3ee0d0a88cc2c2eec43b73d24be1248763b9e7",
+     "tools": "279a6f41f30aae32246e40363992262c2febd76c7c3b3e6bf393e4073a00edd6"
+    },
+    "hr.rto_compliance_check": {
+     "assertions": "91050e93c4b7abf1e87199ba6953b39c8fbf68fcd0e56b35350540915032276c",
+     "data": "740c839a9e90653b25a56a932b12a146a64e296219a741384cbfa3f8a15fb57f",
+     "initial_state": "dc83f9d17b4f34d40d87e21c7e06cdbcd8c8ca14ab47e3ebce5e584dd379afb8",
+     "n_assertions": 9,
+     "n_tools": 8,
+     "prompt": "e4440bb0cfc8597f1cf19fc177e2ee62a65bddb7d220885d76b808d606752f93",
+     "tools": "e766ce1454cf3a517ae871e0f2cfaf5298b9b4da2d50236e2f5f241be3bf631b"
+    },
+    "hr.safety_incident_reporting": {
+     "assertions": "6efc2d0a245ac8faa84c5561125c6743ee246a21d85f617900a993ba1d96971e",
+     "data": "333102f4f41a9981a09bb01b8d32e2e0d40a8732902f94d525e8e405f2e955d9",
+     "initial_state": "2ffce89b9bf96f2ffd4cd2fe31f80f5a5dfb38eac594a6ab72077bcd08a40a95",
+     "n_assertions": 8,
+     "n_tools": 9,
+     "prompt": "0ffe33d708fcf4ac7d5f10b40fe5f89a919158203d07bf1db1be2323d0f1cb3a",
+     "tools": "538292aa9b12107d865ae589c6a726878401f67e330bb9fc6e801d594f834aae"
+    },
+    "hr.standup_absence_tracking": {
+     "assertions": "fbc9417e9a82c3492e9674de2549ee249331353a06c9e1dc66da378a9729cfe4",
+     "data": "20808d162fa8c858bb179061e6249ea592be2362da7dc0754e8c551e585db6be",
+     "initial_state": "5e5936cd8bcad4c33a695cd2b9c8e0abe2520d556addd026f72a88e4ec83623a",
+     "n_assertions": 9,
+     "n_tools": 7,
+     "prompt": "5f1f69f9a84b72a0acd3c5521460a7420b0f5f36dab1881a20223700cdeec73a",
+     "tools": "55288da9dceae789e583950998f7e67952ab5f1566e114cace85270942d997f3"
+    },
+    "hr.team_restructure_notification": {
+     "assertions": "fa36e4d88586cc642efa066a775c3a9fb4b158d96ebc7b63b3b2a8c979805412",
+     "data": "aab0e883aafb4d76db3b42e0f64cee886378fc0a087a00f9e3977b944c048340",
+     "initial_state": "79d3a51a2ae0c241a4db7005593892e6d620cfb9fcaf5d2ab1eea7823358fc8b",
+     "n_assertions": 8,
+     "n_tools": 6,
+     "prompt": "3b1b60b52edf0b98da54e12ecc4b0736e813bdb1b7350de882b53bd720a60d33",
+     "tools": "0048c71ad51208181b525a6ce25b094bc670aca72ff61bc591ecbc87f6fc77b4"
+    },
+    "hr.trello_internal_transfers": {
+     "assertions": "6fcea032f47568258b0a403fddd3bf31d158b6d18e04372e848797390fab9910",
+     "data": "bc3ebdd5f500a328fd6a7210262c9ce732f870671a5512b23bf81155f875a3fd",
+     "initial_state": "b3c9e19f4ef761a4e459235d74a6d9fa4cd81a32c0ee926b947a5cb48ae12469",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "2c828efc10ac48c21ecef7abfd5becaaf38e90a0b3535f453e24d07aaff55437",
+     "tools": "ca3d6dba8f4d0e4d7f13fc50045876dde61276accba238c22c9ed495512fd390"
+    },
+    "hr.zoom_orientation_sessions": {
+     "assertions": "f011fd31ae03f035994c7b7fc2027919cebfe1942b1521b696da5b15af359e68",
+     "data": "ad7ffe39bd86a28c55d13c9afac822748fdb27638fde5d25c14f083726d41bb9",
+     "initial_state": "786013d784759e73d46d0747e361a25fa4863c1a8227cc46fbb4b4438376ae52",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "762f86324966d380cf0f9b061934b1124af4761ff5846822419236b9ab04b522",
+     "tools": "883a073d30cd34387e867d7d859aa800ebdee3d3e761f897748f55a08d6b34a9"
+    },
+    "marketing.ad_performance_review": {
+     "assertions": "5e5421a3d27257d889dfdf9b7846c57bcdd10f7b674f811d6f4c7e5b208a497d",
+     "data": "31a09fc064f572bf51b099798339d1e1dfd112c1086f993dbc510a2b0aef0cdf",
+     "initial_state": "0ada70c19289aefb9bc3e54d7c934303ddaae29ec667a832faf49000cda58497",
+     "n_assertions": 20,
+     "n_tools": 14,
+     "prompt": "98a0bfb4fe84ad8a07f26bfd85aec251c3040881bb05bbcbbfc9e61250ca32aa",
+     "tools": "6e6ea01167f520bfb1929ba255e92e7ec890914170df50d86b495a5d219e9cac"
+    },
+    "marketing.analyst_briefing": {
+     "assertions": "a673f47ae135eb0bd00bbf94c2f2185fd340252c79181bde7fe7b7ee7b934df3",
+     "data": "55956036ee196d9d02c5f1645dc2f25c0a5b6b7792070ad082b36c0bc42d069b",
+     "initial_state": "74e5ad25c49eb92ecf74bb3417cf2ac0ab66854a7d0f78866376735bfc553ead",
+     "n_assertions": 31,
+     "n_tools": 7,
+     "prompt": "615c5c43552a4da9a8fc12a40a074bd4958eeb391d5aee4d89f5e0dcea047edc",
+     "tools": "eaffa007e9f17300ded7116a3dc6f146417d37b27c34eac1ace58163dbc66957"
+    },
+    "marketing.analyst_mention_tracking": {
+     "assertions": "bada87ca85947b3417af0e79997a28916c4c7b463d1e3e626b9a023365c4b553",
+     "data": "41349b4021ef552237b2ce6953eb8707172e0d8a475a4769f32be00513bcf1fb",
+     "initial_state": "24641754cb2bd43634e84a1ea5027b6bfbecbfd129d8115627d7007e86d40ca5",
+     "n_assertions": 12,
+     "n_tools": 7,
+     "prompt": "9b0cf8ec87384881ba01896e1409c6475d9305cbff2d63bb4e53d2e2f1b9e70f",
+     "tools": "eaffa007e9f17300ded7116a3dc6f146417d37b27c34eac1ace58163dbc66957"
+    },
+    "marketing.campaign_launch_checklist": {
+     "assertions": "ae919ebb9b69c211f8746f2c5a353539e1380fcd65f76edcb5bcf7bfbeb8bae0",
+     "data": "6224e57f372aaddf9b93e3a8a62ff08b0f391ade78d35ff83edec358f0deb1f2",
+     "initial_state": "44cafd7066f070cb7e3c99f48aaf52e0b30a1cc702171564716cb4a043e854bf",
+     "n_assertions": 5,
+     "n_tools": 10,
+     "prompt": "6d5e4046ce3f06e8bd28a2ae9e1a2fc4f60a1ced5217d3bde22bd04655b2d063",
+     "tools": "e2b460db79e73d8e959a8733bfd469645660dc9f08e15eb3ed9998e127b67c42"
+    },
+    "marketing.campaign_roi_analysis": {
+     "assertions": "e551b955f50fb046769385a17c824e704230426a3d4cf8c7f476442525348f5b",
+     "data": "a49b729c76d7c9d23b15ae3b968869c13fe71e56a973ec710c3c4d8ec3a0c5db",
+     "initial_state": "6a3559ac71b6a7b1a80e3569f8ccf316de1bee0233217d85560ee933ea7e9896",
+     "n_assertions": 27,
+     "n_tools": 8,
+     "prompt": "e63874bf78e9313a123932b06ed64e7b71bfc11c0ff9a057deb84ed519a60090",
+     "tools": "9be64bff74405a028aadec6db5d8a4f1cdfc890a1783b7909335d1da58859679"
+    },
+    "marketing.contact_data_cleanup": {
+     "assertions": "5955e016e9adba64a06dd8189562b430bd1e7eac8d9a8c98bd1ab98623c74818",
+     "data": "7d8fd2f99560bda3bd6874d3a4c6851a03184ef64ff7824a17ef17e5d2f41388",
+     "initial_state": "173b9d06dfc08a5feae13f647031e538b021e9a51a1180edec5263e5d8e2f599",
+     "n_assertions": 15,
+     "n_tools": 9,
+     "prompt": "9ab73aa04c062bf1af8dd0e582554c2ef7b515cd78b803a89ed2c0f58dd4aee4",
+     "tools": "d1f6600352181630642d64f8b5288a198c879d677ea0f8e3f8a25882272bc4ac"
+    },
+    "marketing.content_repurpose": {
+     "assertions": "60e9cb8c66556b55c2838d5f10aa9a2fd1abc144a775ef20fc720a8ba72de26a",
+     "data": "4abfbffbf10153e5067580850006e0647e086b06648dd4021fe43a6231b5b417",
+     "initial_state": "d0569c10b5dc86059bcc0d38e97ad560901bf09024c020765a6ec61232303fad",
+     "n_assertions": 22,
+     "n_tools": 13,
+     "prompt": "62cf2b06d2a66ab17bbcf6ef36f7b5827b3f999480ef9719b80fd31db3d49ec0",
+     "tools": "0dc0073a8e7b2a3e744b3dbee9cc486f61ab1160d8ef81c7dbd24bfcbbd6c9fd"
+    },
+    "marketing.customer_milestone": {
+     "assertions": "288db0b1ebc702b538a637ef4497a3f35592e3da3938c6601127559bf0fb0262",
+     "data": "fd697d23398dd6b12005e00da2799f8c77633cffd66c875ad8108c5b131fad39",
+     "initial_state": "b0b563212fd0ef1d6be68f57b90e5c05a7bfd85b169e0854b9a7073313e06ed1",
+     "n_assertions": 23,
+     "n_tools": 11,
+     "prompt": "0afe913eb4727078b1e712757136af002c4cf695bf0ddae2f220539b68fed188",
+     "tools": "fd00a5179c08a20659c916beabee345b735e4c51328b47913424e1aed73755ab"
+    },
+    "marketing.email_blast_suppression": {
+     "assertions": "09281c03e6ca1d69b2c0b02a4a6dab224973d8a807e9f3d9c4dd47db20e8f72e",
+     "data": "c98071391aaaa60c6dddd6a761bc01b6c00add8f8a22b92448fc1daffe1cf6c5",
+     "initial_state": "797f7f95e9525250625fb4580f61c61795df295f76319ac184d1083703ce1f09",
+     "n_assertions": 17,
+     "n_tools": 8,
+     "prompt": "dc027a2c61c39c6d22fae87adac9b5c492c27645ef8bab66831c052ea4cf44bb",
+     "tools": "1c36b7fd291a538fdec651a03f7b4248d0861330eb02c39b3d6f9f00ebe4dca5"
+    },
+    "marketing.event_registration_sync": {
+     "assertions": "02ceb7f1e8c0b3979aa8543c2863ac3e94127c96a480ccca4d4fc4b82ad8493d",
+     "data": "fbc770ab3d62624d969056afbd420411e4c087a666df789d194def9fdc70ccde",
+     "initial_state": "c0ad5ea71631b955ea8e46df5d481b8102923899cbf2e845d2b9932f1fd5041d",
+     "n_assertions": 23,
+     "n_tools": 11,
+     "prompt": "d2223679b9189f81c444271fee431c1e63bbca48dfb69c21f389c6a1b181b26e",
+     "tools": "acf99cd6199d6bed3acb3fba6eb92d056bce67b69a84d20c2b01506c710b34b7"
+    },
+    "marketing.featured_snippet": {
+     "assertions": "6d92c83da44a53f9eff8a2c5b31999f433dcc7481252ab3af5e44d6d0029a158",
+     "data": "ef3b967c818b39e2d41c0a7920471dd69c551d1d6c97fb91a7c10c45e8dcebbf",
+     "initial_state": "8fc968fa64f80cd98620c820f7fc939b6ec3daeced1f2108844c2c336222019a",
+     "n_assertions": 7,
+     "n_tools": 5,
+     "prompt": "12c68d9846992ce88c612559ff44e8d52eef6f7f784136d93b022d9745187e5e",
+     "tools": "06654895127b22b2713a7e11235ff956b2014396c81b5ce573168dbfbd3eb241"
+    },
+    "marketing.google_ads_high_intent_list_from_hubspot": {
+     "assertions": "a76c3147f2bd801d549a849e710ec176b06c03340c243846623988587535db0b",
+     "data": "a512bd82ef77354a8d2ac96f72aa5eddb3d8e367d9650a137cafa7c37c839ff0",
+     "initial_state": "9f05f73ce3557543ee9599a8c64482e161b6ae4ff469cb9bb49a2c8d7b942cd0",
+     "n_assertions": 9,
+     "n_tools": 5,
+     "prompt": "0ccf39db195ff75c6089c1693ef4c2047049e6a04efe711710135456dfec1720",
+     "tools": "5db4d0a468470a723b3ee7de024cb97bda14a82010d739aed1eda5b8eeb681d7"
+    },
+    "marketing.guest_post_outreach": {
+     "assertions": "ec1d210a4619963687d6578b645333bd7dcec7c06cee303d7947c872832c6061",
+     "data": "9c8d37f0c85f4df45dc8a3895909f30f212569f665f69f672f71ecd768e91efa",
+     "initial_state": "3a8e83ab4fc2f8024403a97b1225ba9d49b8c8812f8534e536230284c3ec2b00",
+     "n_assertions": 21,
+     "n_tools": 9,
+     "prompt": "d35ad9a67ed20f74965d6f03fbce759bdb194e6e7efea9e9f5b2fa2f0bcc99aa",
+     "tools": "28de31cde9a302b08024082bc99a8c3c91ad764d9737f6513afb3fa9fe639b27"
+    },
+    "marketing.industry_event_tracking": {
+     "assertions": "b55e09e23fdcdb1da426c73f7771545561f6d3aeeff943ff4cfb554814c1535a",
+     "data": "f64cdeae3b338127bf114323479b95de80bec4c1d153e5c9d19e68bfd9e8c9b6",
+     "initial_state": "0ba5e445732a1a3fe20dcf5c91d9e4602dc88fe172c8bc83ecc4c346d54c1d75",
+     "n_assertions": 8,
+     "n_tools": 5,
+     "prompt": "c6cfc2dd892239923b0437a134f59643bb4998a33d2f1ba03122fd3792052db6",
+     "tools": "06654895127b22b2713a7e11235ff956b2014396c81b5ce573168dbfbd3eb241"
+    },
+    "marketing.industry_news": {
+     "assertions": "85f4c00230868af5a4410fc82790a6cbbd507611074e9150a2ec779e53201c63",
+     "data": "c0ea4bae398c1f7df8348c1cabd5f7fb5fdfd6645286394ccc6b87ca0a67e7ae",
+     "initial_state": "d381cea1e1c6c3e8fd6a4ef68f1f02d672b52ef546b524c3c434fffb757f2678",
+     "n_assertions": 21,
+     "n_tools": 6,
+     "prompt": "29bbdb0b87b17ae36aea2d8e594779e4f12e413f2a35d38a4b3f9d37e6373152",
+     "tools": "5b55e8eacdb13c77230a0e705dc3308d7846f0b10adebc5b8f029ccc88454108"
+    },
+    "marketing.influencer_contract_reminders": {
+     "assertions": "0e1a6e7da94739822875d1f8a7b3eb82bfb68f3808c004a4b74b66ffd3e0082f",
+     "data": "7f60fd953d955e9db769840cc184a6872ac8c0b102296c926697c336b1540a40",
+     "initial_state": "c47bc5e3d2eec51188116eef90d1344c9f2bfbfb4e3011e4550c2bbd14a19977",
+     "n_assertions": 15,
+     "n_tools": 9,
+     "prompt": "aca230aa025dc57eee6b1c7509a86af7a0460dd42d5365afea6a4647798ba1f6",
+     "tools": "a8e260c805fc0328efb70b53987aa1567ee42af554839185d67fde7c5e45bd28"
+    },
+    "marketing.keyword_cannibalization": {
+     "assertions": "41ecea96657cbc62054798c623462c5671ad8832a996390b1a1c7c2ae28d7c2a",
+     "data": "9ab5daed392330115cab15428b1d4920bb0aff6fbbdf78957862febf87a0cc93",
+     "initial_state": "bc9b6c28c2e51ce0cce27c6be2023fc3c9cd048645c69cb4e3252dd7c524b20b",
+     "n_assertions": 11,
+     "n_tools": 10,
+     "prompt": "bd60d0d64468505810b94291e064c512acdce919c1502dd34bdb13612ed495c7",
+     "tools": "330707575128cf28a5e3bdc4e7eaffb9b9784b55c7e656438c2908025b6af507"
+    },
+    "marketing.landing_page_conversion": {
+     "assertions": "b14666981e6a4c9119682c516b0145bd0d031e2129cb3dea4c04442233eb09d1",
+     "data": "1383dbdd624f208320d992f1a865160f91ed73d9b3ac6674e65ac25fa4d5dae7",
+     "initial_state": "56e65c59181282421b4e3f9097949afa311e085391da47352c37b7edab5f08c2",
+     "n_assertions": 21,
+     "n_tools": 10,
+     "prompt": "9171b05b4147d65b32bed0a43f333d4a45cdccbeead33597552353a97ccc4ee4",
+     "tools": "80e8b32f3b31e0aea2d298f8b49a6d5f2fd34d0f69c6c68680b9b151a1c75fae"
+    },
+    "marketing.lifecycle_stage": {
+     "assertions": "be010835bb23091a51b168127fe84e942317ab7f0dd8c951c7228341dbdce7ac",
+     "data": "b5acf2cee922c1b64cd7d3bea9eb1a833f7cfb380f5e4a9425343703549a09ff",
+     "initial_state": "888fea475eb119cab04e65e72c29e72c61c297170c7b3d33c07d78e5562cb547",
+     "n_assertions": 26,
+     "n_tools": 12,
+     "prompt": "c3e5c262cdf3cdc938067c074f924a6b46896986efbc20e8f11ba6517bf86a77",
+     "tools": "31a4a7b80feb44926b569edfb596ac8c981c7674a9444d05fbb620e3fe50f1a6"
+    },
+    "marketing.linkedin_company_update": {
+     "assertions": "e8f93a2f42aaa180acd57357466a3374646e503f3a502ca873b530f84a63cd39",
+     "data": "c204301cf2bff3ad41fb1b0e56869b1922c725aebce620cbcfc2ce5a31e86a80",
+     "initial_state": "dbc9ffabe6b3ec554edd97218eb1583b9d1da4df26a2c567d13fa49cbe2db102",
+     "n_assertions": 7,
+     "n_tools": 5,
+     "prompt": "a7a75dd7d904df79586cf7902c871b57a8e394ddc121677b47d9842db73aa237",
+     "tools": "e949c5b84b8b6a6ab5ce7ab53fc7fcb92dc835d91dd275715885f1dcb6780cc7"
+    },
+    "marketing.news_digest_dedup": {
+     "assertions": "556f808d42e9728b09cff037f64e3ba3f68b321af509d83a61a4a858b4e7bfc9",
+     "data": "5db1b9ee2ecafd0430c7219a8c256912f143d6f69c256d5f7ebdd0745478ef10",
+     "initial_state": "8c28da8e2af976f44eb2ab5dde251c6c9d1def15281794cfdf9cc31f194a8cf3",
+     "n_assertions": 29,
+     "n_tools": 10,
+     "prompt": "ed77605ba39d469e16a080b680bf26ff77df56e6d4477df23e759e930c719823",
+     "tools": "8db5f40a734b0da7e0f8c91324bf0360372fe6466c30b95a5e5472a2bb398db1"
+    },
+    "marketing.newsletter_unsubscribe_processing": {
+     "assertions": "3abb6a79a28a61ef2b1388bd0802bacbc882dce519889672415c7679a5e514b1",
+     "data": "2310e1ec6c9d642900258acf4fca59029cf51c30143ccda8038c62bedb93e00e",
+     "initial_state": "6b2611d4f603804dd3af0b787cf303fafdb3136900fca56b13f079e00c1f01ed",
+     "n_assertions": 15,
+     "n_tools": 14,
+     "prompt": "a37a3ffda895e2bbe1a042a9a6a1527c740c3c0f7b929c9a947e2fe0a6999b34",
+     "tools": "45d1714158a20804071b6f6210485330e29ce0c75e85e651e719e0cb240be43c"
+    },
+    "marketing.referral_processing": {
+     "assertions": "cf29e9a844b7ec40c180702239ba2166169149b2b7966112f6a3d6c702425682",
+     "data": "bf72b5ef471dd7e32ff1c8ba2b44f3314a29c6fd19332b2dd36765a75ac294f4",
+     "initial_state": "8a8d4ddaffa7ad59a024809802356a784efab26f4031429d71751f8761cd2749",
+     "n_assertions": 28,
+     "n_tools": 10,
+     "prompt": "24c6a315e2f97cd191da15aed592b0cdc73e2ceddbd5397950cedd760a89f7fa",
+     "tools": "e5b84565260aa2e383bb872a11316c78b93f0c3cfb83b70e0062bbbbd02f588a"
+    },
+    "marketing.seasonal_campaign": {
+     "assertions": "6eee64e57cceff258172f6d5afc781cc3d0dc943094e4fa850be1b97ccbf22ab",
+     "data": "17edb6f7aee6072e094958a56f849b0734d5c773a0d025be87689a49bdbfb09c",
+     "initial_state": "6d08d3f54fd4083d90d5981eb2378280687ef8aa4fc2af92905a71fb2e7be6b0",
+     "n_assertions": 11,
+     "n_tools": 4,
+     "prompt": "8ad1f1b627cf515b0cc238526607db21883b62f29cfeb664bf9b34bc60a7669b",
+     "tools": "015722dcde7545dd6b8d9dac6a5b534e537d51051ca988b596760047e02ad947"
+    },
+    "marketing.seo_audit": {
+     "assertions": "f7c625c8dbb5883e075cbe417d88dc4e680d36ec8662b9b700bf1698cb918a13",
+     "data": "93665435d651de7c39a2b62cefbb73a1ec0b4b414d1e4bf9df66b4b2ee0b5a1b",
+     "initial_state": "f506ef2dfd31d4a13331110b3fedf75b71816c6d978fec3fbf46940bd6cd6fac",
+     "n_assertions": 12,
+     "n_tools": 11,
+     "prompt": "7b1fb23117f1727c0468fe988e4335d5f4fa66c98c36c285ee683d7572205869",
+     "tools": "56aad67bc68b0f014f46bbdbf843656ace831e62238ba10e01d95331836f40c7"
+    },
+    "marketing.seo_competitor_gap": {
+     "assertions": "6dc4c55777e21bb87c9b9d2343c4b7ff39573cfa7d79d3faecfdcd50a1e955e6",
+     "data": "33c38cd7c8e52412c3c53bfdadfeb4dd3cb2f6d07b2e155db8ac26a45b055fd7",
+     "initial_state": "afb31c657b47ac89ad63896f6632127d3a184ed6815d96e8a0e8ef5e37557357",
+     "n_assertions": 21,
+     "n_tools": 9,
+     "prompt": "71df6ea1954b95b0209e22d9cf4b10df451b94e5d286ebd9f770b682f5dee039",
+     "tools": "7efc832618265cf8b4bf17b82084e2b4f78eda42f1b2b49bd193e52887941908"
+    },
+    "marketing.social_audit": {
+     "assertions": "e73f65e83515f8169f1d4529dea1d298313fcb41f8687e96b72453f0f25603b4",
+     "data": "9ddaa951c4dec3058458094b9cb23b1c0b464265a5513a452c8f4d3a4b76c507",
+     "initial_state": "242dfff5c237fc2c79ee0403b75c5dc9582e906629d0a9235fcafcef8cc10e43",
+     "n_assertions": 21,
+     "n_tools": 11,
+     "prompt": "f01e79d1f9d489da36c34345929c8a6c48b40eb86bb712a6d498290b22b5c1e7",
+     "tools": "e2b163582a5294c4ce686b0f25c93084217173eeed8010489323eff95effbcf8"
+    },
+    "marketing.social_content_calendar": {
+     "assertions": "142c8033115386d4b55c6d58c50c64ea5266b7b4e58b2c41285d7d92de7eaa14",
+     "data": "4c7b7b890674bfa4bc3c5734a82fd10b8b9e7a79477d0159d98d3aefe1744e29",
+     "initial_state": "17651dab2b8c4eefb096319da0b17a4b534876ceb891f59d071877b527739d97",
+     "n_assertions": 26,
+     "n_tools": 12,
+     "prompt": "8149e0df642be404ff523e8c7b06673f2688e1cd4f1619129d51f473d7f23e5b",
+     "tools": "67891a6c0c6ccc9129f0d77b6c9b2eaabd385c7bbe64877bad7324fb1973c6a9"
+    },
+    "marketing.social_roi": {
+     "assertions": "82152224850b7fc845ed4ae792a11cb7a7b73d23b79b92e28b6858631b95b505",
+     "data": "1dff87cb89996ce8a1d669ad7f0a9bc58b02235fb334fca25b70e5faad223a26",
+     "initial_state": "fc707acf4e66cc99f1d90bc91a3f957943641952d23daf68b1482a09b5d35ad8",
+     "n_assertions": 22,
+     "n_tools": 7,
+     "prompt": "9c55fda15a0126f0959689ca1380cc0af42096b04760871cc2ee7cd82986b38c",
+     "tools": "eaffa007e9f17300ded7116a3dc6f146417d37b27c34eac1ace58163dbc66957"
+    },
+    "marketing.social_scheduling": {
+     "assertions": "5973c8e90c8e6a4dc9f063b847a4975e03567ca5cc14c0af8a81e7ba5e1d1c71",
+     "data": "b3e40b11b39775d38c439bd5750203c764f5eb73c0cd798c026932d21d716302",
+     "initial_state": "22aeb73007ab63553554873c06f8bfa55a514072f2f2e0d3da2239d8b6c4b28a",
+     "n_assertions": 49,
+     "n_tools": 11,
+     "prompt": "02b7fd6e7beae00be23caeb61f6dda0d6dc608fbab44f9641f79c451ccb33758",
+     "tools": "52b886a160ef709b6e80c893d9dd204a242465c494617566c338f8601a11ea17"
+    },
+    "marketing.topic_cluster": {
+     "assertions": "96a4553bbe5381fa71babee6cb4f82a70bfed9b77ecf75909d81964db533d0d3",
+     "data": "c2d1e1419bc9f1d527d5a0fea7c4d2b0ec00ddcc7c33276cd923f4e989c9bcaa",
+     "initial_state": "aadcc220de9e7063c665156cb7612d39952020a7e382f721d68374b8adfe17a6",
+     "n_assertions": 22,
+     "n_tools": 8,
+     "prompt": "1b3e0be743e484787215ebeb4315da1fcb185c90447da37df511bdeb46a68b87",
+     "tools": "9be64bff74405a028aadec6db5d8a4f1cdfc890a1783b7909335d1da58859679"
+    },
+    "marketing.trial_extension_processing": {
+     "assertions": "285cd044d86b5b415e1cfc3ee67167b5e38aefd11f0d0a2f77269321865d702d",
+     "data": "ef1555d0a001259d6ff80b94575b72e7660fc381db628d1eb0975054833d39d7",
+     "initial_state": "7773a91a0cd8987e432497b1947fdd4e2073b994aa097ce86d87f0b9ca8cde94",
+     "n_assertions": 20,
+     "n_tools": 9,
+     "prompt": "c0a6c18f94aa7d2940d45e127b5dbefecd58b557fa1f9046c516f439de886cd8",
+     "tools": "24751c9f56cf84b75c16e6003a2ba4015e6f5b538520924dfab1c24db529cb3e"
+    },
+    "marketing.vendor_management": {
+     "assertions": "b2c63b974f9e51a469a99a072c07f78187e59735f62f8fe41fae3b8bda9ac8bb",
+     "data": "25629ed74aba3342c5ecc3950918f31666998f1037feeed8b439ca5841a25e51",
+     "initial_state": "d5070731f9ce632575ae47745693e4a3a962bf30d022e57e24077212d23ae2d2",
+     "n_assertions": 18,
+     "n_tools": 9,
+     "prompt": "0f715e4980f660b331209afee3d3190553e8993092fd7747e0d287c8185ef6de",
+     "tools": "816a56380e55274d62990793dc0d268047af706f935e4111f0876403331afdae"
+    },
+    "marketing.webinar_cancellation_workflow": {
+     "assertions": "55b274d42d685b9958504e1e7e5a00db5309b6f0392e260ffb5895d002d7c864",
+     "data": "b16d8fb4a61d8d7399b47c5a5de1c30f3f5505c57ef264d59f29a92e6158b0b5",
+     "initial_state": "f493afcf558ee6716f497263c8e0864075614a9ed93dc1d540b44d92b180708e",
+     "n_assertions": 27,
+     "n_tools": 13,
+     "prompt": "75926b4cc73a76b52253e9dc24d6967717ec6e673dfdb6d652f24629173b8cf1",
+     "tools": "c50b3adc10be21e9124d3caf779b53953a1e29c5c2c3eb8e3cd8612380741178"
+    },
+    "operations.airtable_gmail_visitor_followup": {
+     "assertions": "3be9cc83a08388e2a36418fedaeab4a724f81dda619a7972176dc6311b55bf28",
+     "data": "01c0c426e2db87f48c9f98be35ee995c7766f34a194d0404fdee79f4578f326f",
+     "initial_state": "8c97231d02c9d7208405a3e27ee6bd689485542c9ae6a96e571a35b6c08e88d2",
+     "n_assertions": 5,
+     "n_tools": 4,
+     "prompt": "a264efe0fae432c167b5ecd13a9d3b5ffd33093394d23eca28a1d5f120ea0150",
+     "tools": "df031b87ce7db0fdae4fd5ddec2453b24e99c673dda43bfd69ffcd2956afdf8b"
+    },
+    "operations.buffer_engagement_optimization": {
+     "assertions": "190af202def0c100ea2e00b5a2aad4521c939e683a2d38ab0cdba27588445c7a",
+     "data": "65a4cfb717d55eaa0f4feb8b50f80caeea7814944009e77e4963c9b9695b7658",
+     "initial_state": "adab0490c88c522c9f1edba76aa3ea0ce350ed49d7699a1106e1ad266d0e46f6",
+     "n_assertions": 14,
+     "n_tools": 9,
+     "prompt": "0f2236171bf2c57de57b8f21af2736647aa4eef9bf934845689419fe85544c4d",
+     "tools": "63f244b8ff39aeee1cc7db10cfefb4cd24d041d8a7a3c5c100e97f38d99e0b0f"
+    },
+    "operations.calendly_equipment_inspection": {
+     "assertions": "90a6ce99c5326127150a5bb221a80a90ccbcd3b7ae6df227be134dda49569e5a",
+     "data": "77531410c5e5dfe056efd0764316e8bd020b77ad458564d7000c931d642335a2",
+     "initial_state": "fc0c9aa5e79fbfbfe67bc00212b6afbfd0f7cab71588fb9e68a8426281a408fa",
+     "n_assertions": 8,
+     "n_tools": 11,
+     "prompt": "36b2f91012ea95048f5edfb734d7e6830920a6c785b363248a210f4218ab1c9c",
+     "tools": "8f321d575e0e651ff7e009ff3687b65de6ebfe807890f86c903852e56551efe3"
+    },
+    "operations.canva_asset_management": {
+     "assertions": "53e615d214c5cc86f24e5fc6924ad04a99118976a113be556568d9ad7a52ced1",
+     "data": "966ba1bb5f7d4e42ffce1f4028a67d3da1d4e373aa67b0ce783689402c14509f",
+     "initial_state": "351ac5ef98bb292208fb3525bf4642cdc299649127e50f2169eefbaabd694626",
+     "n_assertions": 12,
+     "n_tools": 9,
+     "prompt": "54608266a58e8fef266fd51b94a9d2406d4d36d2f9a7a67294c130087f0b9496",
+     "tools": "0a6f24f5caf562486308b2fbe225fb9253d5551312517f87296ed60737476549"
+    },
+    "operations.chatgpt_feedback_analysis": {
+     "assertions": "6f9832cb131f228fec9f98ba10dff39e7d7ee74300253c2288a03768587143a3",
+     "data": "a39a7115ac6113854d8133ef1187bafe23416d3ba2939b15863c19f84fb2ccde",
+     "initial_state": "4ef3fe9d653810efe114d1c82f5ebad131509d60316ebdc8025daff7d2e35f26",
+     "n_assertions": 28,
+     "n_tools": 11,
+     "prompt": "a1487d556818ff7ac67c343548f96ca390e00c14b5596a1b9a1f397ec52e3ac2",
+     "tools": "8ca563e7dad06919dba8a877da1f949350a6d262a1554e97ef7829f897b3b07e"
+    },
+    "operations.chemical_inventory_safety_audit": {
+     "assertions": "63ae5e47c1da8a8dc4fd2c77d14bf01179067b6dfd7760a310203ed5a0eb6e05",
+     "data": "7d93c1389c1532cc14b8b4b66f67787508dc2b3d363429e1b6017d1f2ed05469",
+     "initial_state": "e4823a4f210f5a78464ef48d043ece9b3f382f897aca1e9c09f8d3a611ccf2b4",
+     "n_assertions": 25,
+     "n_tools": 9,
+     "prompt": "e2bda4d7ae2a30bc43a09eb8dc46058ade51390348299af73638d50e3b0a7824",
+     "tools": "894fb97f0a0a3de7d745a67632f6ec618accdcb5701442a4eeb28d6c9617a6ed"
+    },
+    "operations.conference_room_booking_conflicts": {
+     "assertions": "d8d551369eb2a0cdb0dd193adc978e828b095a3e2632bfb6706685652b256204",
+     "data": "ea1500dc0279e483fbd54c1edc1e2ba893c167d5206329d899f848518dc5314d",
+     "initial_state": "6096e890c6f7b44f99099d212b21afdaff9fe267217d7b75a11707114e56efe1",
+     "n_assertions": 19,
+     "n_tools": 8,
+     "prompt": "6e225d947f1eba3530ef64cbfc89214aae26b853c8b533585413c14b5d67e143",
+     "tools": "0aa6ab6d5135ab382832d0f981671071ef6595df90322777210a7f7095db1ffe"
+    },
+    "operations.cross_training_assignment": {
+     "assertions": "cd9e2f026a1248d8af7c0ce58bba0cae3bd1ea4786e88c91ad5514b743ea182b",
+     "data": "6be039828121e7aa16ff405a58d03f78d9b17fd3ce1da245b5c90d76c07a9db5",
+     "initial_state": "c668d6288c3d9feca4824cd0ffd8ae1fbceec22499c472ab119ec72562136b90",
+     "n_assertions": 19,
+     "n_tools": 10,
+     "prompt": "d144b6065726a4c0022c85ed4948baef2fd3dfe06773fb0d0e019602c5aaf311",
+     "tools": "213e987ef33ae76a184b83661b987ed80834db192d434c7bec19fac88b1ef291"
+    },
+    "operations.docusign_contractor_offboard": {
+     "assertions": "73bb50354e25be8aecc51710ccccaca0ac61e56274d4c3b6e982cbc4aed14836",
+     "data": "5a255303c4bdb4b81cecf3f59ca43f7c404c34437dd42af3f37ee6a0838f2cb9",
+     "initial_state": "33480b2193016374d9761360045643a0fcaf5b2da4cc31cab9dea77f1dcc45c5",
+     "n_assertions": 8,
+     "n_tools": 14,
+     "prompt": "3545fb672a9e4587cc8eefcb2b37ca52aaff4fd5169cf2b198c01365cccd7bf5",
+     "tools": "c5f1cbc715bb799768160171aa397d18760f1b876da64aec60a39b5859fc1264"
+    },
+    "operations.docusign_lease_renewal": {
+     "assertions": "c23c4173fc559b369bff178b8214bb61fb64a63caf895e24bacc3d627ba26893",
+     "data": "aa1604bcc0d4c025f6a67aa850dba17b1c4edb68e5e8591ed4fa4f6b97865fea",
+     "initial_state": "7b3ea3fa22542ae2243e6416a6c367d2cb13f9fb96ac86e231e427bc446de46d",
+     "n_assertions": 8,
+     "n_tools": 13,
+     "prompt": "2099f4ae6393b34dd1b0e09954d917e288ee942d813fb71534c9413b3e483291",
+     "tools": "214395b7d0743346b5b7f35a77022505781a0bf4bcb301492c2c339480a6bb72"
+    },
+    "operations.energy_consumption_anomaly": {
+     "assertions": "4d63ec8951832932ea4f940d04f76957d5422d04e2adc35cd066685981df31dc",
+     "data": "b287f6f03633a5b2e9815fcf52f0a9fade3904ed1e4af849dcc1f83565829a25",
+     "initial_state": "e6950fa15605b36e42020a296badca8323c473a3fd5ffa7297de917293d963df",
+     "n_assertions": 12,
+     "n_tools": 7,
+     "prompt": "9ec4a663bb30b3171152c9261973c7283bda1a51462d96d0d8cc1fb0c16eaa75",
+     "tools": "afc5cfeba46f508799ec0f268b7d57b8948a305a1d127c938fe7da251495c98c"
+    },
+    "operations.generator_load_testing_schedule": {
+     "assertions": "af742e41a9d7c3d9fa8bd54d030a27427a5f495471367f1aacea898ba6cff828",
+     "data": "a88c99733d6efb400b40f23be2d7bbbcb6a84e2eb2aea9817faacab1e93a561f",
+     "initial_state": "ebfecf3560c1d0511d6a73abe43406812a148aba8891b66c6b989ea6ee454a6c",
+     "n_assertions": 13,
+     "n_tools": 7,
+     "prompt": "79b7261eab1469e59c16875b80b3bd7accafda161b8f0bd61a16f3adbc6d3b89",
+     "tools": "3adcedc30705b07e1d0405d2d30a4dfacf60a68ba9dcfa72e492ddfa1f925ba9"
+    },
+    "operations.hazmat_shipping_compliance": {
+     "assertions": "933e4a318dbdf8fd51c77db35ffd8a8a4c66b3ecaf2cd223ce71f3b12a07740b",
+     "data": "406e0739b9ec6f26a4b2a0e6a6fc6e6c0d5b83ae47bfcd69ba646b10812a4ce6",
+     "initial_state": "128b6c3720acd4534020758c3f92ca439dd937fe04e1e11eda6b777b8dbf2e54",
+     "n_assertions": 24,
+     "n_tools": 14,
+     "prompt": "96053dd31d8d5f5496aa3389d7e1f8cc5adbde24ab0a0532c0959cd11c993f1c",
+     "tools": "527d12174deb76e5e7dd52a1290ad84dc10189f68b739a7ca11454d0334b1d5a"
+    },
+    "operations.hubspot_payment_failure": {
+     "assertions": "8fec98185f6b79dd5a441e236086581233ec711d649ffe6a795bff49a6e2ea21",
+     "data": "0b14df5fb6d61f581d169f274d9233269e2d33f7c0ec4b92df3e997b3df79194",
+     "initial_state": "2e00006b42823bb406ecc024432ec43a122470a89f725b9ea2c3cd5bb5a9b787",
+     "n_assertions": 9,
+     "n_tools": 10,
+     "prompt": "4f5dac09b8bec48cc6e5c75d0d452b5160af1fab096e253b49e4cabdd764e052",
+     "tools": "62b3d1a803f54227aef805d480f2d485f516f2e412b548df4120c8d8ae5d542c"
+    },
+    "operations.hubspot_personalized_outreach": {
+     "assertions": "0660c5453211924c50c8058addb1db9f592f1d4a14e6faa8816f6e930ce5bcfc",
+     "data": "fec58001686f823b8f20b05efe1ba161621360f654c167212b910c6f22071c53",
+     "initial_state": "3bc2261e870f6a7658e6b4833d885625013d10c5153cc7c214a81051fddb9200",
+     "n_assertions": 11,
+     "n_tools": 8,
+     "prompt": "db07c8043d7cc337c74d5d62ca56b4623780ecfdd89e0ffdab1145a247037606",
+     "tools": "de88709f26d388365923addf37585fed19fc29dbf17fef703a773a9b0fd7b1f1"
+    },
+    "operations.inventory_enrichment": {
+     "assertions": "9d891082b72873262b3c251160bea6062b21bc645c8a6df9b6270deccac30fdb",
+     "data": "0e09ac24e887aef824add13b680eb127e0a9d2f0e81823b4a864758b0c5fce52",
+     "initial_state": "fd5fe0388d0e57f892183d45283fe91698141c6a63706e7e3e406aeceb8f648c",
+     "n_assertions": 10,
+     "n_tools": 7,
+     "prompt": "2b2c79bdcaacc5e7d7cef09a89aa41cb72168f59ed4e2598030b2326a3924272",
+     "tools": "1039334ae5441b9ca3c31ab97cd7dab50beb9f6ce077ca6aa1ee093a0813a584"
+    },
+    "operations.loading_dock_scheduling": {
+     "assertions": "8d44413ef25d24f1de87842d9f1700902421567ab0211c131c0cf12bb16be6bb",
+     "data": "bbd19ded476c4d827f9074d771ccc4a59435242b49d0e49cc8f5e8de009b62a8",
+     "initial_state": "8ee55f1c9b4d073a4ab42f61e6d0ec73ed3dcb61b1b70f9448628f0b91e17d25",
+     "n_assertions": 21,
+     "n_tools": 8,
+     "prompt": "efdcbcb434a932146f90c6acb5c83a2018f3048ae2e341db8243cf400b006130",
+     "tools": "749a047126adf09e1685f352b019ad49ba305dce59cc84e7e4135e76c0943254"
+    },
+    "operations.mailchimp_campaign_tracking": {
+     "assertions": "2f31bc7dfba04c3be8543330bdeebe6cc52e3e1c00e95c86664db28bfe1724a9",
+     "data": "9b366659733c291117950bc69a811f8dd6ac6d0fa0ead499e8452bb629be70b5",
+     "initial_state": "53d4a06d4684fe3175c7864729b033291070fd636c8463f9335acc61693905d0",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "80c35bd4b8dec27f202a1a1d5369a5db98f21d9f95d4b89cfd483233e025140e",
+     "tools": "17640361fd512492b60dc8c5d2b67acf294892ef5df501b232a4af61a0ae48c9"
+    },
+    "operations.monday_calendar_emergency_drill": {
+     "assertions": "d5a6b99f20b3da547c1887ea1bdf6855be52c4c0e35917bfaf7c8e83509d2ff7",
+     "data": "5a59745dcb2a401cf66a27399e5db071757c38ceadb5f8c4d6e4e504a3e12209",
+     "initial_state": "6cf1e490627ce3109f70eb382b0f12d4bd33ee66cf0cfbb08d8e4ba1b31bdbf3",
+     "n_assertions": 8,
+     "n_tools": 8,
+     "prompt": "1b7632a01d0bef36f4633bc364233660d178726b602beeb01a91d836ed448aa0",
+     "tools": "b2c2fa0347094daeda6d2d70cba343a45e269efbf1de94c6cfe91eac04b32bd1"
+    },
+    "operations.monday_slack_inventory": {
+     "assertions": "c3bf9fea01754b7117ca8d02a5bde8605bfcf286505a351f5e732e4913442ded",
+     "data": "db02239eb34a4396021232354860f8feb1eaeb977c9d34073adc4c17d074bcd1",
+     "initial_state": "5ac681449a1939c992805600387cc19b3101284c9b9e2ea29eca84a0143123f3",
+     "n_assertions": 9,
+     "n_tools": 9,
+     "prompt": "ef15b564b6f052834d81faf0f12710b4817ada731ad144a980cb6d5c00d956c4",
+     "tools": "1f7d96653787c109432539fac64f4caa46ac345b30ddb7ae406fe2cab39dd53a"
+    },
+    "operations.notion_gmail_checklist_update": {
+     "assertions": "d01445e2df4d7baa91e6d32f561f2068c166b3a91cab6d42f401df99848d4535",
+     "data": "e65a1e8b6892aaf483df6a01ac3e9fbfbe02198787e3e15fd77ed5d48f09b269",
+     "initial_state": "6c9d64c723ff5914d3e79d6b61009dfb7eef240dfeac665584aa39a4ca4ce977",
+     "n_assertions": 9,
+     "n_tools": 6,
+     "prompt": "21fd7224b6a7b1fb3179cdbbdd397cb49e41d30dc99391fedbdac3f0b6735678",
+     "tools": "99b87f9cbf25320f8400753ed757a45597e34c3d51f4d8792ee66ee2f39c72b2"
+    },
+    "operations.overtime_threshold_monitoring": {
+     "assertions": "aae3e0a520b560bc5e7bfae74a64efaa33ffc525873f443345deb7856478276c",
+     "data": "4b831ce037ab361624b72a4b0b56d6b28d0c82a2a5774a165c9c1a5fc1eb2086",
+     "initial_state": "9f706e36f15aaec60b9b5b467ddf5b47e30f74bc392c56da36988a29cf24b8e0",
+     "n_assertions": 15,
+     "n_tools": 6,
+     "prompt": "b398cb1f6ba4b49758f158c684b666944cc9034f7d8122604a2f0c1d46b19b6d",
+     "tools": "05550c3885ac2e768327b464d764f85c1d104d77e63f9b178d6f86e58851f936"
+    },
+    "operations.parking_allocation_management": {
+     "assertions": "d609c4f2f8153acc50b9226bf6bc34b0aa71c44739cdb9f2b3dc2f73df931f7d",
+     "data": "1f523f121637881d5101dea3219661bca79f9183c30530637aeb1b028e2ee7c5",
+     "initial_state": "f0303b7b6255dca1fde5b3c4b5c34ff7846328c2a0c420f7dd7f7070912bdf42",
+     "n_assertions": 24,
+     "n_tools": 10,
+     "prompt": "996d1a2161e7c675ea43e81e99d1ad69ce874992b9947ed24d6afc2f64a0e8ac",
+     "tools": "d4a0f2f301fbf55cd9fb83a5ea84c5959545057e7195eb0dc742418dc5de01de"
+    },
+    "operations.perishable_inventory_expiry": {
+     "assertions": "83cb0d742517992ef60290157aa46f9a118f1c35ced347796b35f241ad13356d",
+     "data": "b46035a6ae2735cced96dc3179cbfd028800b8f8aea5418c96fe1ccd7ffc8420",
+     "initial_state": "6f0dbb7c658c2ea6d7ab8198d3e725c6339c41f918b402f286cc065b2ceef9f8",
+     "n_assertions": 21,
+     "n_tools": 9,
+     "prompt": "415ebea9ec132f549af357e580dc9e6d9633aa3f53c563db16741ee4266c0e23",
+     "tools": "816209a6b394134751d3f34289bdb35c5599039635559bda3e4d394225430fe8"
+    },
+    "operations.pipefy_gmail_vendor_approval": {
+     "assertions": "e1cd1d79868228831edd33e237d846ff5ec20e14efff9c88e35b66e17159a8ba",
+     "data": "3c309d57f80bcaaa8d270d957e6add0a3f4dda8ef2e249fbb8b67360d30add92",
+     "initial_state": "14b46a9f07c36d3d1948fc55a45d5e5d4c053d7cc3d8eafdfb79186fc29d0588",
+     "n_assertions": 13,
+     "n_tools": 6,
+     "prompt": "2f2fce371eeb38b8cd89b2ffb85a95acb6185256d63d15664dd3fe01191a31fc",
+     "tools": "456af0174fbb709da491dd97248542c0d2997809f637dd99bad3111db5163480"
+    },
+    "operations.procurement_card_reconciliation": {
+     "assertions": "9d4ec23281081cd95d2018829a331979d606c05446a10e7a787ec530458e87c0",
+     "data": "d7f7a73f07b8e62d862fb735c21dbfd09b0640b2ab1a1aa060c18b070c2ca622",
+     "initial_state": "45986fe5a9dcf557c9fcb3ad4d07f2ab399c75f03dd07496a37028bbcdba3bcd",
+     "n_assertions": 21,
+     "n_tools": 7,
+     "prompt": "f52fcb2d7436ecfb370b201951e359eeef292422e97fc0171a670036c5a60345",
+     "tools": "5bd2be6b19550e235367519ed71ab5dacfd5d916eec647876a0941ee58ea378d"
+    },
+    "operations.sensor_monitoring_alert": {
+     "assertions": "ecb60f71eea78e1e03cfb3a8654a3a48e9996e997b7d97b8c8763bb2f522b051",
+     "data": "9fe49c7e2fcaff4219658ff65358e344e718172d78024874277b8269f5db3f35",
+     "initial_state": "30f5174da193e947c64c9041a2e1abff7df6ae61b6874e55ce462759d090e2eb",
+     "n_assertions": 14,
+     "n_tools": 7,
+     "prompt": "5c3161e11bc90bd8c45868a3000c7eaf08b7d3ed5f567dd0e1617bd85be87519",
+     "tools": "5040b83a06ed085448177ec1f299403f194279221ac3bbed9a502a3f36a19220"
+    },
+    "operations.server_capacity_threshold_alerts": {
+     "assertions": "4f245ee42506393a7f9eae527e0d3ed590052472503059a0522c22adc6d975bc",
+     "data": "371c1320e76d3a2f3c3814154daa46dced155b61c5e943322f5f157cbb8c21b5",
+     "initial_state": "7fe36827d5866302da01f2efb8dcea5bfc6fdb853a26e6f09c748cfb5fdefcb1",
+     "n_assertions": 17,
+     "n_tools": 8,
+     "prompt": "d5207fa9dbaa3d3ceacbc23f37c0e764d9dc7ee19984bef4c27382e58dbf0029",
+     "tools": "194f40d0bfae4545822e2502b4bbef8eec83973a5dd146d72d18fa1b97853876"
+    },
+    "operations.sla_breach_early_warning": {
+     "assertions": "c093e96475659392988d7dc3e2aff4e19b5d8f0c4fb094eb8a7ff0b0734bde26",
+     "data": "1a5b5d350e55866a25f97b176b29fe33cf3d8c5ac047427da295058abde8853f",
+     "initial_state": "43c9bb73e75ca3b6ca5266b0262296e16bf0eda265e1bcedb57ae27173200f78",
+     "n_assertions": 18,
+     "n_tools": 9,
+     "prompt": "473140fc9ad14865424a7427b5071d8ae70bfb90b8d445100ec0b06b6c82db76",
+     "tools": "14fe0177ac7432caad9d77a7c5463b23b218cbf3cd6385416d4095eb44dd3334"
+    },
+    "operations.space_utilization_analysis": {
+     "assertions": "d9752d7ee123f02535d8e003045829f662553dbd1cb1823571bc97af79425ed9",
+     "data": "e4f75376a04ce49d88a2a8730d279426b6ba50dd07f3d8a82aa9bb4b389c3d73",
+     "initial_state": "cf5a4cd86ff1acad3443fe262bae83a29141e459aea9561d8f575ac0ca19625a",
+     "n_assertions": 12,
+     "n_tools": 7,
+     "prompt": "866b9c945b4ad08255bb0d5c021c34fc22e7f289bb11eb966f9fcb6764a08ef5",
+     "tools": "e92879f9a22e5d24dd176fac67eeac1ba98988218952962828554d5bd1594caf"
+    },
+    "operations.trello_basecamp_compliance": {
+     "assertions": "6dc9897d47ff87bce8bdd52e3c580006ba01db2e01c2ab52dcf3b984d22b9839",
+     "data": "8198acd43dc389d509ddf3a693ffcc8bd141fbf712ea1aa9c9da1d68b2b5066b",
+     "initial_state": "a42174aedb12dd4844b5ac32416c43650bc61cb618af54e7c574dbb04e633370",
+     "n_assertions": 10,
+     "n_tools": 9,
+     "prompt": "82614b40ba8b55f5ce7875e7195c17f9b966488a886b416871e01a827459d045",
+     "tools": "7df604a7577aa4b9f6711d0f691d20a2be1b168e7c5c339df004f8f9b9fb06fe"
+    },
+    "operations.trello_vendor_hold_email": {
+     "assertions": "aeb10271a73b1a80860532c6a7bb17df24e5925c2b11c7d993540a3dd295c5c4",
+     "data": "4054926c66b62b4fa5b7df8ea7cb951b8439e792e8af52e618f20425d8e76433",
+     "initial_state": "220021bd2fe4b424be067c426e595356b5a340ee7128a95f10ab8eb9cc690161",
+     "n_assertions": 9,
+     "n_tools": 8,
+     "prompt": "7422ffbded8b449d4085d2f4d96fe2bc3793811a821712a0ee16e0debb0bc13e",
+     "tools": "64a6e7e9757b754206c7df7eec87193fdf964511a84653ba0d091b077514b8b4"
+    },
+    "operations.utility_cost_allocation": {
+     "assertions": "09b7fafc5513ac58d2b912cadcfb1e6305836a101595271680e13e73015fc5e7",
+     "data": "a9458605bebcc73f76d68683660358d6c4c382132a5ef9aa7fbfb68a848a533d",
+     "initial_state": "1ab34033967577f2900abeb238fc7bf87899c623ebc6905935a24d19af495a0e",
+     "n_assertions": 12,
+     "n_tools": 8,
+     "prompt": "ae07a29b47d65a1692d08e6b6d8c16a2029cbf7943a9d670848a9d0f4d10f20a",
+     "tools": "b0d1f58b79ee6a9a70f34bf56c2ca4c5a6e47e138633390f52ff824cbdda6f6a"
+    },
+    "operations.zoom_board_meeting": {
+     "assertions": "7bfc4b0d44c3e64381b0c9d7fed347af1dedb4c8209b3838461ed4952f15fadb",
+     "data": "a151f6f4442168780142a7d8d33157fbd62661d74b8c881bd069f225e523d78b",
+     "initial_state": "50ffb17c2e4e8f2bd6b5ac8e41a0752f40cd29dc60562a1d5f69967741e8f93c",
+     "n_assertions": 10,
+     "n_tools": 17,
+     "prompt": "755a1c3dd77183fbf8ee9d350280815f64a2097ee4c305dd0875d89a5881c5b9",
+     "tools": "2bb83eb1babc29247da1d2c4a2a6380b2078bf7ba43238f7ff78d88735b12d1b"
+    },
+    "sales.apply_project_label": {
+     "assertions": "9fa7558b29c46a5392fb6cff5d08b6ce9f5fd5e8aa0fced29c8f64cd176b9ae1",
+     "data": "82c2cc4cce1d960f310e3f7b411c6f52dca5790aa4d11f3624fc43d1dca6aa77",
+     "initial_state": "d280bb965dc9c2f1a46cc8c6db6a81ac1386f931004d5bf8ed76178f5b897f3c",
+     "n_assertions": 14,
+     "n_tools": 10,
+     "prompt": "dbfa9fb4dead0c7a832211f83291288db162f9ad5852ef6514cd4be6459708ef",
+     "tools": "f3f893dfc209dcc01c9016574880df6cbc616c7950468c484d62075ad09fd574"
+    },
+    "sales.calendly_meeting_prep": {
+     "assertions": "b203633ec3054b011c8259b38bdc56c790421816545df64a79b788115b13492e",
+     "data": "0459435b3ceb99dece9d78ac5b9612c6cda7755bab96e6ddefca9b1d26c4085e",
+     "initial_state": "2642aab61d5f081cb3430eda2ee764467d2a0806e4d024b95239b901e75961cc",
+     "n_assertions": 14,
+     "n_tools": 9,
+     "prompt": "f00bd7a28ac72eeec7fe93f350bfd9dc25f83d7c6b24598877ba06182df056af",
+     "tools": "12be7075cebf65b33f009a10a6ff9d84ad8ebe99fab4b2dc9a187cf3724510a1"
+    },
+    "sales.calendly_multi_stakeholder_scheduling": {
+     "assertions": "dcc04a5bd806d21deb07a43dbfd7c605fcfadefae87b7b2372db2b0be2a56caa",
+     "data": "2cde5071165d72010e8ca98af16ee4cc7b7d7d53c3c25130161346db03faecb7",
+     "initial_state": "5d0bcccd5afb5c7f6a312574da218989bcc949309c1e4d20d87f2fe0b12cc3d8",
+     "n_assertions": 6,
+     "n_tools": 5,
+     "prompt": "6db2fbabfdc74e5f72c040ef649d1cea0dbb6648e0d08066202d1caadd267767",
+     "tools": "c0910c21987d0e090d74a39d63ff334ebd9fdb3b37820bdd968bea4e20e8b5d4"
+    },
+    "sales.calendly_reschedule_chain": {
+     "assertions": "f11e482776e81659d0652ae2d8792e6c0b686d1a8fce6c4bcd375c9614b2d24c",
+     "data": "26b2ccc2e34daf2cec1266cf04ffd5b72492002839ab7b0ad95523e62dbc5830",
+     "initial_state": "4bc89bfdb3b0e9262d95568454126a4ba149fc0385bc440e646687c5adb2bd61",
+     "n_assertions": 11,
+     "n_tools": 14,
+     "prompt": "e14d67791744544ea247e05a27c7155e47bfb595f70e7779a3148cfe0f1443cf",
+     "tools": "89dccaba1673d58ffb3df42e6cce354c37f98cc7a6f2ae867f84b88318fe04d8"
+    },
+    "sales.calendly_sequential_meetings": {
+     "assertions": "b7957047f9ce142c358ae98b9133a2f678a0ce8a4895d61a73504eff77924e2e",
+     "data": "ee8fd900490aa0e736d319cd4a0102b531b1bbe2702eeb6bead8fe01872dd578",
+     "initial_state": "f5c70686431706b5af98e8137f8394f0e3378d5b6244bf09c6aa7c75d064febc",
+     "n_assertions": 15,
+     "n_tools": 11,
+     "prompt": "1c7ae8b795079184b737d531904cc3d6ad1282edeb3d2a7989f8bab00e62aa52",
+     "tools": "f60383eb461be7c17e04f8a2d998c5ef8a56f931bb0388538ed894838a86dce3"
+    },
+    "sales.calendly_sla_monitoring": {
+     "assertions": "cae130879b78433be9fcb46ba212770a95d09033718f2cbf844a07962e9676e7",
+     "data": "f1630d89935cc8d17f0443c026b54244cf9dc8ce71379ad9e19c3d348c0abd34",
+     "initial_state": "f39b546dc35e42b910c5175ffce95b681e7f89309c9b0a35022e38ed804de7b5",
+     "n_assertions": 8,
+     "n_tools": 12,
+     "prompt": "19737aaf68e040fbcfd81f80bb9f5e1788e9e11fb23256059d39703083ee4b45",
+     "tools": "b646cbf887c51c5ce6ff73b86f78b40c36d04ed07fc69ae9b45ac5d1a8dede2b"
+    },
+    "sales.calendly_timezone_aware_scheduling": {
+     "assertions": "4fabf71a04e388f02dab59bd3eb4167103f30d9457da2e68218fea5706f1142f",
+     "data": "8fe742f42223b119ec4f5e8097a042e790d89b2276017efcf05da23c7a38fc7f",
+     "initial_state": "beb5ea7a96fc56590b64b57e7b04fe4ded30ea4fc118f7aecba793c46dbd9a9d",
+     "n_assertions": 10,
+     "n_tools": 14,
+     "prompt": "66539baca433965e787eab49777b715c17d77c4746985d26f8c1e35b1f19d64a",
+     "tools": "4134742cc175722f4909218e053cdc3e3bfffd10d5f07b8d328267a1c83a9f1c"
+    },
+    "sales.chatgpt_contract_summary": {
+     "assertions": "460b44cff95763de2d57245adeb3c3c44d10ca8db0f37504eea4401a3ffba6c2",
+     "data": "8acef878c61ddab3b2b5943db179ef3b5396596192b5b52dd5511cf1ebf2bf98",
+     "initial_state": "5737345aac2687e123195656dd51dca770421b8ad91fed0325b0285d07cbbac3",
+     "n_assertions": 9,
+     "n_tools": 14,
+     "prompt": "f381f117b63959b05be78600fba90702275e13b2aaaca9213fb216b98e3b8253",
+     "tools": "f588b0f304d26d72921361ecc458a713e6e23bd3a93d7fa20dec41f859228ab5"
+    },
+    "sales.chatgpt_email_sentiment_routing": {
+     "assertions": "a0c31fe300ee44432c1aff3c1c2ea4ccaa3df1c488ae373cbe3e30a2149d1599",
+     "data": "f6eb744ba37d6e35d7b78759782816ad20e38bcc2744348eed19c6b1e8642885",
+     "initial_state": "6b9678f98430ada63e2cefe18697a1cf8e1eb3a6ce1dff5b751f919c6d82ac2a",
+     "n_assertions": 13,
+     "n_tools": 12,
+     "prompt": "a3aab9682e2c1b0be4646e6ff7c81c5c9030f80336b60fe39e65ef37b4021e2e",
+     "tools": "622ee21e7064101e48dcf1d1b19afa1c925aff3f12bf92ca6450231bbc5ccf89"
+    },
+    "sales.chatgpt_lead_classification_pipeline": {
+     "assertions": "24abb20cd0b1ae5669be712dadcfc633c3f15ea7235d4726e46bf6b3cfff17be",
+     "data": "85b236cea46fe75aebd512496ccf5352ace81cff3ab29697ecf90aa532f3b0fb",
+     "initial_state": "a75d3b6dcf91c5f6a46787c11485c661c22de7cbb95501e7b4991fea1ff0f551",
+     "n_assertions": 14,
+     "n_tools": 7,
+     "prompt": "b148d455cfeebf56b17725fc5274d32a2ec66c9728e02778979f4f8ad9a8dc7f",
+     "tools": "4e42fbb9a920804eab4a3afec752834b83511d5a3b79f7d32612e7b64351d0d2"
+    },
+    "sales.chatgpt_lead_summary_generator": {
+     "assertions": "04a7cdda77b59ac9d18352a13e742dc2d8c185c32d098d4a37e4906b287b4be5",
+     "data": "96f5714dacf7f3e6b41a7ebddd8bdeebbd8d7d6570591f936751b3454cd8ddc0",
+     "initial_state": "e76923df23e8f0e7061a618f0624053b1ba5b469ded455f3617d5b30bc4177ba",
+     "n_assertions": 5,
+     "n_tools": 8,
+     "prompt": "d25adce1a60229f320e6b820720e893464951d3027c126d409f3953c801c1419",
+     "tools": "dff0d33aedac428cf5b48645264a05b066becf94f1a8a0fdcc608c49270a9cd4"
+    },
+    "sales.chatgpt_proposal_customization": {
+     "assertions": "c6701dcce28753850fe87b6be9399fcf94930e4fe4754ee3c00c45c8c4fed907",
+     "data": "fdc036447aca2bac791aa514fe293a45cad029f31f61785eee36f2795884ba4f",
+     "initial_state": "44888ad1ae4203c34c2e5ff1838c5dc0050b1d1c0df802f9f959f44a2ec2a847",
+     "n_assertions": 22,
+     "n_tools": 11,
+     "prompt": "af295722b743920e08306cfceb4f6ea4925e5ce908a8e63f1783b5dc53da22a2",
+     "tools": "e3bdc26b1789ea166cb80e288fd101e4863733723eb6844f10e2676b7ffb723a"
+    },
+    "sales.create_draft_reply": {
+     "assertions": "20ec4593ffeb69d88f347879d66347f5ed224f80963731916865cd1df33e6626",
+     "data": "3ca88daeada14b5063033160f014f1d5e1106216753adb8ce61c8a7dd1b1f728",
+     "initial_state": "9e6261c21808a89f4cc551bbaa3ad0bb20bd806e77cb9a37842547a93f57248a",
+     "n_assertions": 11,
+     "n_tools": 9,
+     "prompt": "702430416b1bf80c40aae300b785e018b7f9463c05ceb5a1f93b3f326f4d06a7",
+     "tools": "f0d9bdbafc2a7ae14a774c6f08c64aca63496bdd28dd7f576d03be21ff49faf5"
+    },
+    "sales.create_new_opportunity": {
+     "assertions": "a0448ec7a6e5441657ba6e48a0a27c4de2d20d12846d8368f2ca4cfd8cc161c4",
+     "data": "552ddd8a26f1d5d453862235e403dae9b8468e8fefa0c573172a84b034f4c973",
+     "initial_state": "3e5598e269b91ce76236b86e18440397def3cb02d6bd4ab3f4274869c314ab60",
+     "n_assertions": 7,
+     "n_tools": 9,
+     "prompt": "53a6598e80bdb645d269165cc9e845de36128cbd4c59500708e5a1b376c17448",
+     "tools": "31d85dc0cd7ea2dcca33126c8f53886f622a93f286663e1b5e2a9ae4f429511f"
+    },
+    "sales.create_note_on_contact": {
+     "assertions": "5d4bb40ae279eb36c35aaa399ed734c637c09a90bb181489caf33b99c2fb19d9",
+     "data": "c88427c93625220d02ff600852b7a10e4829eac55b1a1717952b707c6fb94ba9",
+     "initial_state": "9e271231cc0ea7f34608549f7a5a7d3f766ef405e0248e429c9cbbe054aabb72",
+     "n_assertions": 13,
+     "n_tools": 8,
+     "prompt": "02c57de8948694243fd73a99168494b5672f77b0344f764f079dc17ebe26ea62",
+     "tools": "0ba303888d031f765eb3aeff3e7f91156138d43975e9cd30da324f76b68f7967"
+    },
+    "sales.cross_platform_account_health_score": {
+     "assertions": "8cbcc6f175ced00b59e484f1a88b80b2e12e3b59a080e6578d7ffcd449898e49",
+     "data": "6425a73287a22d9fe69f1af6ef9a3aace5d7b7f64fb0f462e609547a7b44e934",
+     "initial_state": "6434b511740cd4f70e9f317d675bd4a64b27c109adc52a607dba097080a649a2",
+     "n_assertions": 13,
+     "n_tools": 15,
+     "prompt": "9943b359461c77c78fb4853757d1eabc9a6821edcccf480578cdb8b73b887c32",
+     "tools": "5bfbf30dc077413d42d360f2581e74a8ef1a427ad2367ff86f913bb2550c132e"
+    },
+    "sales.cross_reference_validation": {
+     "assertions": "cadbcb8cdc828a6a0dcd5b757b8eb002a792427785a9fe2f1b365f4a1794f8b1",
+     "data": "c5f05618b3b043d5d4f911d022779472b1c874d88e162f8153a00d21f176495e",
+     "initial_state": "d295f033e086948973956c0a856c827ff5c21d184f9cc91d108a916bdf85e1fe",
+     "n_assertions": 11,
+     "n_tools": 10,
+     "prompt": "cfa8a1bf0b89f9fc51683ccafd29bf43f00445809f3d4b748664486117270ea9",
+     "tools": "2a5cfcff2ffd9d31bef22b706577adeb038a42245debf7aec7cc7356812ac7fd"
+    },
+    "sales.docusign_completion_processor": {
+     "assertions": "673f4afe3bbbbe2d7e1e20ee9d1acbb54299d57dc4f97c501cf93b657321a2dd",
+     "data": "265f2a491732f0c5299d7b3094b6db0ee41ac9042095103ddc00221aacb6b5ab",
+     "initial_state": "4c951d4bbabb0bcde2002af1b009d71e2f224fa365d1f5fedde34b2aa253ebcc",
+     "n_assertions": 20,
+     "n_tools": 10,
+     "prompt": "f152111c5cc6123ee09dcd22e6cef6c7c896898a3552680d6eb2221085d8c292",
+     "tools": "d131438075861b111229759736ea42a8433b966a8de2b0d8c8435c7d99be8189"
+    },
+    "sales.docusign_compliance_template": {
+     "assertions": "100d7c937f5f2ff459dfbf8ae36fd7780db733d5a467670a92704fa55cdbbd6e",
+     "data": "e67c11fc4bbb400840cbdff392f27054fee2c8c32e4840398d4bab54a49c6f6b",
+     "initial_state": "ea825006f877380cf9334f1be22e9d4f0039b542e2449be0aa11f37c2a2fb028",
+     "n_assertions": 15,
+     "n_tools": 7,
+     "prompt": "17665dd2aa27af6c3ef7e9ea1b195c341321a0a745846331fbe0b31d8341ab5d",
+     "tools": "247c3fa83f12ecd39161383703cc9e741c07b49a3397e7e2714372a7b87dabd2"
+    },
+    "sales.docusign_void_resend": {
+     "assertions": "8994787052060931b19f148ffd7affa076930e83e257dc0b25f861e53ff782d5",
+     "data": "50c7f46f0350e9bce85accc89b764b0fa90c561a8710ab05865f99fda3dba189",
+     "initial_state": "b73529ffa4f2c31a124b26fa0f4c1294cc9f13fc4a832372e493d28f417cbdcf",
+     "n_assertions": 15,
+     "n_tools": 13,
+     "prompt": "4b9499e352945c94af148d9953ee6b979c9785289b8b1f242de75c1eef3e26cb",
+     "tools": "499a78ed1c4224ca4ed0643a252bc59a37c279906e3ba94af98876d414778e68"
+    },
+    "sales.format_ambiguity": {
+     "assertions": "93242711931a28997e2f1f4c2d82877e1eb75b47b1149ecb72d51b4e6f8644e2",
+     "data": "02c9fb06d441a04fd6ea36fa879e6c2209cedb336142f223032577a1280389b0",
+     "initial_state": "6967346bbb9a15be8ea1b3d21a95a29775413bf1a7718e2c32793248b63b98ec",
+     "n_assertions": 8,
+     "n_tools": 5,
+     "prompt": "8ae5ccccc1c9192c04aadb6c36a1525e07fbbda2afeda04da7fbe676f9418193",
+     "tools": "f2e0638372c8b8360d95570214b9595124d2742dccefc0f2434c3ee57c97a766"
+    },
+    "sales.gcal_travel_time_buffer": {
+     "assertions": "cb9514a3e68deac005b131bfbd738ad37a8158e6b2c891b04cfa44ac8b5f72da",
+     "data": "6554f88d9a6a08ead16922fb7d7504c002fe0f922fe8e0e4ecaa13b1cb7be9cf",
+     "initial_state": "636b2d65b9614f2ce10d499b4ff2cd08f06279d6d0dd5381639bb59f8bf0fb8a",
+     "n_assertions": 7,
+     "n_tools": 8,
+     "prompt": "82ed0d991d384918332cbf640463aac23f54244d8ff684a0e339301a093b8fbd",
+     "tools": "bc3f555a8a1a5241fd57b4a6086ce36069b88415c575d2db46e085f1e91c354d"
+    },
+    "sales.historical_context_pipeline_report": {
+     "assertions": "c03420213abe81133ad74025f15d1d258d2ec672211810c801c41b72f287fff8",
+     "data": "d6641018b008642a94c14766ba01993cd78ff4dc8299cf6be36aef389519f919",
+     "initial_state": "1f3e4d12c742e644861e3681e96b3080f795e55c002ebe4e9b13835e21249fc8",
+     "n_assertions": 6,
+     "n_tools": 6,
+     "prompt": "55776ed40d03ecd45558ea29d05fa88356a29ac5006ff279709ea351e7017c67",
+     "tools": "9336e1b9ccd08f1cfbf11a5b7d5506a17f1e550e24318afc7a97f7c73b985463"
+    },
+    "sales.linkedin_event_promotion": {
+     "assertions": "98d95207d11e85c300da2378d2416cc4a0528fb7a6437ef9864332bddcc4c728",
+     "data": "4a3f217fac33aa20b7cc2e5db256fd22fc4ee17ae2c161c466832e00c5a3d4fb",
+     "initial_state": "cba8c46318dfb799b1c6e459af25a6914130e106ab924249ff2eea0db410495f",
+     "n_assertions": 9,
+     "n_tools": 12,
+     "prompt": "d651eff486f31edb00e008af106585248e1d6e5debc3462dea8b69847bbc4989",
+     "tools": "f2d5a4f0616663bedd38b183753e33234d5500330610aa4442eb6a59a8455644"
+    },
+    "sales.linkedin_job_change": {
+     "assertions": "7ca99e29095aea93e3b3febeae994d8b25804ca2ddae985da557c314c286e237",
+     "data": "4a730f964cfe7854347b1e6cfa676a9396e3b75afac59af7479e3fe2483bdd8f",
+     "initial_state": "66d937266a0982c8b65cb9dd5c1b75ac7db2074e2cebcb8d5721551e64c6c10f",
+     "n_assertions": 10,
+     "n_tools": 10,
+     "prompt": "72a42eea5b264d5ddd197cb36419c3e18935a52cf367c37c51f3a296a5c8a516",
+     "tools": "7dbc429d0f2a38d2b8aca826cef9f4e74ae5275c704448a55b01ba623e6d9424"
+    },
+    "sales.negative_selection": {
+     "assertions": "893d09aa1dd6c03f4b201fe85b84f6fe0c92b72f2a385c70002d92789fd1d800",
+     "data": "38c45ce48f69a08775eea9a90b835f5028b46ec38088aa7f7774f75c2f9917b8",
+     "initial_state": "bb4c5ec59a44f9dde101cc8724f83ed1989c44ea577dc4efb700e595c5c86a2e",
+     "n_assertions": 17,
+     "n_tools": 7,
+     "prompt": "d34675d83ee8354a92b909e7e49ab96c95fb743737eae05c7ca6e3cdc1aa913c",
+     "tools": "5b202962e5ee731e30d04abf680b07674416befcbcd3f0cb578e7f32381764e8"
+    },
+    "sales.overdue_followup_flag": {
+     "assertions": "ca0af4629f9f4576e9672271eb035fc182988eebeaa5c2e7115573f1c794d391",
+     "data": "2092449c73f78b335091f1bd2eb52770229e023878466ba9972b65f9bc18f1f6",
+     "initial_state": "49fbe7f5fc20643fe124983ec574a01c90c81d7e14778c4235917b1958671645",
+     "n_assertions": 10,
+     "n_tools": 8,
+     "prompt": "df711130da361e7989f7ac29e7f53269d7087e4ddd527eeb6644f34271ff2074",
+     "tools": "4142e12b965485c666e272dcff7c1ad77cecea2f277213df306d76530c928ec6"
+    },
+    "sales.partnership_contract": {
+     "assertions": "b85d38075f96871d4209897690750bce20d8d5524d2eff7d6b93d8bb6e61ebff",
+     "data": "9179775393d5ecfe277f0313db98a2df337d19d75c158756411987400ba5f713",
+     "initial_state": "1b4a13c65e9916fc261f50756a36f41fd54131b0a5c41e56ce2dfa162168ffb5",
+     "n_assertions": 8,
+     "n_tools": 10,
+     "prompt": "47599b98fd547b15559c2f413c0dcd69f25c765fb522ac269de54113e0d4658c",
+     "tools": "76a0b537ca5f423d7c0079f1ad16eac5e31d10e55a3c67f139fb5f4aa0bc9d98"
+    },
+    "sales.qualify_lead": {
+     "assertions": "97364a241217985f04f823f5b529b79e4903c89deab9125d53267a927d312dab",
+     "data": "a9dce88c40162316cb33426c2d38193753f888bd39da4395a666fb993e4ee008",
+     "initial_state": "2cb16e81af9f07cc9518ba93d7931bc3429100b21866460d3a693442fb79066f",
+     "n_assertions": 10,
+     "n_tools": 8,
+     "prompt": "97b1e745fbe48b0a25c0b36d8923346d2f0a01a809059086790e192d8bb9c37a",
+     "tools": "8826dc8d922e8383106c81c2b7afa34c8d5c68b342df82b1cc642e3acf1fa682"
+    },
+    "sales.soft_matching": {
+     "assertions": "b7ef45fe89c70acc283b74dc1ce446a6348c6e5562519c0dcfd9ca22049ef4ab",
+     "data": "23252a980b8072afb4643d452d0200b55716f95de3caff204c34dff4818ee73f",
+     "initial_state": "2aa2cd31305d20a31b010f374d9b77be8258c7f424c61b5e36863564cdab8e37",
+     "n_assertions": 12,
+     "n_tools": 6,
+     "prompt": "d36a95c5abd9a2bfa0ad72fc9860558a8b2ead383fc0bbd9a5214708f5921e88",
+     "tools": "6cbcf0980da9a84901bfd877de88af4a556fe87ba48e431a8b6f4d0814a21052"
+    },
+    "sales.update_contact_phone": {
+     "assertions": "04f1fa586a2e887fae705797bb837efde0d6495b8a5605c99ee1ef2588a25d6b",
+     "data": "3406d282bc91ca17d66e660a95a370a1e9eb4cf06b38c7c2988550c138bb5e88",
+     "initial_state": "d127fca373f3eb2a90219d99c6d3f1ee7221fcd2b83655b0ba46f64432188818",
+     "n_assertions": 8,
+     "n_tools": 5,
+     "prompt": "f768eabc006be2c374fd22153f90bf33c5d8bb706d9b80f0de4157ec9d536517",
+     "tools": "f8cbc08a97b224543a3fe93e30c33831a22de857987915074b061a1d8559c754"
+    },
+    "sales.vendor_review_prep": {
+     "assertions": "c8596a28fce627ad1da9d63d7563e15e2be8c2e5ee4482520529d08c80a2e63b",
+     "data": "fd9969c7abbcf321592773feb568e9c28c6a7c6d42fb1d94830140fc1c45d2a4",
+     "initial_state": "6a3c864f110f59ab2c561fc683a40022ee008654589bab78bf3f034a8e797dee",
+     "n_assertions": 7,
+     "n_tools": 7,
+     "prompt": "120c3da83d7b81de88494d086e981c9c436c3d77352a07d516cd7f7a9a225162",
+     "tools": "22833502ffa7cc90bfb6f750344e976ccb7a7fbca074822e132a30767d888f87"
+    },
+    "sales.zoom_attendance_pipeline": {
+     "assertions": "40e481383ebc1c1600201f567803c78b4ddf036b27b477f444c6ef290681ea0c",
+     "data": "801cdd95db2cbe34ffa711cd6d49e04226a755087cd2bfdfe3ea0ca5f6889fcb",
+     "initial_state": "4870ef28cd19d08f4104d06b9b5f06625c31d82382ac9c5e782391ed527f6a06",
+     "n_assertions": 11,
+     "n_tools": 12,
+     "prompt": "7750bbf004f29f11f3ce0cdadd25781abeb029e2903c8c819d7682bf261ac570",
+     "tools": "1acb9cb0c191004a68a2ecfeca2fb141b6496f742a46a91b285a4dc394ab6fb5"
+    },
+    "sales.zoom_recording_distribution": {
+     "assertions": "fd2c6de1aba4aa1ba568345ba59eb7457491ffb206fddc54a1fb078816439452",
+     "data": "0527d2f3234eb5f5008f84deb463b3cb1fcb52b1e438f1456577d57d2f07218b",
+     "initial_state": "1e097376131e8272570d4f0fe164eed8d6aeb93cb73c33c594d78b5b45527043",
+     "n_assertions": 16,
+     "n_tools": 14,
+     "prompt": "d5af8edf972ca39bc699d1a51d9bd80842470b73f2fbd6508bfb35f1a528960a",
+     "tools": "c11f1f9e64af540056b95fcca8d4222b10fd56608470d9a430a9129dd1e6468a"
+    },
+    "support.freshdesk_escalation_matrix": {
+     "assertions": "963643a3a1da5e6414a84c842a511c1f274d62d3f92d93e0e0d0aae2b443ab4e",
+     "data": "e6b10450aef70172ac842f003d6080281df1930ad8f645d952e8b6f1df2b8712",
+     "initial_state": "43e1e1cfff46a2e11773ab6aabbc7474f02214dd8346beb7fc44757098291fbd",
+     "n_assertions": 38,
+     "n_tools": 11,
+     "prompt": "4fe2223239c72b41c2acab02b809815b9266ae2c0c392f2ddd23994aa881b03e",
+     "tools": "27764771f5d536e8686904b20f7199803757f6ccffe1f6d7f4c08019e6b63356"
+    },
+    "support.freshdesk_faq_drafts": {
+     "assertions": "2846375e3a52a606ff0f4839fc2125269c8cbec41d1e8cf74c9f68cd2c72fcbf",
+     "data": "ed288d42ef5644c7fe9131d4ba18c5ea0a0fc95029621d4e7eed9ab990ac0f61",
+     "initial_state": "aedc3c1b8d3d2dc6bdf90f8c96df5c0040c0719616fa65c71cc6f4fe4ffada9b",
+     "n_assertions": 45,
+     "n_tools": 11,
+     "prompt": "933819658866cd31e499b33fcbda9a98b909665cff1de2dcc582de1e28c19541",
+     "tools": "e6697c54dce49e5a5a436b93625ddeb361cdcfc3ac293bb420d1f19d575c05d6"
+    },
+    "support.freshdesk_journey_mapping": {
+     "assertions": "03bda093eca18d9ff59ff9c4c54681f519de723504c525287001bee0c3b220f6",
+     "data": "fa08d088d18d14dbd6f362522c53e8b81c373fe1145be690d42cf4cf04a87663",
+     "initial_state": "f02667856cf7ea198c0fa95543dda53d91fc7077b6289a00c95b7552d0b0bb7e",
+     "n_assertions": 36,
+     "n_tools": 13,
+     "prompt": "ea51019ce17a23af2ac31e75a821e3ad5163b5bf694867aa5ca0e0acd91ab652",
+     "tools": "2925eedc0284487dcd39e16fd63af8d3f9f744cfe11aa066fa4cc01daa8d24be"
+    },
+    "support.freshdesk_onboarding_automation": {
+     "assertions": "7d4bdd34623a6681961974a8fa2034e206bfb875ee7ccae0217eb3f8b322587a",
+     "data": "9122cfb8216de04d4427b5db73426369736b09c6d1acfcb050ee3a4539244729",
+     "initial_state": "4be3a6e7e83e251b2687121502ae987f5c0ef14ae5a234872807fa8d68b7be3a",
+     "n_assertions": 26,
+     "n_tools": 16,
+     "prompt": "43dd4360e5ba3544a66308ca16a4b09424c5a1dc1c2e7614013c6de657952a4e",
+     "tools": "1302f8be6607077be640c100edac501d601a70d213624ea2fa6603c05d6cf632"
+    },
+    "support.freshdesk_zoho_migration": {
+     "assertions": "8f01e93d60d9714dd58b576aa3f7c6dfa6e8269ba76e7a76f6b566a7499a4666",
+     "data": "e280679b2878aed7a144516aae70d02474bcd4d5c6b538f3f3b24c7ffc863203",
+     "initial_state": "9ec3765c1025c87258f786a6a8e1bd048510c8f0bed557b436f9d8b87cd076ea",
+     "n_assertions": 26,
+     "n_tools": 15,
+     "prompt": "8238b588f6901eff0081e6453e818610ec867e385e9be308192325498f584844",
+     "tools": "a6cc26b27962607db08114acd3a3c58b4fb4077f153f14336fd2e48a8fe34568"
+    },
+    "support.gorgias_channel_consolidation": {
+     "assertions": "0b857566ee40f4414933a453278efaff77445621478447175910e235f8a426c5",
+     "data": "2c69a2a2f5d7fa5b84b10e3cb9015d8a40d391f90b376f06ec042d726f4d7ea4",
+     "initial_state": "173342778eade68702d64db61ee36b748a2801c51a80d01a11620a2853029916",
+     "n_assertions": 37,
+     "n_tools": 9,
+     "prompt": "7f4e25032954f656bb33e91c8726572bfd6fdcda4cc05390b214a11171003b98",
+     "tools": "74c55be340605bf1249edc6cca8ac972a351aaf480837f9116957db43d237d34"
+    },
+    "support.gorgias_fraud_detection": {
+     "assertions": "34bb755e5762461bd05621dc72f6fc8f81b2805390fb3cac181a8c6403a6edba",
+     "data": "09ad065af1fb776ce45bdd81f3d1bbb91be34bfa25a60498a3b3e2f0430691b3",
+     "initial_state": "e7aeacc56dd25c81ea9becb3a4911ac89c2dddbf72540ceafc4fdf3d6ae9339a",
+     "n_assertions": 33,
+     "n_tools": 11,
+     "prompt": "fe93fba80e103268bc519b4996630b97f07314415b1ad7994822aeab49f25d47",
+     "tools": "d926a63b4f69ea654a8e78eb0a9fb759179229009159096a7e01335cb831e5ff"
+    },
+    "support.helpcrunch_engagement_scoring": {
+     "assertions": "2f7870f1dd3ca6a37f4a9ba5c87b3fd68113796819dc12aa03d6a4a6e290369a",
+     "data": "e0c597269bdee2fd4c1c9d3fe16d29fc4783c51cae1c1d349a12284a398658a0",
+     "initial_state": "516f32cd58e73fba0a5d44851134d76ab484b4bb4c1b5ac29358c6f06acf209d",
+     "n_assertions": 30,
+     "n_tools": 14,
+     "prompt": "54c7e26329ffc53e8d89186ae23698792b2aba096bd3381a8341f0cb42a333f0",
+     "tools": "ee31a3d0f03751168918bcff554ebee0908c298cbbd4bdea91a68f459e97ae9f"
+    },
+    "support.helpcrunch_satisfaction": {
+     "assertions": "726078eba6361869996be2e44809897d61e3f8d1f9c248a7e178663641e7fa80",
+     "data": "b964388052a39e3bf691fb2f2fae474e199719d98ce4447116edecef1690a842",
+     "initial_state": "532fccb9edfebd804fa18c6b8e9e95d8861e2935e73313d36df6d27fa05efc66",
+     "n_assertions": 33,
+     "n_tools": 11,
+     "prompt": "4c67c205821bf6aabd56c23c6dd1a8f42aba6ed4010f48d3e01f63b58dada2b3",
+     "tools": "eaf4aa6713c6aa2a7c8a95434d379ca8266c7cd568b0bfd1feba953d255b0cbe"
+    },
+    "support.helpcrunch_usage_alerts": {
+     "assertions": "382e01f2b45322dcf4660f92e55885898950f1ca29022a93026ac927a2d69bdc",
+     "data": "f027d15ad7309ce2c688c4f6def0cdd638c50fe185ebe5fe2c5e0544cd01e5ba",
+     "initial_state": "d2446c728e6a0fe6dabd27de0de4558b4f2151d444a69b07f444cf6a403b1525",
+     "n_assertions": 64,
+     "n_tools": 12,
+     "prompt": "d61141974207b52ee552367777197316ad7fbc55be7667aed5a51f8dd5beec28",
+     "tools": "75a16e9e1c36c4348472ad4cf2c79560654eee0d58b7f1f9c424dab16c3f872a"
+    },
+    "support.helpscout_auto_categorization": {
+     "assertions": "ebb9a4772e357e689d7f6501f08c2d8f49526d9f52390151c0c698fc8bd96e4c",
+     "data": "900808aac11c28a5e1cae0314d0c04a4462bfc3db2629b76e3c69dd7e271b512",
+     "initial_state": "6c31b8dffe518585d4c524f9a6c4f4d8d3742bf6aea6f77772d2c3917f8b56dd",
+     "n_assertions": 30,
+     "n_tools": 9,
+     "prompt": "ae8c2d5abbbf0467f84fda9b94c7e9b373fa25b206919148e8f7d33f73006c84",
+     "tools": "aeb256082d334a2a09db94d1df550cf0f665df3fc54b67f1b9e8926f2325d265"
+    },
+    "support.helpscout_daily_digest": {
+     "assertions": "92fb1124ca5e212a12788aa25abe24e7b3ce97b66f65db7166ffda4b85ea7fe8",
+     "data": "8a4ba03cf56349b0cd7e1c7aaf65776e37086ff397bef6b8115dfff32e2f5b1e",
+     "initial_state": "2f7941f02bf49227c814785d8ffbfd93de447f56235653e2a31ec56a63ee4e47",
+     "n_assertions": 36,
+     "n_tools": 5,
+     "prompt": "54e09bed55ac32e186b973f49ce043083ae88f6209b6b91c5755123955150304",
+     "tools": "6a2866ae828a23e5f54853ed9c1c0d7f7650cf851afd4db3d65a6feadc6c61bf"
+    },
+    "support.helpscout_jira_bugs": {
+     "assertions": "a8816d12daeed3ce9ec860fec6426c8de9ec006f810c62cc6c4df7b30b38a2ee",
+     "data": "2c0e88d4be645a0768252a556d3eb059e252a3e1418c3df1af3719b725572cf7",
+     "initial_state": "5bdec91f998d1fb50432e7e60161baa25bf8d87f5b4d03c8f4c1a62b2dab4c76",
+     "n_assertions": 42,
+     "n_tools": 10,
+     "prompt": "7ae036258b95980e7c583ff6eafce22d5dcc376fd51d77c7464fdb301ff368f1",
+     "tools": "10bed3f7440f44827d813b8db1a2fc88564f6cb5dd19c84cc6d039c14af5f2d0"
+    },
+    "support.hiver_escalation_patterns": {
+     "assertions": "92a2d74aa5054b1abed40e439adbc287a0f6b6107167675b3649fb9616c04110",
+     "data": "db8c999a38aba4ba31192626a5f0f2b09f49b4bbdb68c031b256e520e3db5b09",
+     "initial_state": "ced336e86530845940249dcf0b58463851691aafa312b7671a5fb92b24c48b25",
+     "n_assertions": 36,
+     "n_tools": 12,
+     "prompt": "6dff7c2634e9380bac146fa5cbc2b5d021fd6a9fd8422a030d26d03e295e09ae",
+     "tools": "e6e816ee4cedfa3b4d64ac00c494242cd00733595d84e20128d37dd5251380a4"
+    },
+    "support.hiver_inbox_report": {
+     "assertions": "ea79bd95dc691e56080b822c981af4d456684740e55ce4e10efc1393eccf965e",
+     "data": "d572bbd34b55a3f043684f4001ffe6d93bdf23029820db99327219bc3102b399",
+     "initial_state": "68f74586198563fe33e6b0f774b2c004d9282c2c6fdd4185e2e135fe57143620",
+     "n_assertions": 44,
+     "n_tools": 9,
+     "prompt": "3eb3c197f54d133f24d93df53041e4e8c2ca0f01dbb729f947df5c21c2337862",
+     "tools": "195c9a5e1467ddbdaeaf2c5bf2cdc88b94db9b4003df953dfea026fe3537b518"
+    },
+    "support.hiver_response_sla": {
+     "assertions": "045a3581638e07f3d42fb4942a67f1ea1c8aa16fd2ea001e1c281cc56a7a4a38",
+     "data": "d7db4eda4c2175aabc57c252cfcd7a6c9c277def6f03ed644ec91e6bef61e84f",
+     "initial_state": "05ba42888d74bf6c89e3961379aaba5e0046f429f5c118c80d8ed8806738a3b7",
+     "n_assertions": 32,
+     "n_tools": 11,
+     "prompt": "a84006efdf0799b02ab1ab01b8bb4b1d53b5993a44b340b74b59183d98bd3618",
+     "tools": "07fbe085fc87945a3665354cc2c2c8d846597a801fe7e0cc2c61017aac13756d"
+    },
+    "support.hiver_workload_forecast": {
+     "assertions": "6d548c78f3f1301c53f13f863b3a7816022c218fb3cf2a52768e2ee1ab86cd0a",
+     "data": "588e3408b0970d0a1d5caa1d816d6bd29812b61e6226776ded3196d72e48ad16",
+     "initial_state": "2212594d4c129961f3b48619b600272036b31e0e84bcc20a2e9eb4e2f11ad069",
+     "n_assertions": 29,
+     "n_tools": 9,
+     "prompt": "c3a4e09acf362eb1adc1258a0ffba7c3b195288bb457707fbb13ad7c602335d3",
+     "tools": "90b16fde40aabde0ecfcc92b751e0f4063c2ead9688c83963972b44a1cd06366"
+    },
+    "support.intercom_demo_scheduling": {
+     "assertions": "e4f69231b39cc259ff35652de674d0cc856b45e384f31e1aade98bdf30977afa",
+     "data": "3d1fbda33dde2d7426c3d9a98855a7182334663a9f2f7d071272497d682cfe28",
+     "initial_state": "4f043784e87b82ab1e9067003d8a413f814c23f114845824a815696f9c76974d",
+     "n_assertions": 58,
+     "n_tools": 16,
+     "prompt": "a7925f69f4d173b35e346f939ce119987857c6112b1ee98570c1b1c83172c401",
+     "tools": "0f9f28253cdae7d697cc09d29cc134be8bbb105311507e2f2a55de15c1833953"
+    },
+    "support.intercom_reactivation_campaign": {
+     "assertions": "9103fabff7676e703d783dc90a7ef0864e57bf4162efc97855b497a0dbd844e3",
+     "data": "55e7093b22e23e26bc5f229be4e90c21a6a67b072587099beae30eb494de6478",
+     "initial_state": "fa3d5c56e5a70792fefdd38df88c11c53aaaa9a1d4e56295e4a138db62a8c01b",
+     "n_assertions": 38,
+     "n_tools": 14,
+     "prompt": "1e97cd39853a0b4bdf21a3d58936c95a2fc35b049a8ac629bdc8b516f6c40c09",
+     "tools": "54c8950dba47382f6414bb6afe59e56e484d68075e9f7f3bce74e479d73b298b"
+    },
+    "support.intercom_winback": {
+     "assertions": "297cbd893357b34afa08b33b9139b6f109877b32cf8c59e63fe872836461d266",
+     "data": "3d02ef0510195674f27fc071c338851e75dd928be052be982bd854e30c14c6d6",
+     "initial_state": "752c392b16c7da4fb4ce9452453c20f5fc62ef2860f21d1014c23caac1812c26",
+     "n_assertions": 43,
+     "n_tools": 13,
+     "prompt": "d8bc332248fa9a9fd503bbe3e7d7f810f4c5bdc4f861202c771323689e8a16fc",
+     "tools": "6caa84ffd766196dfee51a11aacebdaace61749aa2f973aea2b98f86808c1eb2"
+    },
+    "support.reamaze_cross_platform_dedup": {
+     "assertions": "ff757cbaf1015c555dfc8a34d6ce030bd854c5aba9bcdb56257ced45e37df9d4",
+     "data": "bbb16a42f7159501d7abbb95948c1ce9aa9857f96b383fad32503a6397b2435d",
+     "initial_state": "aac42799a5e22689ae01be498fa1c9b5bf515bddb17f2492f5486b4445062b47",
+     "n_assertions": 36,
+     "n_tools": 12,
+     "prompt": "b1a57a3851cfa085139e6b23a0c73a327c4d22a36ffab9e48d03dc1d822f501e",
+     "tools": "ca9c9577aaca3371857c651a9c3cce6f35f543a04877afdca900f2b900e7975b"
+    },
+    "support.reamaze_intercom_migration": {
+     "assertions": "d67eaa5bd052846cc6312b2dae2bbe8d1816f822d680eb4899663c82491032f8",
+     "data": "4b613eb5c08d86256fefa88cf1821f77fb7535ca1c2d3f066a732c6cd9cf44e4",
+     "initial_state": "0154231131ce2ad86ba6940ff17cec9d0f61875e9fe29de0b915735f96f9018f",
+     "n_assertions": 31,
+     "n_tools": 13,
+     "prompt": "1b06da8ba3b02e3ba4e3faad0940c1cb41431abedc81965a9f5c37adc61cb7ce",
+     "tools": "448678342a4510ed1529ac74ff975d148674e8f4c12338c03486e496a990da63"
+    },
+    "support.reamaze_multilanguage": {
+     "assertions": "b64e03aa0ad0f5191ae8196c5a85158c047bcb4383a1b6d2ffcc512a6aa2879a",
+     "data": "bbbec108b738e6142ead242f2821ce04180ec0eccaf1345ec754719131325160",
+     "initial_state": "ccf33061d0b5b46884a3d322934afa1086ba76fde2707ea84345c80b36ad0d44",
+     "n_assertions": 32,
+     "n_tools": 8,
+     "prompt": "eb1fc64dea7dc299d66b5aefc792ea5623d9fdabe882fe0998e04d6265751872",
+     "tools": "f065c15b0accfb29b81d9dcdfd141d528ca94812fd79b417eea6bed3915532a7"
+    },
+    "support.zendesk_automated_responses": {
+     "assertions": "10188d19e522f19c6ec7fd9c2a87f3dba6da86b6d687e64d36149faa7d9b2d7e",
+     "data": "a41eb6f789b5289193bbfa85ef918f2f50495221457b071a0046d31472bf2e0f",
+     "initial_state": "fa409b068882e995c9183ab4d8a8fed47c4ad50c24d68a112e0222e0a886e347",
+     "n_assertions": 29,
+     "n_tools": 14,
+     "prompt": "3ed960723c4c2ef2592deba41b4842f34683c4c25f2dc7a9b9f41073c0bf93aa",
+     "tools": "11c5473eb23644ea927cc46d3f5382b3f44c7f4412d097a24ce7a0ab8cc5a5d9"
+    },
+    "support.zendesk_customer_360": {
+     "assertions": "a2bd8cffdb57c7cd616ff31be147b5d6b590eb84933fcb72722b884b8d4a1adb",
+     "data": "57a588f52d7a9f46b6a6805cfbb70ae5e70423360b08f230e37e0346beb8d5b8",
+     "initial_state": "6d622f0f6767cad653b6f00ccee9561547cfca9a9df76dc6f8c886ad0212eb08",
+     "n_assertions": 26,
+     "n_tools": 14,
+     "prompt": "c8643888dff7ae90da065f586e62504a7748375761cc9e55bfefaf47de837f43",
+     "tools": "b1a9e73495975257f667aaa983109019dc2fdae3c1a36d2cba34994af676c510"
+    },
+    "support.zendesk_data_quality": {
+     "assertions": "26aef1903856bf83f16e3147f4ddefa3b4ad11cde92e02a7da2b31652a5df051",
+     "data": "abdf6b79cd665f0dc9751dc9b047199c2cd4193fc1958b87e40a074fb08c4043",
+     "initial_state": "343d730003301fa839400b53375002bf87513fe9d731a92ac6e14f42baec2ea8",
+     "n_assertions": 29,
+     "n_tools": 8,
+     "prompt": "ab28ea82173d991cfb71f203477ffc6479415ed168563f9fecaa5083905224b8",
+     "tools": "8b198d188c7134627e8d5aa2c636569af3a872f0e6da8b869b71487d6d896cc3"
+    },
+    "support.zendesk_escalation_waterfall": {
+     "assertions": "c1140c62a6018f6f5e12b2ef9916751b7efda91ac8929f8a504f3ec4b1e78035",
+     "data": "874e5bfd9913d299a879842a95c6a5f3878a21882d49352b6357f9b5076c51eb",
+     "initial_state": "97189d6fd79d42721d861cbe98eedf639c012e111a06895d91e6116c30516e24",
+     "n_assertions": 37,
+     "n_tools": 16,
+     "prompt": "61ecc8071440c729af103bb068b44ca20bab71caf6d6a3709de106e1a1e0fecd",
+     "tools": "39774f87b97a5a64ca52dbcdb7ad6da633b9b083d5c7f35535eb7261aa680b84"
+    },
+    "support.zendesk_freshdesk_sync": {
+     "assertions": "3982b0ba17a776182b7056cca54452ca37a212cefa4c529b0237f602ddfb0a19",
+     "data": "44d8fb19fee5bfcafbd8e303b918c83695cd479cea5f1fc3482844d812c78073",
+     "initial_state": "5b26efb6974e2b7ad9295d116922070d8c91b9a7cc5d107840787feebcff7995",
+     "n_assertions": 29,
+     "n_tools": 17,
+     "prompt": "80f797bd7746617f67c27e221a76a4d6f3de45f020a8eaf5ab8aa2082b720a25",
+     "tools": "a06ae30688b25869bec5738ffbcbeab32fbf21877e633db4b59822477cd59894"
+    },
+    "support.zendesk_hubspot_org_sync": {
+     "assertions": "2fa700ba8b208f4246d095ff4df69d5837ac62eacc4fbfa2b07a98c3600ee174",
+     "data": "8cbfa6e401e095edba7d3328b3926bfcaa00bdf1d4f46dbe24a81a1e0a14bbfd",
+     "initial_state": "4042cad09433ffabc2314e479fa09a8d421cdf6d5905637e9b2c83f171c5f423",
+     "n_assertions": 36,
+     "n_tools": 12,
+     "prompt": "a77d4cae45f22f75790f7c5456835c1065d3f248c7271359502c2bc1ae46580e",
+     "tools": "2e1f62650654da6a5d0a343399a402334d910760cbf6fee58ed836097b43be3d"
+    },
+    "support.zendesk_sf_case_sync": {
+     "assertions": "c90bcb52e542e2459b5aefdebf75b29b2b1bba4d70c8627387eccea9c4b040fa",
+     "data": "e40d4f105f6ede51ac732760923940ca522cc9e7719b9cc6937bb22648c2f917",
+     "initial_state": "15cb92bc5580a701156863eff775741cb7aebcca90c5c54abab3bf3dabdf9ce7",
+     "n_assertions": 30,
+     "n_tools": 14,
+     "prompt": "76ce23d4dc350efe77c492872375ff154ed05c8c10fe185403f6ac982352476c",
+     "tools": "66542e69f5e042bd238618d8e68be07a975620c638c73c2cddde5397c8f06195"
+    },
+    "support.zoho_calendar_callbacks": {
+     "assertions": "27aeae8749fb7322b55bdab36698b09db8070a2969dac55a42cd36b2e5d12de4",
+     "data": "c80492e15aa0ca278992561668758b3a13040322d501ee6116cdb2e5b1f267a7",
+     "initial_state": "7e38ce68ff3614bc8f2074eef1dc0524f284980603c26b20c31f7f826098e3bb",
+     "n_assertions": 36,
+     "n_tools": 13,
+     "prompt": "4f86d4b33e5ee840df2d90ad2bce939bb082a08ed60aa44ca7c8017cfabac2d0",
+     "tools": "eaa88195650509cb6b4eb352b68fbcba85958543e65539c119a86523c6bd229f"
+    },
+    "support.zoho_desk_capacity_planning": {
+     "assertions": "e473ca554233b0d8bb406db23bf9a297d08202cce40f9a3f5b7576e9c81a01f0",
+     "data": "5e0327d55d026b6a76d4eefff49284ecffbdc0f180bb08be14119cc238d46ede",
+     "initial_state": "866dba334470867d3fc8c3c6e03323befc9bf35038e0ac9b340fd5a82aedd1a8",
+     "n_assertions": 28,
+     "n_tools": 12,
+     "prompt": "2c6c798079b6f5e5d89f0fe5e92a0e2de38395a9e13442d986dfb0088bceef07",
+     "tools": "95077b6e5640bf49e7ca4bb091966b4faa5f93d8758d0b102c9897d53002813e"
+    },
+    "support.zoho_desk_root_cause": {
+     "assertions": "a0f57fba55ef48c819886af91dd9d7d2d47312b096fa4620d6ad7381c5797b72",
+     "data": "10e8a1ac528551c4c7d23a3f7c5583639525f35e879f2cfa19a8c4471fe10edb",
+     "initial_state": "90f0fd1337a6a6895240dc400e24bc2c5cbfbf4c826dbb28ffa8de60ad0339bc",
+     "n_assertions": 41,
+     "n_tools": 10,
+     "prompt": "30ae6d2cce55effc2e18e6842a5f31fccb94beb1ab12831f348422b7bf4b0ceb",
+     "tools": "4b08c9ffaa1781e295cf2d57249fa05469a5a79a3cbdc7b924834cc50f79bb02"
+    },
+    "support.zoho_vendor_tickets": {
+     "assertions": "35c4bb415c51aa3851198a9e2e6c526659985ca575ba7d5e6a5ba8fc6c26b46b",
+     "data": "abecdea3d667ff837600e1b0917fb860ce72455263ce8232c48aed5a1f81a207",
+     "initial_state": "e8668da5b5e0e585ac3d8082f697d929a2d959647709335d36e3bc8db8848903",
+     "n_assertions": 26,
+     "n_tools": 11,
+     "prompt": "2dc6c6fb921132b1741d056d0cb08196aa93eaddf611fa29812b25473fce50f6",
+     "tools": "709da89e1e8e63970ade87f0db0a7c0cfb7181f614bb51bad0ee5e65c490f038"
+    }
+   },
+   "tasks": 204
+  }
+ },
+ "world_date": "2026-10-28"
+}

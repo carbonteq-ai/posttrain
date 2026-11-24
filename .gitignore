@@ -111,3 +111,12 @@ ops/*.txt
 /docs/research/evidence/sdpo-vllm-20261018/
 /docs/research/evidence/self-trl-20261017/
 /docs/research/evidence/self-vllm-20261017/
+
+# SDPO A/B run evidence: bulky episode archives stay local (checksummed in SHA256SUMS).
+/docs/research/evidence/sdpo-ab-*/**/native/
+/docs/research/evidence/sdpo-ab-*/**/*.jsonl.gz
+/docs/research/evidence/sdpo-ab-*/**/rollout-policy/
+/docs/research/evidence/sdpo-ab-*/**/initial-student/
+/docs/research/evidence/sdpo-ab-*/**/checkpoint-*/
+/docs/research/evidence/sdpo-ab-*/**/engine-config.txt
+/docs/research/evidence/sdpo-ab-*/**/*.safetensors

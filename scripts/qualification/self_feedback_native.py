@@ -28,7 +28,7 @@ from vllm.entrypoints.openai.chat_completion.protocol import ChatCompletionReque
 from vllm.tool_parsers.qwen3_engine_tool_parser import Qwen3EngineToolParser
 
 
-def prompt_ids(tokenizer, messages, tools):
+def prompt_ids(tokenizer, messages, tools, enable_thinking=False):
     # OpenAI transports arguments as JSON strings; the native Qwen XML
     # tokenizer template requires mappings. Preserve the actual values.
     messages = copy.deepcopy(messages)
@@ -42,7 +42,7 @@ def prompt_ids(tokenizer, messages, tools):
         tools=tools,
         tokenize=True,
         add_generation_prompt=True,
-        enable_thinking=False,
+        enable_thinking=enable_thinking,
         return_dict=True,
         return_tensors="pt",
     )
