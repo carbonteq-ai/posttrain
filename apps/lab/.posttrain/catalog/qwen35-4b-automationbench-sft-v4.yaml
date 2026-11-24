@@ -1,0 +1,67 @@
+# AutomationBench SFT of Qwen3.5 (thinking on): the data, the training settings and the LoRA binding used by the
+# 4B SFT adapter (carbonteq/qwen3.5-4b-automationbench-sft) and, with the 9B model, the 9B SFT adapter.
+# Data: SFT data version 3, 97 rows, one solved Qwen3.5-397B attempt per training task (scripts/qualification/sftgen).
+# Download it to .posttrain/datasets/qwen35-4b-ab-sft-v4-all.jsonl:
+#   hf download carbonteq/automationbench-posttrain-data sft/data-v3.jsonl --repo-type dataset --local-dir /tmp/ab
+#   cp /tmp/ab/sft/data-v3.jsonl apps/lab/.posttrain/datasets/qwen35-4b-ab-sft-v4-all.jsonl
+# Every assistant turn is rendered <think>reasoning</think> + text + calls; the prefilled "<think>\n" opener is masked
+# and the loss covers the reasoning, visible text, calls and reply. 3 epochs; epoch 3 is the evaluated adapter. The
+# image-text model class keeps the adapter's weight names loadable by vLLM.
+dataset:
+
+  datasets/qwen35-4b-ab-sft-v4-all@1:
+    revision: "1"
+    kind: supervised
+    source:
+      kind: jsonl
+      path: .posttrain/datasets/qwen35-4b-ab-sft-v4-all.jsonl
+    format:
+      kind: messages
+
+training:
+  qwen3.5-4b/agent-sft-v4-e3:
+    selection_type: sft-settings
+    revision: "1"
+    epochs: 3
+    loop:
+      max_steps: 2000
+      max_length: 32768
+      per_device_batch_size: 1
+      gradient_accumulation_steps: 16
+      learning_rate: 0.0001
+      warmup_ratio: 0.05
+      lr_scheduler_type: cosine
+      max_grad_norm: 1.0
+      logging_steps: 1
+      checkpoint_steps: 0
+      checkpoint_limit: 5
+      seed: 20261103
+      gradient_checkpointing: true
+
+  training/qwen3.5-4b-trl-lora-r16-agent-sft-thinking@1:
+    selection_type: training-binding
+    revision: "1"
+    backend: trl@1.12.0.post15
+    renderer:
+      id: qwen3.5-thinking-v1
+      model_family: qwen3.5
+      implementation: qwen3.5
+      reasoning_mode: thinking
+    update:
+      kind: lora
+      rank: 16
+      alpha: 32
+      dropout: 0.0
+      target_modules: all-linear
+      exclude_modules: .*visual.*
+    target: targets/carbonteq-rtx-pro-6000-96gb
+    parallelism: {sequence_length_divisor: 2}
+    runtime:
+      global_batch_size: 16
+      devices_per_node: 1
+      timeout_seconds: 43200
+    backend_options:
+      use_liger_kernel: false
+      loss_type: chunked_nll
+      model_class: image-text-to-text
+      dependency_lock: trl-fork@current

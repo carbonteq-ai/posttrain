@@ -1,0 +1,47 @@
+project_id: posttrain-lab
+work_package_id: train/qwen3.5-9b/automationbench-sft-v4-e3
+stage: train
+description: >-
+  The 4B SFT recipe and data applied to Qwen3.5-9B: LoRA r16/a32, thinking on, 3 epochs, SFT data version 3.
+recipe:
+  type: inline
+  id: recipes/qwen3.5-9b-automationbench-sft-v4-e3@1
+  revision: "1"
+  stage: train
+  seats:
+    model: model
+    dataset: dataset
+    settings: training
+    training: training
+  jobs:
+    - id: train
+      kind: train.sft
+      definition: train/trl-sft@1
+  expected_artifacts:
+    - trained adapter
+    - per-epoch adapter views
+    - training summary
+bindings:
+  model:
+    type: ref
+    family: model
+    id: models/qwen3.5-9b@bf16
+  dataset:
+    type: ref
+    family: dataset
+    id: datasets/qwen35-4b-ab-sft-v4-all@1
+  settings:
+    type: ref
+    family: training
+    id: qwen3.5-4b/agent-sft-v4-e3
+  training:
+    type: ref
+    family: training
+    id: training/qwen3.5-4b-trl-lora-r16-agent-sft-thinking@1
+enabled_optional_jobs: []
+metadata:
+  question: "Does SFT on solved Qwen3.5-397B attempts raise Qwen3.5-9B success on AutomationBench test120?"
+  labels:
+    - sft
+    - 9b
+    - thinking

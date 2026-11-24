@@ -5,6 +5,7 @@ files:
   - heldout62-observable-local.yaml
   - lfm25-moe-heldout62.yaml
   - qwen35-27b-heldout62.yaml
+  - qwen35-4b-automationbench-sft-v4.yaml
   - algorithm-qualification.yaml
   - automationbench-manifest-steps.yaml
   - current-capsule-qualification.yaml

@@ -1,0 +1,60 @@
+{
+ "label": "teacher",
+ "tasks": [
+  "operations.notion_gmail_checklist_update"
+ ],
+ "attempts": 1,
+ "episodes": 1,
+ "base_url": "http://127.0.0.1:45925/v1",
+ "eval_code": {
+  "worktree": "/home/ali-awais-safdar/Post-Train/research/sdpo-work/wt-eval2",
+  "head": "77cabd08c0e2e0d6fb5ab663dc11c10eaf7d1c4b",
+  "files_sha256": {
+   "scripts/qualification/sdpo_ab_replay.py": "dd4bd53c0904112b249442f7ee0c8649f6b4b3c6cc666fdef9a44dea70e8bcce",
+   "scripts/qualification/sdpo_frozen_environment.py": "7b280ee6fc8ac4d87d36a915152931d2723ca03880a095a0de308a56a7615b08",
+   "scripts/qualification/sdpo_ab_execution.py": "23f2737ac5962ac34e38747ccf497e1cce442efb92c6c8ecd831be8e0a035e88"
+  }
+ },
+ "environment": {
+  "worktree": "/home/ali-awais-safdar/Post-Train/research/sdpo-work/env-fix",
+  "commit": "86994309c1b90efb443fbd36c70b5cc03796a963"
+ },
+ "world_date": "2026-10-28",
+ "tz": "UTC",
+ "limits": {
+  "max_turns": 50,
+  "context": 131072,
+  "reply": 32768,
+  "rollout_timeout_s": 10800
+ },
+ "elapsed_s": 7.631890773773193,
+ "config": {
+  "env": "id='' taskset=AutomationBenchConfig(id='automationbench-v1', task=AutomationBenchTaskConfig(judges=[], stops={}, metrics={}, rewards={}, assessments={}, credit_rules={}, max_concurrent_assessments=4, tools=ToolsetConfig(colocated=False, runtime=SubprocessConfig(type='subprocess', fork_server=False, preload=[]), url=None), toolset='limited_zapier', search_top_k=20, allowed_tools=(), turn_budget=None, world_time_context=False, world_time_context_if_declared=True, strict_tool_arguments=True, capture_actions=True, deterministic_world=True, reviewed_hr_assessments=False, reviewed_simple_assessments=False, reviewed_suppression_assessments=False, reviewed_cash_flow_assessments=False, reviewed_renewal_assessments=False, reviewed_record_update_assessments=False, reviewed_access_assessments=False, manifest_assessments=True, turn_rewards=None, mistake_penalty=None), system_prompt=None, domains=['simple', 'sales', 'marketing', 'operations', 'support', 'finance', 'hr'], task_names=['operations.notion_gmail_checklist_update'], additional_tools_by_task={}, task_metadata_path=None, task_metadata_digest=None) timeout=TimeoutConfig(episode=None, finalize=None) retries=RetryConfig(max_retries=0, include=[], exclude=[]) max_concurrent_agents=1 interception=ElasticInterceptionPoolConfig(type='elastic', multiplex=32) agent=AgentConfig(harness=NullHarnessConfig(id='null', env={}, forward_env=[], tool_timeout=600.0, disabled_tools=None, skills=[]), runtime=SubprocessConfig(type='subprocess', fork_server=False, preload=[]), model=None, client=None, sampling=None, max_turns=50, max_input_tokens=None, max_output_tokens=131072, max_total_tokens=None, timeout=TimeoutConfig(setup=120.0, rollout=10800.0, finalize=120.0, scoring=900.0), retries=RetryConfig(max_retries=0, include=[], exclude=[]))",
+  "model": "teacher",
+  "client": {
+   "type": "eval",
+   "base_url": "http://127.0.0.1:45925/v1",
+   "api_key_var": "SFTGEN_PROXY_KEY"
+  },
+  "sampling": {
+   "temperature": 1.0,
+   "top_p": 1.0,
+   "max_tokens": 32768
+  },
+  "num_tasks": 1,
+  "task_keys": [
+   "operations.notion_gmail_checklist_update"
+  ],
+  "num_rollouts": 1,
+  "max_concurrent": 1,
+  "shuffle": false,
+  "output_dir": "/tmp/claude-1000/-home-ali-awais-safdar-Post-Train/a697c88a-445e-454f-8288-7dde8fb14c71/scratchpad/e2e1/run1/native",
+  "run": {
+   "name": "teacher",
+   "dir": "."
+  },
+  "push": false,
+  "rich": null,
+  "serve": null
+ }
+}
