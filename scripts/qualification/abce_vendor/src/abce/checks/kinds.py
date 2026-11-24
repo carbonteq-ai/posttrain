@@ -7,6 +7,9 @@ from __future__ import annotations
 import re
 
 _T = r"(?:At turns? [\d, ]+, )?"
+# D89 (kind_attribution_mismatch): a tool name as the attempt called it, which may hold spaces ("salesforce Lead create",
+# an unknown tool); the record's own tool error states it so
+_TOOL = r"(?:\S+|[A-Za-z]\w*(?: [A-Za-z]\w*)+)"
 WHY_FLAGS = (
     ("why_effect", re.compile(r" \(also required: | \(the task also requires: |; this task forbids it when ")),
     ("why_rule", re.compile(r" \(the task's rule: (?:forbidden|required) when ")),
@@ -19,19 +22,26 @@ RULES = [
     ("hint_value", re.compile(r'^In the initial world, ".*?" is the ')),
     ("hint_named", re.compile(r"^In the initial world, there is ")),
     ("hint_wrong_value", re.compile(r'^At turn \d+, \S+ wrote ".*" as .*; the task needed "')),
+    ("hint_content_at_call", re.compile(r'^At turn \d+, \S+ (?:sent an email to|posted a message to|wrote) .*(?: without ".*" '
+                                        r'in .*; the task requires .* to contain "|; the task needs ".*" as ")')),
+    ("hint_must_not_at_call", re.compile(r'^At turn \d+, \S+ (?:with .+ )?broke this rule of the task: no .+\.$')),
     ("hint_rule_population", re.compile(r"^This applies to the rows of worksheet ")),
     ("cause_diff", re.compile(r"^(?:A successful attempt at this task|The correct solution above) called \S+ ")),
     ("unrequested_change", re.compile(r"^At turn \d+, \S+ changed .* of .*; no requirement of this task names that record\.$")),
     ("solution_note", re.compile(r"^Note: this solution ")),
     ("hint_missed_write", re.compile(r"^No call wrote an? .+\.$")),
-    ("tool_error_repeated", re.compile(r"^\S+ failed \d+ times \(turns \d+-\d+\), first: ")),
-    ("tool_error_others", re.compile(r"^" + _T + r"\S+ failed: .* \(and \d+ other \S+ errors?")),
-    ("tool_error", re.compile(r"^" + _T + r"\S+ failed: ")),
-    ("harm_collapsed", re.compile(r"^" + _T + r"\S+ (?:produced|updated|added|changed) \d+ |; this task forbids them|; they had to stay as they were")),
+    ("tool_error_repeated", re.compile(r"^" + _TOOL + r" failed \d+ times \(turns \d+-\d+\), first: ")),
+    ("tool_error_others", re.compile(r"^" + _T + _TOOL + r" failed: .* \(and \d+ other " + _TOOL + r" errors?")),
+    ("tool_error", re.compile(r"^" + _T + _TOOL + r" failed: ")),
+    ("harm_collapsed", re.compile(r"^" + _T + r"\S+ (?:produced|updated|added|changed) \d+ |; this task forbids them|; they had to stay as they were"
+                                  r"|; their .+ had to stay")),
     ("harm_required_content", re.compile(r"^" + _T + r"\S+ produced .*; the task requires one ")),
     ("harm_as_made", re.compile(r"; this task forbids it as made \(a further condition the task states\)")),
-    ("changed", re.compile(r"^" + _T + r"\S+ changed .*; it had to stay as it was")),
-    ("harm", re.compile(r"^" + _T + r"(?:\S+|The attempt) (?:produced|updated|added) .*; this task forbids it\b")),
+    # engine-fix 7: the keep tail names the protected field ("; its FX Rate had to stay "1.08"")
+    ("changed", re.compile(r"^" + _T + r"\S+ changed .*; (?:it had to stay as it was|its .+ had to stay)")),
+    # engine-fix 6: the attribute tail "; this task forbids ATTRS in|on that NOUN" (a collapsed line is matched by its count)
+    ("harm", re.compile(r"^" + _T + r"(?:\S+|The attempt) (?:produced|updated|added) .*(?:; this task forbids it\b|; what this task forbids is |; this task forbids sending to that recipient\b|; this task forbids that "
+                        r"|; this task forbids (?!it\b|them\b).+? (?:in|on) (?:that|these|those|each of these) [A-Za-z0-9])")),
     ("absent", re.compile(r"^Not done: no .* exists; one is required")),
     ("exists_but_none", re.compile(r"^Not done: .* exists, but none ")),
     ("exists_but_no_thing", re.compile(r"^Not done: .* exists, but has no ")),
@@ -41,6 +51,8 @@ RULES = [
     ("not_met", re.compile(r"^Not met: ")),
     ("not_done_update", re.compile(r"^Not done: .* was to be updated")),
     ("required_effect", re.compile(r"^Not done: .* is required ")),
+    # engine-fix 7 (judge-final3 71): a negative attribute check on an existing object asks for a removal
+    ("required_removal", re.compile(r"^Not done: .* (?:had to be removed; |must not be there; |must not have )")),
     ("not_done", re.compile(r"^Not done: ")),
 ]
 
@@ -79,18 +91,19 @@ STATEMENT_KINDS = {
     "changed": {"changed", "harm_collapsed"},
     "tool_error": {"tool_error", "tool_error_others"},
     "missing": {"harm_required_content", "absent", "exists_but_none", "exists_but_no_thing", "produced_nothing",
-                "never_read", "count", "not_met", "not_done_update", "required_effect", "not_done"},
+                "never_read", "count", "not_met", "not_done_update", "required_effect", "required_removal", "not_done"},
 }
 HINT_KINDS = {"value_location": {"hint_value", "hint_named"}, "wrong_value": {"hint_wrong_value"},
               "rule_source": {"hint_rule_population"}, "cause_diff": {"cause_diff"},
               "unrequested_change": {"unrequested_change"}, "missed_write": {"not_done", "hint_missed_write"},
-              "call_fix": {"hint_call_fix"}}
+              "call_fix": {"hint_call_fix"}, "content_at_call": {"hint_content_at_call", "hint_must_not_at_call"}}
 
 
 # line kinds and flags of the classifier that belong to a selectable fix-hint kind (abce.fix FIX_HINT_KINDS)
 SELECTABLE = {"hint_value": "value_location", "hint_named": "value_location", "hint_wrong_value": "wrong_value",
               "hint_missed_write": "missed_write", "missed_write": "missed_write",
               "unrequested_change": "unrequested_change", "hint_call_fix": "call_fix",
+              "hint_content_at_call": "content_at_call", "hint_must_not_at_call": "content_at_call",
               "why_effect": "why_clause", "why_rule": "why_clause", "solution_note": "solution_note"}
 
 

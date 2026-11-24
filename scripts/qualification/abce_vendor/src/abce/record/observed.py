@@ -121,6 +121,10 @@ class Corpus:
         phrase not inside a longer word ("new" is not in "renewed", "li@x" not in "ali@x")."""
         if not form:
             return True
+        if not re.search(r"[a-z0-9]", form):
+            # engine-fix-v11 (14 Nov, judged false): a value with no letter or digit ("$", "%", "#") has no word
+            # boundary; "$" occurs in "$530,000", which the attempt wrote, so it is no "value this attempt never observed"
+            return form in text
         if _NUM.match(form.replace(" ", "")):
             # a bare number must stand alone, not be a substring of a longer number/id
             return re.search(r"(?<!\d)(?<!\d\.)" + re.escape(form) + r"(?!\.?\d)", text) is not None

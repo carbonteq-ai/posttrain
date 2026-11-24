@@ -65,8 +65,9 @@ def build_context(record: Record, siblings: list[Episode] | None = None, *, styl
 
     `fix_hints` (plain style with expected values shown) selects the version-(c) line kinds by name (abce.fix
     FIX_HINT_KINDS): "value_location", "wrong_value", "missed_write", "unrequested_change", "call_fix" (a failed call's
-    line followed by the proven fix), "why_clause" (N1 clauses), "solution_note". True = all of them (the earlier
-    boolean's whole family, byte for byte); False, None or an empty collection = none (no version (c)). Any selection
+    line followed by the proven fix), "content_at_call" (opt-in: at the call that wrote the addressed object, the
+    required content it lacks), "why_clause" (N1 clauses), "solution_note". True = all of them except the opt-in
+    "content_at_call" (the earlier boolean's whole family, byte for byte); False, None or an empty collection = none (no version (c)). Any selection
     turns on version (c): its statement forms and repairs, the solution heading of R7 and the checker's stricter rows."""
     if style not in common.STYLES or placement not in common.PLACEMENTS:
         raise ValueError(f"unknown style {style!r} or placement {placement!r}")

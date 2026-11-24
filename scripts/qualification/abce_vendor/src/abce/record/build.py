@@ -461,6 +461,7 @@ def mark_located_proof(items: list[Item], timeline, calls: list[Call], initial_s
         proof: dict[str, Any] = {"app_match": bool(a and b) and (a == b or a.startswith(b) or b.startswith(a))}
         target = fix.effect_collection(item, initial_state)
         proof["collection"] = list(target) if target else None
+        proof["selector_keys"] = fix.selector_keys(item, initial_state)  # engine-fix 8 (judge-final4 94)
         before = timeline.json(call.before_digest) if getattr(timeline, "available", False) and call.before_digest else None
         after = timeline.json(call.after_digest) if getattr(timeline, "available", False) and call.after_digest else None
         if target and before is not None and after is not None:

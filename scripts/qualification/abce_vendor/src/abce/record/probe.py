@@ -226,6 +226,21 @@ def world_objects(world: Any, depth: int = 0, out: list | None = None) -> list[A
     return out
 
 
+def id_record(final_json: Any, app: str, ids: dict) -> dict | None:
+    """judge 37/69/70/121/136: the one object of the app's part of the final world that carries every id value of the
+    check under its own key (`ticket_id`) or as its `id`; None when there is no such object or several."""
+    item_app = app.replace("_", "")
+    hits = []
+    for key, part in (final_json or {}).items():
+        k_app = str(key).replace("_", "")
+        if item_app and not (k_app == item_app or k_app.startswith(item_app) or item_app.startswith(k_app)):
+            continue
+        for node in world_objects(part):
+            if all(str(node.get(k)) == str(v) or str(node.get("id")) == str(v) for k, v in ids.items()):
+                hits.append(node)
+    return hits[0] if len(hits) == 1 else None
+
+
 def identity_evidence(initial_json: dict, final_json: dict, address: dict, calls: tuple = (), app: str = "") -> bool:
     """Whether anything in the final world or in the attempt's calls carries the identity values: an
     object of the final world (added or pre-existing) whose text holds every non-schema address
@@ -641,6 +656,18 @@ def probe_clauses(final_world, assertion: dict, *, initial_json: dict | None = N
     base_verdict = check(final_world, base) if address else None
     results["address_only"] = base_verdict
     present: bool | None = True if base_verdict is True else None
+    if address and base_verdict is False and not content and final_json is not None:
+        # judge 37/69/70/121/136: the record the check names by its id exists, only somewhere else (a ticket in another
+        # group): the requirement is the state that record must reach, never a record to create
+        from .native import OBJECT_ID_KEYS
+
+        ids = {k: v for k, v in address.items() if k in OBJECT_ID_KEYS and isinstance(v, (str, int)) and not isinstance(v, bool)}
+        if ids and len(ids) < len(address):
+            results["id_only"] = check(final_world, {"type": assertion["type"], **ids})
+            node = id_record(final_json, app, ids) if results["id_only"] is True else None
+            if node is not None:
+                results["id_record"] = {k: node.get(k) for k in address if k not in ids and k in node}
+                return [], [], results, None
     if address and base_verdict is False:
         evidence = (identity_evidence(initial_json, final_json, address, calls, app)
                     if initial_json is not None and final_json is not None else True)
@@ -795,6 +822,8 @@ def probe_item(timeline: Timeline, assertion: dict, polarity: str, outcome: str,
             kwargs["failing_clauses"] = tuple(failing)
             kwargs["required_keys"] = tuple(required)
             kwargs["identity_present"] = present
+            if "id_record" in results:
+                kwargs["id_record_fields"] = results["id_record"]
             if present is True and initial_json is not None and final_json is not None:
                 _p, address, _c = _split_params(assertion)
                 kwargs["identity_added"] = added_identity_evidence(initial_json, final_json, address, calls, app)
@@ -813,10 +842,14 @@ def probe_item(timeline: Timeline, assertion: dict, polarity: str, outcome: str,
         kwargs["found_count"] = probe_count(final_world, assertion)
         if kwargs["found_count"] is not None and "no_clause_isolated" in reasons:
             reasons.remove("no_clause_isolated")
+        # engine-fix 9 (pattern 2): the same count on the initial world, so a line can say how many of the objects the
+        # grader counted were there before the attempt
+        initial_world = timeline.world(timeline.initial_digest)
+        kwargs["initial_count"] = probe_count(initial_world, assertion) if initial_world is not None else None
     # "partial" means unexplained: a failure with neither an offending object, a failing clause,
     # a missing identity nor a count. Notes about how it was explained stay in `reason`.
     explained = (kwargs.get("offending_object") is not None or kwargs.get("failing_clauses")
                  or kwargs.get("required_keys") or kwargs.get("found_count") is not None
-                 or "address_only_false_identity_unverified" in reasons)
+                 or "address_only_false_identity_unverified" in reasons or kwargs.get("id_record_fields") is not None)
     unexplained = outcome == "failed" and not explained
     return ProbeResult(status="partial" if unexplained else "full", reason=";".join(reasons) or None, **kwargs)

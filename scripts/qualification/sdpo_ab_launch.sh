@@ -31,12 +31,32 @@ envparts="$(cd "$stage" && ls env.tgz.part*)"
 git -C "$envrepo" rev-parse --verify "$envcommit^{commit}" > "$stage/env-commit.txt"
 for extra in ${SDPO_AB_INPUTS:-}; do cp "$extra" "$stage/"; done
 ( cd "$stage" && sha256sum ./*.tgz ./env-commit.txt $(for e in ${SDPO_AB_INPUTS:-}; do basename "$e"; done) > inputs-sha256.txt )
+# 16 Nov: dstack also limits each uploaded input file to 2 MiB; a larger input ships gzipped in parts, is joined on the
+# GPU and must match its sha256 above before anything runs (the 16 Nov signal run failed at upload: 7 MiB of items)
+big=""
+for extra in ${SDPO_AB_INPUTS:-}; do
+  b="$(basename "$extra")"
+  if (( $(stat -c %s "$stage/$b") > 1800000 )); then
+    gzip -9 -n -c "$stage/$b" > "$stage/$b.gz" && split -b 1800k -d "$stage/$b.gz" "$stage/$b.gz.part" && rm "$stage/$b.gz" \
+      || { echo "could not split $b" >&2; exit 1; }
+    big+=" $b"
+  fi
+done
+join=""
+for b in $big; do join+="cat /stage/$b.gz.part* | gunzip > /stage/$b && test -s /stage/$b && grep -q \"  $b\$\" /stage/inputs-sha256.txt && "; done
 active="$( ( set -a; . ~/.config/posttrain/credentials/dstack.env; DSTACK_PROJECT=main; set +a; COLUMNS=250 "$dstack" ps ) | grep -Ev 'exited|failed|terminated|stopped|no offers|done|aborted|NAME|^ +\(|^ *$' || true)"
 [[ -z "$active" ]] || { echo "dstack has active runs; refusing:"; echo "$active"; exit 1; } >&2
 gpu="$("$ws" 'nvidia-smi --query-compute-apps=pid --format=csv,noheader')"
 [[ -z "$gpu" ]] || { echo "GPU busy; refusing" >&2; exit 1; }
 inputs=""
-for extra in ${SDPO_AB_INPUTS:-}; do inputs+="  - $stage/$(basename "$extra"):/stage/$(basename "$extra")"$'\n'; done
+for extra in ${SDPO_AB_INPUTS:-}; do
+  b="$(basename "$extra")"
+  if [[ " $big " == *" $b "* ]]; then
+    for p in $(cd "$stage" && ls "$b".gz.part*); do inputs+="  - $stage/$p:/stage/$p"$'\n'; done
+  else
+    inputs+="  - $stage/$b:/stage/$b"$'\n'
+  fi
+done
 args="$(printf ' %q' "$@")"
 cat > "$stage/task.dstack.yml" <<YML
 type: task
@@ -64,7 +84,7 @@ env:
   - SDPO_AB_WORLD_DATE=${SDPO_AB_WORLD_DATE:-}
   - TZ=UTC
 commands:
-  - mkdir -p /code /env /evidence/$folder && tar xzf /stage/code.tgz -C /code && cat /stage/env.tgz.part* > /tmp/env.tgz && (cd /stage && sha256sum -c inputs-sha256.txt --ignore-missing) && echo "\$(grep ' ./env.tgz' /stage/inputs-sha256.txt | cut -d' ' -f1)  /tmp/env.tgz" | sha256sum -c && tar xzf /tmp/env.tgz -C /env
+  - mkdir -p /code /env /evidence/$folder && tar xzf /stage/code.tgz -C /code && cat /stage/env.tgz.part* > /tmp/env.tgz && ${join}(cd /stage && sha256sum -c inputs-sha256.txt --ignore-missing) && echo "\$(grep ' ./env.tgz' /stage/inputs-sha256.txt | cut -d' ' -f1)  /tmp/env.tgz" | sha256sum -c && tar xzf /tmp/env.tgz -C /env
   - cp /stage/inputs-sha256.txt /stage/env-commit.txt /evidence/$folder/ && echo $sha > /evidence/$folder/code-sha.txt
   - cd /evidence/$folder && /opt/posttrain/venv/bin/python -u$args 2>&1 | tee -a /evidence/$folder/stdout.log; exit \${PIPESTATUS[0]}
 files:

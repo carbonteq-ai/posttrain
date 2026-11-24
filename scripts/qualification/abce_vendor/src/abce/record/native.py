@@ -59,6 +59,8 @@ CONTENT_KEYS = {
     "settings_waiting_room", "start__dateTime", "start", "attendees", "attendee_email", "has_message",
     "due_date", "origin", "total", "topic", "prompt_contains", "additional_checks", "expected", "title", "label_name",
     "event_date", "category", "row_contains",
+    # task fixes v1.1 (14 Nov): a body pattern (sales.*, "\b(4|four)\b") and a QuickBooks invoice total
+    "body_regex", "total_amt",
 }
 CARDINALITY_KEYS = {"count", "min_count"}
 # Address keys that name the object itself (a row, a ticket, a contact), as opposed to where a new

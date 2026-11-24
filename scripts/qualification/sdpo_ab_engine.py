@@ -113,6 +113,9 @@ def load_context_engine():
     return build_context, build_record, Episode, check_episode, leaks
 
 
+WITHHOLD_ROUNDS = 3
+
+
 class EngineContext:
     """`build_context` replacement for `train_arm` (D44 per-tool-call scheme): the engine's plain context for one
     episode (first message + per-turn notes, expected values hidden; arm B adds the engine's verified sibling
@@ -128,7 +131,7 @@ class EngineContext:
     line_budget and char_budget, a positive int or None for no limit; not_done_source "all" | "benchmark";
     final_note True | False), passed only when given, so a call without them is exactly the earlier one."""
 
-    def __init__(self, expected_values=False, pool=False, fix_hints=False, options=None):
+    def __init__(self, expected_values=False, pool=False, fix_hints=False, options=None, withhold_untrue=False):
         if fix_hints is True or isinstance(fix_hints, str):
             raise ValueError(f"fix_hints must be a list of kind names, not {fix_hints!r}")
         fix_hints = list(fix_hints or [])
@@ -136,6 +139,12 @@ class EngineContext:
             raise ValueError("fix hints need the expected values shown (--engine-values shown)")
         self.expected_values = expected_values
         self.fix_hints = fix_hints
+        # sdpo-weekend (plan v4, 14 Nov): with withhold_untrue, an item whose line the truth checker (or, values hidden, the
+        # leak test) rejects is removed from a copy of the Record, the context rebuilt and re-checked against that same
+        # Record (at most WITHHOLD_ROUNDS times); the untrue line is never shown, the rest of the context is kept, and each
+        # withheld item is listed in coverage["withheld"] with its reason. Off (the default): a rejection refuses the whole
+        # context, exactly as before.
+        self.withhold_untrue = withhold_untrue
         # passed only when on, so the default call to the engine is exactly recipe U's
         self.hint_option = {"fix_hints": list(fix_hints)} if fix_hints else {}
         self.options = check_engine_options(options or {})
@@ -188,15 +197,37 @@ class EngineContext:
         if context.get("skip_reason"):
             self.stats["skipped:" + context["skip_reason"]] += 1
             return None
-        violations, checked = self.check(episode, engine_record, context, others, expected_values=self.expected_values)
-        self.stats["lines_checked"] += checked
-        if violations:
-            self.stats["excluded_truth"] += 1
-            raise ValueError("truth: " + "; ".join(sorted({v["kind"] for v in violations})))
-        found = [] if self.expected_values else self.leaks(engine_record, context, episode_messages=episode.messages)
-        if found:
-            self.stats["excluded_leak"] += 1
-            raise ValueError("leak: " + "; ".join(sorted({str(f.get("key")) for f in found})))
+        withheld = []
+        for _round in range(WITHHOLD_ROUNDS + 1):
+            violations, checked = self.check(episode, engine_record, context, others, expected_values=self.expected_values)
+            self.stats["lines_checked"] += checked
+            found = [] if (violations or self.expected_values) else self.leaks(
+                engine_record, context, episode_messages=episode.messages)
+            if not violations and not found:
+                break
+            bad = {v["item"] for v in violations if v.get("item")} | {f["item"] for f in found if f.get("item")}
+            if not self.withhold_untrue or _round == WITHHOLD_ROUNDS or not bad or (violations and len(bad) < len(
+                    {v.get("item") for v in violations})):  # a violation without an item cannot be withheld
+                if violations:
+                    self.stats["excluded_truth"] += 1
+                    raise ValueError("truth: " + "; ".join(sorted({v["kind"] for v in violations})))
+                self.stats["excluded_leak"] += 1
+                raise ValueError("leak: " + "; ".join(sorted({str(f.get("key")) for f in found})))
+            reasons = {**{v["item"]: "untrue: " + v["kind"] for v in violations if v.get("item")},
+                       **{f["item"]: "leak: " + str(f.get("key")) for f in found if f.get("item")}}
+            withheld += [{"id": i, "reason": reasons[i]} for i in sorted(bad)]
+            engine_record = engine_record.model_copy(update={"items": tuple(i for i in engine_record.items
+                                                                            if i.id not in bad)})
+            context = self.build_context(engine_record, others, style="plain", placement="both",
+                                         expected_values=self.expected_values, episode=episode,
+                                         solution="sibling" if arm == "B" else "none", **self.hint_option)
+            if context.get("skip_reason"):
+                self.stats["skipped:" + context["skip_reason"]] += 1
+                return None
+        if withheld:
+            self.stats["contexts_with_withheld"] += 1
+            self.stats["withheld_items"] += len(withheld)
+            context.setdefault("coverage", {})["withheld"] = withheld
         self.stats["contexts"] += 1
         self.stats["with_solution"] += bool(context.get("solution_episode"))
         context["episode_id"] = record["id"]

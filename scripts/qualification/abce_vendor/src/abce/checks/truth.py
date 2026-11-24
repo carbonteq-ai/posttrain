@@ -55,13 +55,16 @@ from ..record.calls import error_message
 from ..record.model import Item
 from ..record.native import ADDRESS_KEYS, CARDINALITY_KEYS, CONTROL_KEYS
 from ..record.observed import Corpus, normalize, value_forms
-from ..record.probe import _get, _objects
+from ..record.probe import _get, _objects, probe_count
 from ..record.timeline import Timeline, check
 from ..render import common, plain
 
 UNRESOLVED = re.compile(r"the candidate's|unresolved|\{'derived'|\bcandidate\.|\bjoined\.|\bjoin\.|\blookup\.|\bselected\.|"
                         r"\bselection\.|\bmember\.|\baggregate\.|\bpolicy\.")
 COUNT_LINE = re.compile(r"(?:at least|exactly) (\d+) .*required; (\d+) found")
+# engine-fix 9 (pattern 2): the initial-world share of a count line ("16 found, 1 of them there at the start" /
+# "3 found; 5 were there at the start")
+INITIAL_COUNT = re.compile(r"\d+ found(?:, (?P<of>\d+) of them there at the start|; (?P<were>\d+) were there at the start)?")
 TURN_PREFIX = re.compile(r"^At turn (\d+), ")
 TURNS_PREFIX = re.compile(r"^At turns ((?:\d+, )*\d+), ")
 NONCE = "zq9x-nonce-never-present-7k3v"
@@ -77,6 +80,21 @@ def _forms(value: Any) -> list[str]:
     if isinstance(value, dict):
         return [f for v in value.values() for f in _forms(v)]
     return forms
+
+
+def _without_own_values(line: str, item: Item) -> str:
+    """D89 (unresolved_reference): the line without the quoted values that are the item's own address or content
+    values (a reamaze status "unresolved" is the check's literal value, never an unresolved reference)."""
+    own = {str(v.raw) for v in [*item.address.values(), *item.content.values()]
+           if isinstance(v.raw, (str, int, float)) and not isinstance(v.raw, bool)}
+
+    def blank(m: re.Match) -> str:
+        try:
+            return '""' if str(json.loads(m.group(0))) in own else m.group(0)
+        except ValueError:
+            return m.group(0)
+
+    return re.sub(r'"(?:[^"\\]|\\.)*"', blank, line)
 
 
 def _all_forms_in(values: list[Any], text: str) -> bool:
@@ -354,6 +372,91 @@ def _statements(record: Record, items: list[Item], expected_values: bool) -> dic
     return out
 
 
+# engine-fix 8 (judge-final4 94): the checker's own reading of an update call's arguments
+UPDATE_KINDS = ("update", "field")
+
+
+def _scalar_content_terms(item: Item) -> list[tuple[str, str, Any]]:
+    from .. import fix
+
+    return fix.scalar_content_terms(item)
+
+
+def _leaves(node: Any, path: tuple = (), depth: int = 0):
+    """The checker's own walk of a call's arguments: (name, scalar) leaves, a JSON-text mapping parsed."""
+    if isinstance(node, str) and depth < 5 and node[:1] in ("{", "[") and path:
+        try:
+            parsed = json.loads(node)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, (dict, list)):
+            yield from _leaves(parsed, path, depth + 1)
+            return
+    if isinstance(node, dict) and depth < 5:
+        for k, v in node.items():
+            yield from _leaves(v, path + (str(k),), depth + 1)
+    elif isinstance(node, list) and depth < 5:
+        for v in node:
+            yield from _leaves(v, path, depth + 1)
+    elif path:
+        yield path[-1], node
+
+
+def _args_wrote(call, field: str, value: Any) -> bool:
+    """Whether the call's arguments wrote `value` under `field`: a leaf of that name holding a form of the value (as the
+    check reads it), a leaf equal to the value under any name, or a state the call's own verb is (`calendly_cancel_event`
+    for status "canceled"). The record's fields after the call are not read."""
+    forms = set(plain._scalar_forms(value))
+    want = plain._norm_key(field)
+    if isinstance(value, str):
+        stem = re.sub(r"(l?ed|ing|d)$", "", value.strip().lower())
+        if len(stem) >= 4 and stem in (call.tool or "").lower():
+            return True
+    for name, leaf in _leaves(call.args if isinstance(call.args, dict) else {}):
+        if leaf is None or isinstance(leaf, (dict, list)):
+            continue
+        text = normalize(str(leaf))
+        if plain._norm_key(name) == want and any(Corpus._form_in(f, text) for f in forms):
+            return True
+        if text in forms:
+            return True
+    return False
+
+
+def _update_call_counts(record: Record, item: Item, initial_state: dict | None) -> bool:
+    """Whether the located call counts toward an update prohibition: its arguments wrote one of the content values, or
+    every content term selects the record (the value picks out one record of the collection in the initial world and
+    the address names none; the candidate label; an identity field)."""
+    from .. import fix
+
+    terms = _scalar_content_terms(item)
+    if not terms:
+        return True
+    call = common.located_call(record, item)
+    if call is None:
+        return False
+    if any(_args_wrote(call, field, value) for _k, field, value in terms):
+        return True
+    selectors = set(fix.selector_keys(item, initial_state))
+    label = (item.candidate or {}).get("label")
+    return all(k in selectors or (label is not None and str(value).strip().lower() == str(label).strip().lower())
+               or field in plain.IDENTITY_FIELDS or field.endswith("_id") for k, field, value in terms)
+
+
+def _record_identity(record: Record, item: Item) -> tuple:
+    """What a located update call named its record by: the item's scalar address values (their forms) found in the
+    call's arguments; without one, the call itself (every call its own record)."""
+    call = common.located_call(record, item)
+    key = (item.location.turn, item.location.call.index if item.location.call else 0)
+    if call is None:
+        return ("call",) + key
+    args = normalize(json.dumps(call.args, sort_keys=True, default=str))
+    named = frozenset(f for k, v in item.address.items() if not isinstance(v.raw, (dict, list)) and v.raw is not None
+                      for f in plain._scalar_forms(v.raw) if Corpus._form_in(f, args))
+    return ("record", named) if named else ("call",) + key
+
+
+
 WHY_MARKERS = re.compile(r" \(also required: | \(the task also requires: |; this task forbids it when | \(the task's rule: ")
 BOOKKEEPING = re.compile(r"(_at|_time|timestamp|modified|updated|version|etag|_date|_count|count|total|_by)$", re.IGNORECASE)
 REMOVED_KINDS = {"cause_diff", "hint_rule_population", "solution_note", "harm_as_made", "not_met"}  # fix round
@@ -511,6 +614,7 @@ class Checker:
         self._final_json = self.tl.json(self.tl.final_digest) if self.tl.available else None
         self._initial_json = self.tl.json(self.tl.initial_digest) if self.tl.available else None
         self._final_world = self.tl.world(self.tl.final_digest) if self.tl.available else None
+        self._initial_world = self.tl.world(self.tl.initial_digest) if self.tl.available else None
         self._all_texts: list[str] | None = None
         self._added_texts: list[str] | None = None
         self._added_objects: list[dict[str, Any]] | None = None
@@ -550,8 +654,10 @@ class Checker:
     # -- one line ---------------------------------------------------------------------------
     def check_line(self, item: Item, line: str, *, turn: int | None, in_note: bool) -> None:
         self.checked += 1
-        if UNRESOLVED.search(line):
+        if UNRESOLVED.search(_without_own_values(line, item)):
             self.fail(item, "unresolved_reference", line)
+        if line.startswith("Not done: the ") and " is required " in line and item.probe.id_record_fields is not None:
+            self._check_id_record_state(item, line)
         if item.origin == "manifest":
             self._check_native_agrees(item, line)
             if plain.contradictory_fields(item):
@@ -565,9 +671,21 @@ class Checker:
                 self.fail(item, "why_clause_not_selected", line)
             self._check_why(item, line)
         kind = common.item_kind(item)
+        if kind == "prohibited" and re.search(r"\bnot the \S+(?: \S+){0,2} (?:itself|themselves)\b", line):
+            # engine-fix 8 (judge-final4 59): "not the … itself" vouches for the object, which no check proves
+            self.fail(item, "not_itself_residual", line)
+        if kind == "prohibited" and item.effect.kind in UPDATE_KINDS and item.location.kind == "at_call" \
+                and not _update_call_counts(self.record, item, self.ep.task_data.get("initial_state")):
+            # engine-fix 8 (judge-final4 94): an update call counts toward a prohibition on a field value only when its
+            # arguments wrote that field (the record showing the value after the call is not the call writing it)
+            self.fail(item, "update_value_not_in_args", line, content=[k for k, _f, _v in _scalar_content_terms(item)])
         if getattr(self, "version_c", False) and kind == "prohibited":
             self._check_written_values(item, line)
             self._check_harm_target(item, line)
+            self._check_harm_scope(item, line)
+        if item.candidate and plain.internal_candidate(item) and \
+                f" for {json.dumps(str(item.candidate.get('label')))}" in line:
+            self.fail(item, "candidate_label_internal", line, candidate=item.candidate.get("label"))
         if getattr(self, "version_c", False) and line.startswith("Not met: "):
             self._check_not_met(item, line)
         if kind in ("prohibited", "changed", "tool_error"):
@@ -576,9 +694,21 @@ class Checker:
                 self._check_forbid_not_required(item, line)
                 if "forbids it as made" in line:
                     self._check_as_made(item, line)
+            if kind == "changed":
+                self._check_keep_tail(item, line)  # engine-fix 7
             return
         if re.search(r"(?:^|: )the attempt never read ", line):
             self._check_never_read(item, line)
+        if " is required to be " in line and item.probe.id_record_fields is None:
+            self._check_required_state(item, line)  # a record's required place is checked in _check_id_record_state
+        elif plain.state_word(item) is not None and line.startswith("Not done: ") and not _states_count(item, line):
+            # engine-fix 7 (judge-final3 91): a state check's line always names the state ("Not done: a gmail message "M"."
+            # reads as a message to create)
+            self.fail(item, "required_state_not_said", line, state=plain.state_word(item))
+        if any(marker in line for marker in plain.REMOVAL_MARKERS):
+            self._check_removal(item, line)  # engine-fix 7 (judge-final3 71)
+        elif " is required with " in line and plain.negative_attribute_fields(item) and item.probe.initial_result is False:
+            self.fail(item, "negative_attribute_said_as_required", line, keys=plain.negative_attribute_fields(item))
         # missing (require failed)
         if turn is not None and item.location.kind == "at_call":
             self._check_located(item, line, turn, in_note)
@@ -757,6 +887,68 @@ class Checker:
                 self.fail(item, "as_made_harm_at_a_required_address", line, requires=other.id)
                 return
 
+    def _check_keep_tail(self, item: Item, line: str) -> None:
+        """engine-fix 7 (judge-final3 2 / 40): a "changed" line on a native keep check that protects one attribute (a cell,
+        a field value, a status, a mailbox, a label) names it and its required value ("; its FX Rate had to stay "1.08"");
+        "; it had to stay as it was" stands only for a check that protects the whole record. Every clause of the tail is one
+        of the check's own protected fields (`plain.protected_fields`: label and value both), and the check passed on the
+        initial world (the record had that value before the attempt)."""
+        fields = plain.protected_fields(item, True)
+        clauses = plain.keep_tail_clauses(line)
+        if (plain.KEEP_TAIL_WHOLE in line or plain.KEEP_TAIL_WHOLE_MANY in line) and fields:
+            self.fail(item, "changed_whole_record_tail_on_field_check", line, fields=[f["label"] for f in fields])
+            return
+        if clauses is None:
+            if fields:
+                self.fail(item, "keep_tail_missing", line, fields=[f["label"] for f in fields])
+            return
+        if item.origin != "native" or item.polarity != "keep" or item.semantics.get("initial_pass") is not True:
+            self.fail(item, "keep_tail_unproven", line, reason="not a native check that passed on the initial world")
+            return
+        for label, value, thing in clauses:
+            said = value.split(" (one each)")[0] if value else value  # a collapsed line lists the members' values
+            alternatives = re.split(r", | and ", said) if said and ('" and "' in said or '", "' in said) else [said]
+            ok = any(f["label"] == label and f["thing"] == thing and ((f["value"] is None and value is None) or
+                                                                       (f["value"] is not None and f["value"] in alternatives))
+                     for f in fields)
+            if not ok:
+                self.fail(item, "keep_tail_unproven", line, label=label, value=value,
+                          fields=[(f["label"], f["value"]) for f in fields])
+                return
+
+    def _check_removal(self, item: Item, line: str) -> None:
+        """engine-fix 7 (judge-final3 71): "Not done: tag "T" on X had to be removed; it was there at the start and still is"
+        / "X must not have status "S"; it had that status at the start and still has it": the check is a negative attribute
+        check on an existing object that the probe read as requiring an effect, the value quoted is the check's own, the
+        check failed at the end, and the start claim is the probe's initial verdict (False: the attribute was there before
+        the attempt; True: it was not, so the attempt added it; unknown: "now" only)."""
+        keys = plain.negative_attribute_fields(item)
+        if not keys or not _negative_check(item) or item.outcome != "failed" or item.probe.final_result is True:
+            self.fail(item, "removal_claim_unproven", line, keys=keys, final=item.probe.final_result)
+            return
+        values = [plain.show(item.content[k], True) for k in keys]
+        if any(v is None or v == common.UNSEEN or v not in line for v in values):
+            self.fail(item, "removal_value_not_the_checks", line, values=values)
+            return
+        initial = item.probe.initial_result
+        if " at the start and still " in line:
+            if initial is not False:
+                self.fail(item, "removal_start_claim_unproven", line, initial=initial)
+        elif "; the attempt added it" in line or "; the attempt gave it" in line:
+            if initial is not True:
+                self.fail(item, "removal_start_claim_unproven", line, initial=initial)
+        elif not line.endswith(" now."):
+            self.fail(item, "removal_start_claim_unproven", line, initial=initial)
+
+    def _check_required_state(self, item: Item, line: str) -> None:
+        """engine-fix 2: "Not done: … is required to be STATE": a failed native requirement whose own check type names
+        that state, in the engine's words for it (`plain.state_word`: "marked as read" for a read flag, never "read")."""
+        state = plain.state_word(item)
+        rest = line.split(" is required to be ", 1)[1]
+        if (item.polarity != "require" or item.outcome != "failed" or state is None
+                or not re.match(re.escape(state) + r"(?:[ .;,]|$)", rest)):
+            self.fail(item, "required_state_not_the_checks", line, state=state)
+
     def _check_never_read(self, item: Item, line: str) -> None:
         """"The attempt never read X": no successful call of the app returned or named X's address values."""
         values = _address_values(item)
@@ -874,6 +1066,31 @@ class Checker:
             self.fail(item, "count_grader_disagrees", line, found=found)
         elif key == "min_count" and found < 200 and check(self._final_world, {**assertion, key: found + 1}) is True:
             self.fail(item, "count_understated", line, found=found)
+        self._check_initial_count(item, line, found, assertion)
+
+    def _check_initial_count(self, item: Item, line: str, found: int, assertion: dict) -> None:
+        """engine-fix 9 (pattern 2): the checker's own count of the check's objects on the initial world (`probe_count`,
+        the grader's verdicts) against what the line says of it: a line whose initial world held some of the counted
+        objects says how many ("16 found, 1 of them there at the start"), the number is the grader's, and "of them" never
+        exceeds the found count ("were there at the start" when fewer are left)."""
+        initial_world = getattr(self, "_initial_world", None)
+        if initial_world is None:
+            return
+        initial = probe_count(initial_world, assertion)
+        if initial is None:
+            return
+        m = INITIAL_COUNT.search(line)
+        said = None if m is None else next((int(g) for g in (m.group("of"), m.group("were")) if g is not None), None)
+        if said is None:
+            if initial > 0:
+                self.fail(item, "count_initial_not_said", line, initial=initial, found=found)
+            return
+        if said != initial:
+            self.fail(item, "count_initial_mismatch", line, said=said, initial=initial)
+        elif m.group("of") is not None and said > found:
+            self.fail(item, "count_initial_exceeds_found", line, said=said, found=found)
+        elif m.group("were") is not None and said <= found:
+            self.fail(item, "count_initial_form", line, said=said, found=found)
 
     # -- the whole context ------------------------------------------------------------------
     def check_context(self, ctx: dict, *, expected_values: bool = True) -> None:
@@ -926,7 +1143,8 @@ class Checker:
         # a line that names several turns and the objects of several same-shape harms: every member is
         # checked on its own line at its own turn, and the merged text must be what the members merge to
         collapsed_harms = {line: members for line, members in plain.collapse_harms(
-            plain.harm_items_shown(self.record, items), self.record, expected_values) if len(members) > 1}
+            plain.harm_items_shown(self.record, items), self.record, expected_values)
+            if len(members) > 1 or line != plain.statement(members[0], self.record, expected_values)}  # engine-fix 4: a counted singleton
         located_turns = {}
         for item in items:
             t = common.located_turn(item)
@@ -959,14 +1177,8 @@ class Checker:
                 m_turns, m_turn = TURNS_PREFIX.match(line), TURN_PREFIX.match(line)
                 said = ([int(t) for t in m_turns.group(1).split(", ")] if m_turns
                         else [int(m_turn.group(1))] if m_turn else [])
-                if sorted(said) != sorted({i.location.turn for i in members}):
-                    self.fail(members[0], "collapsed_turns_mismatch", line, said=said)
+                self._check_collapsed_count(members, line, said)
                 if self.version_c:
-                    # G2: the count of objects is the count of distinct located calls
-                    m_n = re.match(r"^At turns? [\d, ]+, \S+ (?:produced|updated|added|changed) (\d+) ", line)
-                    calls = {(i.location.turn, i.location.call.index if i.location.call else 0) for i in members}
-                    if m_n and int(m_n.group(1)) != len(calls):
-                        self.fail(members[0], "collapsed_count_mismatch", line, said=int(m_n.group(1)), calls=len(calls))
                     if WHY_MARKERS.search(line) and len({i.check_id for i in members}) > 1:
                         self.fail(members[0], "why_collapsed_members_differ", line)
                 for member in members:
@@ -1082,6 +1294,8 @@ class Checker:
                         at_call = meta.get("turn") == t
                     elif kind == "rule_source":
                         at_call = owner is not None and common.located_turn(owner) == t
+                    elif kind == "content_at_call":  # in the note at the very call it names
+                        at_call = meta.get("turn") == t
                     else:
                         at_call = meta.get("at_turn") == t and any(
                             c.turn == t and c.error and (c.tool == meta.get("at_tool") or meta.get("kind") == "wrong_value" or c.error is None)
@@ -1668,8 +1882,9 @@ class Checker:
                         leaves.append((norm_key(k), v))
         quoted = [json.loads(q) for q in re.findall(r'"(?:[^"\\]|\\.)*"', line)]
         negated = set(item.semantics.get("negated_keys") or ())
+        field_tail = plain.FIELD_VALUE_TAIL in line  # engine-fix 5: the record's field value is not named (see _check_field_value_tail)
         for key, value in item.content.items():
-            if key in negated or isinstance(value.raw, (dict, list)) or value.raw is None:
+            if key in negated or isinstance(value.raw, (dict, list)) or value.raw is None or (field_tail and key == "value"):
                 continue
             base = key.split("#")[0]
             last = base.split(".")[-1]
@@ -1728,6 +1943,27 @@ class Checker:
             hits = [e for e in entries if pattern.search(e)]
             if hits != [m.group("entry")]:
                 self.fail(None, "call_fix_list_entry_not_unique", line, hits=hits[:4])
+            # engine-fix: a display-form entry ("Name (id)") only with the id a recorded call accepted; an entry the
+            # attempt already passed to that tool and saw refused, never on its own
+            display = fix.DISPLAY_ENTRY.match(m.group("entry"))
+            if m.group("tool") is None:
+                if display is not None:
+                    self.fail(None, "call_fix_display_entry_without_accepted_form", line)
+                wanted = fix.norm(m.group("entry"))
+                if any(c.tool == call.tool and c.error and any(p and not isinstance(v, (dict, list, bool)) and fix.norm(v) == wanted
+                                                               for p, v in fix._flat_args(c.args)) for c in self.record.calls):
+                    self.fail(None, "call_fix_entry_already_rejected", line)
+                return
+            target, arg, tool = m.group("target"), m.group("arg"), m.group("tool")
+            if m.group("at") is None:
+                self.fail(None, "call_fix_accepted_outside_the_attempt", line)
+            if display is None or fix.norm(target) != fix.norm(display.group("id").strip()):
+                self.fail(None, "call_fix_accepted_not_the_entry_id", line)
+            pools = ([c for c in self.record.calls if c.turn == int(m.group("at"))] if m.group("at") is not None else
+                     [c for s in self.siblings if s.id != self.record.episode_id for c in episode_calls(s)[0]])
+            if not any(c.tool == tool and not c.error and _app_matches(c.app, call.app) and any(
+                    p and p[-1] == arg and fix.norm(v) == fix.norm(target) for p, v in fix._flat_args(c.args)) for c in pools):
+                self.fail(None, "call_fix_accepted_call_missing", line)
             return
         try:
             rec = initial[meta["app"]][meta["collection"]][meta["index"]]
@@ -1779,6 +2015,8 @@ class Checker:
                 self.fail(None, "call_fix_kind_claim_wrong", line)
         if m.group("tool") is not None:
             target, arg, tool = m.group("target"), m.group("arg"), m.group("tool")
+            if m.group("at") is None:
+                self.fail(None, "call_fix_accepted_outside_the_attempt", line)
             if fix.norm(target) != fix.norm(rec.get("id")):
                 self.fail(None, "call_fix_accepted_not_the_record", line)
             pools = ([c for c in self.record.calls if m.group("at") is not None and c.turn == int(m.group("at"))]
@@ -1856,22 +2094,373 @@ class Checker:
                 continue
             self.fail(item, "harm_target_not_as_written" if not bracketed else "harm_target_mapping_unproven", line,
                       key=key, written=[str(w)[:60] for w in written[:3]])
-        scoped = plain.SCOPED_TAIL in line or plain.SCOPED_TAIL_MANY in line
+        attr = plain.attribute_tail_match(line)
+        scoped = plain.SCOPED_TAIL in line or plain.SCOPED_TAIL_MANY in line or (attr is not None and attr["noun"] in ("record", "records"))
         ids = [(k, v.raw) for k, v in item.address.items() if k.split("#")[0].split(".")[-1] in plain.RECORD_KEYS
                and v.raw is not None and not isinstance(v.raw, (dict, list, bool))]
         lists = [(k, v.raw) for k, v in item.address.items() if k.split("#")[0].split(".")[-1] in plain.RECORD_KEYS
                  and isinstance(v.raw, list) and v.raw]
         if scoped and not ids and not lists:
             self.fail(item, "record_scope_without_record", line)
-        if (ids or lists) and not scoped and re.search(r'; this task forbids (?:it|them)(?:\.$| for ")', line):
+        if (ids or lists) and not scoped and (re.search(r'; this task forbids (?:it|them)(?:\.$| for ")', line)
+                                               or (attr is not None and attr["noun"] not in ("record", "records"))):
             self.fail(item, "record_prohibition_unscoped", line)
         if scoped and ids and not any(in_line(v) or in_line(str(v)) for _k, v in ids):
             self.fail(item, "record_scope_record_not_named", line)
         if item.candidate:
             label = json.dumps(str(item.candidate.get("label")))
-            if re.search(r"; this task forbids (?:it|them)(?: for that record| for those records)? for " + re.escape(label), line) \
+            if (re.search(r"; this task forbids (?:it|them)(?: for that record| for those records)? for " + re.escape(label), line)
+                    or (attr is not None and re.search(re.escape(attr["noun"]) + " for " + re.escape(label), line))) \
                     and not plain.candidate_named(item):
                 self.fail(item, "harm_candidate_not_named_by_line", line, candidate=item.candidate.get("label"))
+
+    def _check_collapsed_count(self, members: list[Item], line: str, said: list[int]) -> None:
+        """G2 and turns of a collapsed harm line, with engine-fix 4 multiplicity (see check_episode)."""
+        # engine-fix 4 (judge 1d4e581 127): a produced line counts every call that wrote one of its objects
+        # (the checker's own reading: same tool, success, every named value in the arguments), duplicates included
+        # engine-fix 5 (judge 2a79e7e 107/132-134): another call is one of them only when it is located for one of the
+        # line's items, or the item is a benchmark check without condition that the call breaks by itself
+        produced = re.match(r"^At turns? [\d, ]+, \S+ produced ", line) is not None
+        written = {i.id: self._produced_by(i, members) if produced else set() for i in members}
+        calls = {(i.location.turn, i.location.call.index if i.location.call else 0) for i in members}
+        calls |= {c for v in written.values() for c in v}
+        if sorted(said) != sorted({t for t, _x in calls} if produced else {i.location.turn for i in members}):
+            self.fail(members[0], "collapsed_turns_mismatch", line, said=said)
+        updated = re.match(r"^At turns? [\d, ]+, \S+ (?:updated|changed) ", line) is not None
+        if self.version_c:
+            # G2: the count of objects is the count of distinct calls that wrote them
+            m_n = re.match(r"^At turns? [\d, ]+, \S+ (?:produced|updated|added|changed) (\d+|an?) ", line)
+            n_said = (1 if m_n.group(1) in ("a", "an") else int(m_n.group(1))) if m_n else None
+            if updated:
+                # engine-fix 8 (judge-final4 94): an update line counts distinct records (the values each located call named
+                # its record by, the checker's own reading of the arguments); "(k times)" is the number of located calls on
+                # that record (the whole line's for one record; per clause, the calls holding the clause's quoted values)
+                records: dict[tuple, set] = {}
+                for i in members:
+                    records.setdefault(_record_identity(self.record, i), set()).add(
+                        (i.location.turn, i.location.call.index if i.location.call else 0))
+                if n_said is not None and n_said != len(records):
+                    self.fail(members[0], "collapsed_record_count_mismatch", line, said=n_said, records=len(records),
+                              calls=len(calls))
+                times = [int(k) for k in re.findall(r"\((\d+) times\)", line)]
+                if n_said == 1 and (times or len(calls) > 1) and times != [len(calls)]:
+                    self.fail(members[0], "collapsed_times_mismatch", line, said=times, calls=len(calls))
+                elif n_said is not None and n_said > 1 and "(" in line and "more like them" not in line:
+                    listed = line[line.index(" (") + 2:]
+                    listed = listed[:listed.rfind(")")] if ")" in listed else listed
+                    clauses = listed.split("; ")
+                    said_times = sorted(int(m.group(1)) if (m := re.search(r" \((\d+) times\)$", c)) else 1 for c in clauses)
+                    if len(clauses) == len(records) and said_times != sorted(len(v) for v in records.values()):
+                        self.fail(members[0], "collapsed_times_mismatch", line, said=said_times,
+                                  calls=sorted(len(v) for v in records.values()))
+            elif n_said is not None and n_said != len(calls):
+                self.fail(members[0], "collapsed_count_mismatch", line, said=n_said, calls=len(calls))
+            for i in members:  # per target: "(one each)" says one
+                mine = written[i.id] or {(i.location.turn, i.location.call.index if i.location.call else 0)}
+                if " (one each)" in line and len(mine) != 1:
+                    self.fail(i, "collapsed_multiplicity_mismatch", line, calls=sorted(mine))
+            # engine-fix 5: every "V (k rows)" of the line, whatever item it belongs to, is the number of the line's
+            # counted calls whose arguments hold V and the other values of its own clause (a display label no counted
+            # call wrote, such as a channel's name, aside)
+            args = {k: normalize(json.dumps(c.args, sort_keys=True, default=str)) for c in self.record.calls
+                    for k in [(c.turn, c.index)] if k in calls}
+            # an address is held by a send call only as one of its recipients (to/cc/bcc), never as a mention in the body
+            sent_to = {(c.turn, c.index): set(plain.call_recipients(c)) for c in self.record.calls if (c.turn, c.index) in calls}
+
+            def holds(values: list, k: tuple) -> bool:
+                mails = [v for v in values if isinstance(v, str) and plain._EMAIL.fullmatch(v.strip())] if sent_to[k] else []
+                return all(v.strip().lower() in sent_to[k] for v in mails) and \
+                    _all_forms_in([v for v in values if v not in mails], args[k])
+            q_rx = r'"(?:[^"\\]|\\.)*"'
+            for m in re.finditer(q_rx + r' \((\d+) \S+?\)', line):
+                v_end = m.start() + m.group(0).rfind(" (")
+                start = max(line.rfind("; ", 0, m.start()), line.rfind(" (", 0, m.start()), 0)
+                quoted = [json.loads(q) for q in re.findall(q_rx, line[start:v_end])]
+                clause = quoted[-1:] + [x for x in quoted[:-1] if any(holds([x], k) for k in args)]
+                holding = sorted(k for k in args if holds(clause, k))
+                if int(m.group(1)) != len(holding):
+                    self.fail(members[0], "collapsed_value_count_mismatch", line, value=clause[0], said=int(m.group(1)),
+                              calls=holding)
+            m_each = re.search(r'((?:' + q_rx + r'(?:, | and ))+' + q_rx + r') \(one each\)', line)
+            for q in re.findall(q_rx, m_each.group(1)) if m_each else []:
+                holding = sorted(k for k in args if holds([json.loads(q)], k))
+                if len(holding) != 1:
+                    self.fail(members[0], "collapsed_value_count_mismatch", line, value=json.loads(q), said=1, calls=holding)
+
+    def _produced_by(self, item: Item, members: list[Item] | None = None) -> set[tuple[int, int]]:
+        """engine-fix 4: (turn, index) of the item's located call and of every other successful, world-changing call of
+        the same tool whose arguments hold every value the item names (negated values aside); engine-fix 5: that other
+        call is located for one of the line's items, or the item is a benchmark check without condition."""
+        call = common.located_call(self.record, item)
+        if call is None:
+            return set()
+        values = plain.named_values(item, self.record)
+        out = {(call.turn, call.index)}
+        located = {(m.location.call.turn, m.location.call.index) for m in (members or [item])
+                   if m.location.kind == "at_call" and m.location.call is not None}
+        breaks_alone = item.origin == "native" and not item.semantics.get("condition")
+        for c in self.record.calls:
+            recipients = {str(v.raw).strip().lower() for k, v in item.address.items()
+                          if k.split("#")[0] in plain.RECIPIENT_KEYS and isinstance(v.raw, str)}
+            to = {e.lower() for e in re.findall(r"[\w.%+'-]+@[\w.-]+\.[A-Za-z]{2,}", json.dumps(
+                {k: v for k, v in (c.args or {}).items() if str(k).lower() in plain.RECIPIENT_ARG_KEYS}, default=str))}
+            if c.tool == call.tool and c.error is None and c.mutated is not False and values and recipients <= to and \
+                    _all_forms_in(values, normalize(json.dumps(c.args, sort_keys=True, default=str))) and \
+                    (breaks_alone or (c.turn, c.index) in located):
+                out.add((c.turn, c.index))
+        return out
+
+    def _still_required_proven(self, item: Item, line: str) -> bool:
+        """D89-2: the line ends with the "… is still required" clause naming, in the requirement's own words, every
+        requirement that needs all the line's values, each about another kind of object than the forbidden one."""
+        tail = plain.still_required_tail(item, self.record)
+        if tail is None or not line.rstrip(".").endswith(tail):
+            return False
+        return all(plain.noun(o) != plain.noun(item) and plain.noun(o) in tail
+                   and all(json.dumps(str(v.raw)) in tail for v in o.address.values() if isinstance(v.raw, (str, int)))
+                   for o in plain.requirements_needing_all(item, self.record))
+
+    def _check_attribute_tail(self, item: Item, line: str) -> None:
+        """engine-fix 6 (judge-final2 46/55/67/68/161): a prohibition whose check forbids an attribute of the object (its
+        stated content, a cc) never says "; this task forbids it/them" (that forbids the object, which the task may
+        require); its tail names the attribute: "; this task forbids ATTRS in|on that NOUN" where every value ATTRS quotes
+        is the check's own (quoted in the line's head, or held by a head value: the body quotes what the call wrote), the
+        field words are the check's, and NOUN is the line's object (or "record(s)" for a per-record check). A line with the
+        attribute tail on a check that names no attribute is unproven."""
+        attr = plain.attribute_tail_match(line)
+        content, address = plain.attribute_keys(item, self.record)
+        object_tail = re.search(r"; this task forbids (?:it|them)(?:\.$| for \"| for th(?:at|ose) records?|; | \()", line)
+        if object_tail and (content or address):
+            self.fail(item, "harm_object_tail_on_attribute_check", line, attributes=content + address)
+        if attr is None:
+            return
+        if not content and not address:
+            self.fail(item, "harm_attribute_tail_unproven", line, reason="check names no attribute")
+            return
+        head = line[: line.index("; this task forbids ")]
+        head_values = [json.loads(q) for q in re.findall(r'"(?:[^"\\]|\\.)*"', head)]
+        own = {str(v.raw).strip().lower() for k in content + address for v in [item.content.get(k) or item.address.get(k)]
+               if v is not None and not isinstance(v.raw, (dict, list))}
+        for q in re.findall(r'"(?:[^"\\]|\\.)*"', attr["attrs"]):
+            value = json.loads(q)
+            if value in head_values or any(str(value).lower() in str(h).lower() for h in head_values) or str(value).strip().lower() in own:
+                continue
+            self.fail(item, "harm_attribute_tail_unproven", line, reason="value not of the check or the line", value=value[:60])
+            return
+        words = plain.attribute_labels(item, self.record)
+        if not all(w in attr["attrs"] for w in words):
+            self.fail(item, "harm_attribute_tail_unproven", line, reason="field words not the check's", words=words)
+            return
+        n = plain.noun(item)
+        if attr["noun"] not in (n, plain.plural(n), "record", "records"):
+            self.fail(item, "harm_attribute_tail_unproven", line, reason="noun not the line's object", noun=attr["noun"])
+            return
+        if attr["noun"] in ("record", "records") and not plain.record_scoped(item):
+            self.fail(item, "record_scope_without_record", line)
+        if re.search(r"not the \S+(?: \S+)? (?:itself|themselves)", line):
+            self.fail(item, "harm_scope_send_vouches_for_message", line)
+
+    def _check_harm_scope(self, item: Item, line: str) -> None:
+        """engine-fix (D79 scope): what a located prohibition's tail names about the object.
+        - "; this task forbids it unless its F V C": the rule-file prohibition's whole condition is `not` of one term on
+          the written object, on that field (V "contains" a mention, "is" an equality) with that literal C; the body
+          quotes for that field a value the call wrote, which does not hold C by any reading.
+        - "; this task forbids it with …" (the value scope): every value the tail quotes is quoted in the line before the
+          tail (a restatement of the object's own values), and no requirement of the same app needs every value the line
+          names (R2 without the call condition).
+        - ", and also with L "A" or "B"": each value is a member of the check's own list for that field, and the
+          rule's condition does not read the written object."""
+        from ..record.observed import normalize
+
+        if plain.FIELD_VALUE_TAIL in line and plain.attribute_tail_match(line) is None:
+            self._check_field_value_tail(item, line)
+            return
+        if plain.RECIPIENT_SCOPE in line:
+            # engine-fix 3: "; this task forbids sending to that recipient, not the NOUN itself": the check names only
+            # recipients, each quoted in the line, and its call also wrote to a recipient the check does not name
+            forbidden = plain.recipient_scope(item, None, self.record)
+            if forbidden is None or any(f'"{e}"' not in line.lower() for e in forbidden):
+                self.fail(item, "harm_recipient_scope_unproven", line)
+        if plain.SCOPE_VALUE not in line and (re.search(r"; this task forbids (?:it|them|sending to th(?:at|ose) recipients?)\b", line)
+                                              or plain.attribute_tail_match(line) is not None) \
+                and plain.forbids_required_elsewhere(item, self.record) and not self._still_required_proven(item, line):
+            self.fail(item, "forbids_values_required_elsewhere", line,
+                      requires=[o.id for o in plain.requirements_needing_all(item, self.record)][:3],
+                      candidate=(item.candidate or {}).get("label"), candidate_named=plain.candidate_named(item))
+        if plain.SCOPE_VALUE in line:
+            self._check_value_scope(item, line)
+            return
+        self._check_attribute_tail(item, line)
+        head, sep, tail = line.partition("; this task forbids it")
+        if not sep and plain.attribute_tail_match(line) is not None:
+            head, sep, tail = line.partition("; this task forbids ")  # the attribute tail stands where the object tail stood
+        if not sep:
+            return
+        quoted_head = [json.loads(q) for q in re.findall(r'"(?:[^"\\]|\\.)*"', head)]
+        if tail.startswith(" unless its "):
+            sem = item.semantics
+            negated = list(sem.get("negated_keys") or ())
+            cond = sem.get("condition") or {}
+            arg = cond.get("arg") or {} if isinstance(cond, dict) else {}
+            m = re.match(r' unless its (?P<field>.+?) (?P<verb>contains|is) (?P<v>"(?:[^"\\]|\\.)*")', tail)
+            ok = (m is not None and item.origin == "manifest" and len(negated) == 1 and cond.get("op") == "not"
+                  and arg.get("op") == ("mentions" if m.group("verb") == "contains" else "eq")
+                  and not sem.get("condition_residual"))
+            if ok:
+                key = negated[0]
+                path = (arg.get("text") if arg.get("op") == "mentions" else arg.get("left")) or {}
+                literal = (arg.get("value") if arg.get("op") == "mentions" else arg.get("right")) or {}
+                needed = json.loads(m.group("v"))
+                ok = (list(path.get("path") or [])[:1] == ["effect"] and ".".join(path.get("path")[1:]) == key.split("#")[0]
+                      and literal.get("value") == needed == item.content[key].raw)
+                field = key[len("after_cells."):] if key.startswith("after_cells.") else None
+                if ok and field is not None:
+                    ok = m.group("field") == f"{json.dumps(field)} cell" and f"with cell {json.dumps(field)} = " in head
+                    shown = re.search(r'with cell ' + re.escape(json.dumps(field)) + r' = ("(?:[^"\\]|\\.)*")', head)
+                    written = [str(w).strip() for w in plain.written_values(item, self.record, key)]
+                    ok = ok and shown is not None and json.loads(shown.group(1)) in written and \
+                        normalize(needed) not in normalize(json.loads(shown.group(1)))
+            if not ok:
+                self.fail(item, "harm_unless_scope_unproven", line)
+            return
+        also = tail.find(plain.SCOPE_ALSO.removesuffix("a "))
+        if also >= 0:
+            # "; it also forbids a row for "LABEL" whose "F" cell is "A" or "B"": the record is the line's own candidate,
+            # each value a member of the check's own list, and the rule's condition does not read the written object
+            members = [x for v in item.content.values() if isinstance(v.raw, list) for x in v.raw]
+            m_also = re.match(r'; it also forbids an? \S+ for ("(?:[^"\\]|\\.)*") whose (.+)$', tail[also:].rstrip("."))
+            label = json.dumps(str((item.candidate or {}).get("label")))
+            if m_also is None or m_also.group(1) != label or f" for {label}" not in tail[:also] or not plain.candidate_named(item):
+                self.fail(item, "harm_also_not_for_the_lines_record", line)
+            else:
+                clause = re.sub(r'"(?:[^"\\]|\\.)*" cell is ', "is ", m_also.group(2))  # a cell label quotes its column
+                for q in re.findall(r'"(?:[^"\\]|\\.)*"', clause):
+                    if json.loads(q) not in members:
+                        self.fail(item, "harm_also_value_not_in_check_list", line, value=json.loads(q))
+            if plain._reads_effect(item.semantics.get("condition")):
+                self.fail(item, "harm_also_condition_reads_object", line)
+            tail = tail[:also]
+
+    def _check_field_value_tail(self, item: Item, line: str) -> None:
+        """engine-fix 5 (judge 2a79e7e 144): "TOOL produced a N with L V; this task forbids that L for that N.": the item is
+        a native "not exists with field" check (address `field`) with one additional check K = V, L the words of K, N the
+        item's own noun; the line does not quote the record's field value; the located call wrote K = V; and a
+        requirement of the same app and object needs the field value but not V (the record is required, the value is
+        what is forbidden)."""
+        m = re.search(r"; this task forbids that (?P<label>.+?) for that (?P<noun>.+?)\.$", line)
+        extra = item.content.get("additional_checks")
+        call = _call_at(self.record, item)
+        ok = (m is not None and item.origin == "native" and set(item.address) == {"field"} and "value" in item.content
+              and extra is not None and isinstance(extra.raw, dict) and len(extra.raw) == 1 and call is not None
+              and m.group("noun") == plain.noun(item))
+        if not ok:
+            self.fail(item, "harm_field_value_tail_unproven", line)
+            return
+        (key, raw), = extra.raw.items()
+        words = (key[: -len("_contains")] if key.endswith("_contains") else key).replace("_", " ")
+        identity, forbidden = set(_forms(item.content["value"].raw)), set(_forms(raw))
+        head = line[: m.start()]
+        shown = json.dumps(raw) if isinstance(raw, str) else str(raw)
+        if m.group("label") != words or f" with {words} {'containing ' if key.endswith('_contains') else ''}" not in head \
+                or shown not in head:
+            self.fail(item, "harm_field_value_tail_unproven", line, label=m.group("label"))
+        if json.dumps(str(item.content["value"].raw)) in line:
+            self.fail(item, "harm_field_value_tail_names_record", line)
+        norm_key = lambda k: re.sub(r"[^a-z0-9]", "", str(k).lower())  # noqa: E731
+        args = call.args if isinstance(call.args, dict) else {}
+        target = norm_key(key[: -len("_contains")] if key.endswith("_contains") else key)
+        wrote = [v for k, v in args.items() if norm_key(k) == target]
+        if not any((str(raw).lower() in str(v).lower()) if key.endswith("_contains") else
+                   (v == raw or (isinstance(v, (int, float)) and isinstance(raw, (int, float)) and float(v) == float(raw))
+                    or str(v).strip() == str(raw).strip()) for v in wrote):
+            self.fail(item, "harm_value_not_written", line, field=key)
+        peers = [o for o in self.record.items if o.polarity == "require" and o.type != "tool_error"
+                 and _app_matches(o.effect.app, item.effect.app)]
+        if not any(identity <= plain._needed_forms(o) and not forbidden <= plain._needed_forms(o) for o in peers):
+            self.fail(item, "harm_field_value_record_not_required", line)
+
+    def _check_id_record_state(self, item: Item, line: str) -> None:
+        """judge 37/69/70/121/136: "Not done: the N on ticket "Y" is required to be in group "Z"[; it is in group "W"]."
+        The final world holds exactly one record of the app with the check's id values, the check's other address
+        values are not all on it (else the requirement would be met there), and every value after "; it is " is that
+        record's own value of the field the check names."""
+        from ..record.native import OBJECT_ID_KEYS
+        from ..record.probe import id_record
+
+        ids = {k: v.raw for k, v in item.address.items() if k.split("#")[0] in OBJECT_ID_KEYS}
+        node = id_record(self._final_json, item.effect.app, ids) if ids and self._final_json is not None else None
+        others = {k: v.raw for k, v in item.address.items() if k not in ids}
+        if node is None or not others or all(str(node.get(k)) == str(v) for k, v in others.items()):
+            self.fail(item, "record_state_unproven", line)
+            return
+        _head, sep, now = line.partition("; it is ")
+        if sep:
+            said = [json.loads(q) for q in re.findall(r'"(?:[^"\\]|\\.)*"', now)]
+            if sorted(map(str, said)) != sorted(str(node.get(k)) for k in others):
+                self.fail(item, "record_state_not_on_record", line, said=said)
+
+    def _check_value_scope(self, item: Item, line: str) -> None:
+        """"…; what this task forbids is P, not the NOUN itself.": every value P quotes is quoted in the line before it (a
+        restatement of the object's own values); the check's other scalar values are all needed by one requirement of the
+        same app and object (so that object itself is required: "not the NOUN itself"); and no requirement of the same app
+        needs every value the line names (R2)."""
+        head, _sep, tail = line.partition(plain.SCOPE_VALUE)
+        m = re.match(r"(?P<parts>.+), not the (?P<noun>.+) itself\.?$", tail)
+        if m is not None and m.group("parts").startswith("sending it ") or " and sending it " in (m.group("parts") if m else ""):
+            # engine-fix 5 (judge 2a79e7e 136): a scope naming the recipient never vouches for the message itself
+            self.fail(item, "harm_scope_send_vouches_for_message", line)
+            return
+        if m is None and item.effect.kind == "send":
+            m = re.match(r"(?P<parts>.*sending it .+?)\.?$", tail)
+        elif m is not None and m.group("noun") != plain.noun(item):
+            m = None
+        if m is None:
+            self.fail(item, "harm_value_scope_unparsed", line)
+            return
+        quoted_head = [json.loads(q) for q in re.findall(r'"(?:[^"\\]|\\.)*"', head)]
+        scoped = [json.loads(q) for q in re.findall(r'"(?:[^"\\]|\\.)*"', re.sub(r'cell "(?:[^"\\]|\\.)*" (?:=|containing)', "",
+                                                                             m.group("parts")))]
+        # D89 (review of the relaxation): a tail value that is the check's own value of that very field, held by the
+        # value the head quotes for the same field ("with body containing "…99%…"" for `body containing "99%"`), as the
+        # check's own containment reads it (letter case aside); never a quote of another field
+        held_ok = set()
+        for part in re.finditer(r'(?:^| and )(?P<label>(?:sending it )?(?:cell "(?:[^"\\]|\\.)*" containing|[^"]+?)) '
+                                r'(?P<q>"(?:[^"\\]|\\.)*")', m.group("parts")):
+            label, value = part.group("label").strip(), json.loads(part.group("q"))
+            if not label.endswith(" containing"):
+                continue
+            base = label[: -len(" containing")]
+            own = [k for k, v in item.content.items() if v.raw == value
+                   and (plain._label(item, k, None).removeprefix("with ") in (label, base)
+                        or plain._label(item, k, False).removeprefix("with ") in (label, base))]
+            shown = re.findall(r'with ' + re.escape(base) + r'(?: containing| =)? ("(?:[^"\\]|\\.)*")', head)
+            if own and any(str(value).lower() in json.loads(q).lower() for q in shown):
+                held_ok.add(value)
+        for value in scoped:
+            if value not in quoted_head and value not in held_ok:
+                self.fail(item, "harm_scope_value_not_in_line", line, value=value)
+        negated = set(item.semantics.get("negated_keys") or ())
+        targets = (item.semantics.get("located_proof") or {}).get("targets") or {}
+        scoped_forms = {f for v in scoped for f in _forms(v)}
+        identity, forbids = set(), set()
+        for k, v in {**item.address, **item.content}.items():
+            if k in negated or isinstance(v.raw, (dict, list)) or v.raw is None:
+                continue
+            forms = set(_forms(v.raw))
+            forbids |= forms
+            # a target the line quotes as the call wrote it (the call's channel id for the check's channel name)
+            target = targets.get(k) or {}
+            shown = [target.get("as_written"), (target.get("mapped") or {}).get("written")]
+            if not (forms <= scoped_forms or any(x is not None and set(_forms(x)) <= scoped_forms for x in shown)):
+                identity |= forms
+        peers = [o for o in self.record.items if o.polarity == "require" and o.type != "tool_error"
+                 and _app_matches(o.effect.app, item.effect.app)]
+        if not identity or not any(identity <= plain._needed_forms(o) for o in peers):
+            self.fail(item, "harm_scope_object_not_required", line)
+        for other in peers:
+            if forbids and forbids <= plain._needed_forms(other):
+                self.fail(item, "harm_scope_forbids_required", line, requires=other.id)
+                return
 
     def _check_not_met(self, item: Item, line: str) -> None:
         """Fix round: "Not met: the attempt made A NOUN ADDR (id "I") …; the grader marks this requirement as not met."
@@ -2000,6 +2589,12 @@ class Checker:
         if meta.get("kind") == "call_fix":
             self._check_call_fix(meta, line, initial)
             return
+        if meta.get("kind") == "content_at_call" and meta.get("family") == "must_not":
+            self._check_must_not_at_call(meta, line)
+            return
+        if meta.get("kind") == "content_at_call":
+            self._check_content_at_call(meta, line)
+            return
         if meta.get("kind") == "rule_source":
             m = fix.RULE_LINE.match(line)
             item = next((i for i in self.record.items if i.id == meta["item"]), None)
@@ -2041,6 +2636,193 @@ class Checker:
         if meta.get("kind") == "value_location":
             return self._check_value_location(meta, line, initial)
         self._check_fix_hint_rest(meta, line, initial)
+
+    def _check_must_not_at_call(self, meta: dict, line: str) -> None:
+        """engine-fix: "At turn T, TOOL with ARGS broke this rule of the task: no RULE." — the check is a failed benchmark
+        check of polarity "forbid" whose own plain line the context does not show; the call at (T, index) ran TOOL without
+        error, and the grader's evaluator passes the check on the world before it and fails it on the world after it;
+        every quoted argument is the call's own (`key "v"`: an argument of that name equal to v; `key containing "v"`: an
+        argument of that name holding v literally) and relates to a value of the check (equal, holding it in any letter
+        case, or part of it); every quoted value of the rule is a value of the check, and the rule is the renderer's
+        sentence for that check; no requirement this call carries needs every value the rule names (R2)."""
+        from .. import fix
+
+        item = next((i for i in self.record.items if i.id == meta.get("item")), None)
+        m = fix.MUST_NOT_LINE.match(line)
+        if item is None or m is None:
+            self.fail(item, "must_not_line_unparsed", line)
+            return
+        assertion = _assertion(self.ep, item)
+        if (item.outcome != "failed" or item.polarity != "forbid" or not item.id.startswith("native:") or assertion is None
+                or assertion.get("type") != item.type):
+            self.fail(item, "must_not_not_a_failed_benchmark_prohibition", line)
+            return
+        index = int(item.id.split(":")[1])
+        native = self.ep.native_results[index] if index < len(self.ep.native_results) else None
+        if not isinstance(native, dict) or native.get("passed") is not False or native.get("excluded"):
+            self.fail(item, "must_not_check_not_failed_natively", line)
+        if plain.statement(item, self.record, True) is not None:
+            self.fail(item, "must_not_line_beside_its_statement", line)
+        turn = int(m.group("turn"))
+        call = next((c for c in self.record.calls if (c.turn, c.index) == (turn, meta.get("index"))), None)
+        if call is None or call.tool != m.group("tool") or call.error is not None or turn != meta.get("turn"):
+            self.fail(item, "must_not_call_missing", line)
+            return
+        if not call.before_digest or not call.after_digest or check(self.tl.world(call.before_digest), assertion) is not True \
+                or check(self.tl.world(call.after_digest), assertion) is not False:
+            self.fail(item, "must_not_call_did_not_break_the_check", line)
+        values = [str(v).strip() for _k, v in fix._check_values(assertion)]
+        leaves = [(p[-1], v) for p, v in fix.arg_leaves(call.args) if p and not isinstance(v, bool)]
+        for part in re.finditer(r'(?:^|, )(?P<arg>[^",]+?) (?P<how>containing )?(?P<v>"(?:[^"\\]|\\.)*")', m.group("args") or ""):
+            arg, text = part.group("arg"), json.loads(part.group("v"))
+            ok = any(a == arg and (str(leaf).strip() == text if not part.group("how") else text in str(leaf)) for a, leaf in leaves)
+            related = any(text.lower() == v.lower() or (len(v) >= 3 and v.lower() in text.lower())
+                          or (len(text) >= 3 and text.lower() in v.lower()) for v in values)
+            if not ok or not related:
+                self.fail(item, "must_not_argument_not_as_written", line, arg=arg)
+        rendered_args = fix.args_text(fix.written_args(call, assertion))
+        if (m.group("args") or "") != rendered_args:
+            self.fail(item, "must_not_arguments_mismatch", line)
+        rule = m.group("rule")
+        if rule.endswith(fix.CC_NOTE):
+            rule = rule[: -len(fix.CC_NOTE)]
+            if not fix.cc_only(call, assertion):
+                self.fail(item, "must_not_cc_note_unproven", line)
+        elif fix.cc_only(call, assertion):
+            self.fail(item, "must_not_cc_note_missing", line)
+        if rule != plain.must_not_rule(item):
+            self.fail(item, "must_not_rule_mismatch", line)
+        for q in re.findall(r'"(?:[^"\\]|\\.)*"', rule):
+            text = json.loads(q)
+            if not any(text == v for v in values) and text not in [str(k) for k in self._param_keys(assertion)]:
+                self.fail(item, "must_not_rule_value_not_in_check", line, value=text)
+        if plain.forbids_required(item, self.record, call):
+            self.fail(item, "forbids_required_action", line)
+        if plain.forbids_required_elsewhere(item, self.record):
+            self.fail(item, "forbids_values_required_elsewhere", line,
+                      requires=[o.id for o in plain.requirements_needing_all(item, self.record)][:3])
+
+    @staticmethod
+    def _param_keys(assertion: dict) -> list[str]:
+        """Keys of a check's mapping parameters (a cell's column name in cell_contains, an action parameter's name)."""
+        out = []
+        for value in assertion.values():
+            if isinstance(value, dict):
+                out += [str(k) for k in value]
+        return out
+
+    def _check_content_at_call(self, meta: dict, line: str) -> None:
+        """content_at_call: every statement re-read from the recorded call, its before/after snapshots and the task's
+        own benchmark check. The sentence is the one its facts give (fix.content_line); the check is a failed benchmark
+        REQUIRE check of a covered type, not negated by any reading; each quoted needed value is a value of that check,
+        and is shown in the requirement's own statement; the call ran without error at that turn; each quoted address
+        part is a verbatim argument of the call and names the check's address; the call added (or changed) exactly one
+        object at that address, and that object lacks every quoted needed value by every lenient reading (or holds the
+        quoted written value, which the call wrote and which differs from the expected value by every reading)."""
+        from .. import fix
+        from ..record.native import negative_marker
+
+        item = next((i for i in self.record.items if i.id == meta.get("item")), None)
+        m = fix.CONTENT_LINE.match(line)
+        if item is None or m is None:
+            self.fail(item, "content_line_unparsed", line)
+            return
+        try:
+            rendered = fix.content_line(meta)
+        except (KeyError, TypeError, IndexError):
+            rendered = None
+        if rendered != line or int(m.group("turn")) != meta.get("turn") or m.group("tool") != meta.get("tool"):
+            self.fail(item, "content_line_mismatch", line)
+            return
+        assertion = _assertion(self.ep, item)
+        kind = str((assertion or {}).get("type"))
+        if (item.outcome != "failed" or item.polarity != "require" or assertion is None or kind != item.type
+                or kind not in fix.CONTENT_TYPES or _negative_check(item) or negative_marker(kind) is True
+                or "_not_" in kind or item.semantics.get("negated_keys")):
+            self.fail(item, "content_requirement_not_a_failed_require_check", line)
+            return
+        index = int(item.id.split(":")[1])
+        results = list(getattr(self.ep, "native_results", None) or [])
+        native = results[index] if index < len(results) else None
+        if isinstance(native, dict) and native.get("passed") is True:
+            self.fail(item, "content_requirement_passed", line)
+            return
+        spec, _reason = fix.content_requirement(assertion)
+        if spec is None or any(meta.get(k) != spec.get(k) for k in ("family", "mode", "field", "type")):
+            self.fail(item, "content_requirement_mismatch", line)
+            return
+        raw = [str(v) for _p, v in fix.arg_leaves({k: v for k, v in assertion.items() if k != "type"})]
+        column_needs = [str(v) for c, v in spec["needs"] if c == meta.get("column")]
+        if not meta.get("missing") or any(v not in raw or v not in column_needs for v in meta["missing"]):
+            self.fail(item, "content_value_not_required", line)
+        if meta.get("address") != spec["address"]:
+            self.fail(item, "content_address_not_the_checks", line)
+        if not fix.needs_shown(plain.statement(item, self.record, True, with_turn=False), meta["missing"]):
+            self.fail(item, "content_value_not_shown", line)
+        call = next((c for c in self.record.calls if c.turn == meta.get("turn") and c.index == meta.get("index")
+                     and c.tool == meta.get("tool")), None)
+        if call is None or call.error is not None:
+            self.fail(item, "content_call_missing", line)
+            return
+        leaves = {str(v) for _p, v in fix.arg_leaves(call.args)}
+        if any(str(v) not in leaves for k, v in (meta.get("written_address") or {}).items() if k != "note"):
+            self.fail(item, "content_address_not_in_call", line)
+        before = self.tl.json(call.before_digest) if call.before_digest else None
+        after = self.tl.json(call.after_digest) if call.after_digest else None
+        if fix.address_written(spec, call, after) != {k: v for k, v in (meta.get("written_address") or {}).items() if k != "note"}:
+            self.fail(item, "content_address_not_the_checks", line)
+        objects = fix.content_objects(spec, call, before, after)
+        if len(objects) != 1:
+            self.fail(item, "content_object_not_written_by_call", line, objects=len(objects))
+            return
+        obj, prev = objects[0]
+        if fix.breaks_must_not(self.record, call):
+            self.fail(item, "content_call_breaks_must_not", line)
+        if spec["family"] in ("gmail", "slack"):
+            # the only call of the attempt that wrote an object at that address; an email's recipient in its own `to`
+            writers = [c for c in self.record.calls if c.error is None and c.before_digest and c.after_digest
+                       and fix.content_objects(spec, c, self.tl.json(c.before_digest), self.tl.json(c.after_digest))]
+            if len(writers) != 1:
+                self.fail(item, "content_several_calls_at_address", line, calls=len(writers))
+        if spec["family"] == "gmail" and not fix.primary_recipient(spec, obj):
+            self.fail(item, "content_recipient_only_in_cc", line)
+        if spec["family"] == "slack":
+            written_channel = str((meta.get("written_address") or {}).get("channel"))
+            proved, note = fix.channel_note(spec, written_channel, self.ep.task_data.get("initial_state") or {})
+            if not proved or note != (meta.get("written_address") or {}).get("note"):
+                self.fail(item, "content_channel_not_proved", line)
+        if spec["family"] == "gmail" and spec.get("subject") is not None and not fix.lenient_has(obj.get("subject") or "", spec["subject"]):
+            self.fail(item, "content_other_condition_unmet", line)
+        found, value = fix._object_text(spec, obj, meta.get("column"))
+        if not found or value is None:
+            self.fail(item, "content_field_absent", line)
+            return
+        if spec["family"] in ("sheets", "salesforce") and meta.get("column") is not None:
+            pfound, pvalue = fix._object_text(spec, prev, meta["column"]) if prev is not None else (False, None)
+            if pfound and pvalue == value:
+                self.fail(item, "content_field_not_written_by_call", line)
+            if not any(fix._key_norm(p[-1]) == fix._key_norm(meta["column"]) for p, _v in fix.arg_leaves(call.args) if p):
+                self.fail(item, "content_field_not_in_call", line)
+        if spec["mode"] == "equals":
+            written = meta.get("written")
+            if written is None or str(value) != written or written not in json.dumps(call.args, ensure_ascii=False) + str(call.args):
+                self.fail(item, "content_written_value_mismatch", line)
+            if fix.lenient_equal(value, meta["missing"][0]):
+                self.fail(item, "content_written_value_is_the_expected", line)
+        elif any(fix.lenient_has(value, v) for v in meta["missing"]):
+            self.fail(item, "content_value_present", line)
+        if spec["family"] == "sheets" and spec["address"].get("row_id") is None:
+            # a row found by content: the attempt wrote exactly one row there and the task requires exactly one there
+            rows = set()
+            for c in self.record.calls:
+                if c.error is None and c.before_digest and c.after_digest and fix.app_matches(c.app, "google_sheets"):
+                    rows |= {fix._row_key(o) for o, _p in fix.content_objects(spec, c, self.tl.json(c.before_digest),
+                                                                              self.tl.json(c.after_digest))}
+            same = [a for a in self.ep.task_data.get("assertions") or [] if str(a.get("type", "")).startswith("google_sheets_")
+                    and "_not_" not in str(a.get("type")) and (a.get("spreadsheet_id") or a.get("spreadsheet")) == spec["address"]["spreadsheet"]
+                    and (a.get("worksheet_id") or a.get("worksheet") or a.get("worksheet_name")) == spec["address"]["worksheet"]]
+            if len(rows) != 1 or len(same) != 1:
+                self.fail(item, "content_row_ambiguous", line, rows=len(rows), required=len(same))
 
     def _check_wrote_call(self, item: Item, meta: dict, m, line: str, call) -> None:
         from .. import fix
@@ -2105,6 +2887,11 @@ class Checker:
             except (KeyError, IndexError, TypeError):
                 self.fail(None, "hint_record_missing", line)
                 return
+            # engine-fix 6 (judge-final2 64): a "there is a … named" line names an object of the requirement's app, by a
+            # value that is not a text term of the requirement
+            about = next((i for i in self.record.items if i.id == meta.get("item")), None)
+            if about is not None and meta.get("key") is not None and fix.named_token_mismatch(about, meta["key"], {**meta, "line": line}):
+                self.fail(about, "hint_object_other_app", line, item_app=about.effect.app, hint_app=meta["app"], key=meta["key"])
             node = rec
             for key in meta["field"]:
                 node = node.get(key) if isinstance(node, dict) else None
@@ -2137,12 +2924,24 @@ class Checker:
                 coll = meta["collection"]
                 if coll.lower().endswith("rows"):
                     cells = rec.get("cells") if isinstance(rec.get("cells"), dict) else {}
-                    own = [fix.norm(v) for v in cells.values()][:1]  # a row is named by its first cell
+                    raw_own = list(cells.values())[:1]  # a row is named by its first cell
                 else:
-                    own = [fix.norm(rec.get(k)) for k in fix.own_label_fields(coll) + ("email", "id")]
-                    own.append(fix.norm(f"{rec.get('first_name', '')} {rec.get('last_name', '')}".strip()))
-                if fix.norm(label) not in [o for o in own if o is not None]:
+                    raw_own = [rec.get(k) for k in fix.own_label_fields(coll) + ("email", "id")]
+                    raw_own.append(f"{rec.get('first_name', '')} {rec.get('last_name', '')}".strip())
+                own = [fix.norm(v) for v in raw_own]
+                # D89 (hint_label_not_records_own_name): a label of one or two characters (row "es") has no
+                # normalized form; it is the record's own name when it is that text exactly
+                short = fix.norm(label) is None and label.strip() in [str(v).strip() for v in raw_own
+                                                                      if isinstance(v, (str, int)) and not isinstance(v, bool)]
+                if fix.norm(label) not in [o for o in own if o is not None] and not short:
                     self.fail(None, "hint_label_not_records_own_name", line)
+                # engine-fix 5 (judge 2a79e7e 36): no other record of the collection is named by the label
+                for j, other in enumerate(initial[meta["app"]][meta["collection"]]):
+                    if j != meta["index"] and isinstance(other, dict) and (
+                            (fix.norm(label) is not None and fix.norm(label) in [fix.norm(x) for x in fix.own_names(other, coll)])
+                            or label.strip() in fix.own_names(other, coll)):
+                        self.fail(None, "hint_label_not_unique", line, other=j)
+                        break
                 if m.group("ws") is not None and fix.worksheet_title(initial, rec) != m.group("ws"):
                     self.fail(None, "hint_worksheet_mismatch", line)
             for tool in tools:

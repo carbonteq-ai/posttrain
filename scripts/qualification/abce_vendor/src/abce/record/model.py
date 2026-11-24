@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 Polarity = Literal["require", "forbid", "keep"]
 Outcome = Literal["passed", "failed", "excluded", "abstained", "inapplicable"]
@@ -80,6 +80,23 @@ class ProbeResult(Frozen):
     # For a failing clause whose value is a list: the indexes of the elements that fail on their own
     # (the others are present), so a line names only what is missing.
     missing_elements: dict[str, tuple[int, ...]] = Field(default_factory=dict)
+    # judge 37/69/70/121/136: the record the check names by its id exists on the final world with other values for the
+    # check's other address keys (its current group): {key: current value}; None when not probed so
+    id_record_fields: dict[str, Any] | None = None
+    # engine-fix 9 (pattern 2): the grader's count of a cardinality check's objects on the initial world (the SENT messages
+    # the task started with); None when not probed or the grader could not say
+    initial_count: int | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_unset_id_record(self, handler):
+        """A probe without `id_record_fields` / `initial_count` serializes exactly as before the fields existed (records
+        written by this engine stay readable by earlier ones: the byte-for-byte tests replay them on older sources)."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("id_record_fields", "initial_count"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
 
 
 class EffectRef(Frozen):

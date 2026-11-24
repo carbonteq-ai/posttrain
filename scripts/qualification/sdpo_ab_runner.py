@@ -46,12 +46,18 @@ def write(path, value):
 
 
 def log(**fields):
+    if SF_FINAL:  # S-final F12: a closed stdout must not end the run (R0 lost its 4th round to EPIPE)
+        from sdpo_final import safe_log
+
+        return safe_log(**fields)
     print(json.dumps({"t": round(time.time(), 1), **fields}, default=str), flush=True)
 
 
 # ------------------------------------------------------------------ token-consistent rendering
 
 THINKING = False  # `--thinking on` (D97): the chat template's enable_thinking for every rendered prompt; off = as before
+SF_FINAL = False  # `--sf-final` (S-final, Phase 1 item 9): set in main; read by log() (F12) and the re-render check (F11)
+SF_TRAINING_SAMPLING = "training"  # `--sampling training` (S-final F7): the training rollouts' sampling, for scoring
 THINK_CLOSE = "</think>"
 
 
@@ -194,6 +200,44 @@ def make_rollout_class():
             logps = [float(v[t].logprob) for v, t in zip(completion.logprobs or [], ids, strict=True)]
             return ids, logps, completion.finish_reason
 
+        teacher_loads = 0
+        student_request = None
+
+        async def load_teacher(self, model):
+            """R1 (D74): serve the EMA teacher adapter ("sdpo_teacher") instead of the student while the teacher
+            continues at mistake points; `restore_student` puts the same student request back."""
+            from vllm.lora.request import LoRARequest
+
+            self.teacher_loads += 1
+            directory = self.output / "rollout-teacher" / f"v{self.version}-{self.teacher_loads}"
+            directory.mkdir(parents=True)
+            model.save_pretrained(directory, selected_adapters=["sdpo_teacher"], safe_serialization=True)
+            path = directory / "sdpo_teacher" if (directory / "sdpo_teacher").is_dir() else directory
+            if not (path / "adapter_model.safetensors").is_file():
+                raise ValueError("teacher export has no adapter weights")
+            if not await self.engine.remove_lora(self.request.lora_int_id):
+                raise ValueError("engine did not remove the student adapter")
+            request = LoRARequest(f"ab-teacher-{self.teacher_loads}", 1_000_000 + self.teacher_loads, str(path))
+            if not await self.engine.add_lora(request):
+                raise ValueError("engine did not acknowledge the teacher adapter")
+            if not await self.engine.reset_prefix_cache():
+                raise ValueError("engine did not acknowledge prefix-cache invalidation")
+            self.student_request, self.request = self.request, request
+            self.refreshes.append({"teacher_load": self.teacher_loads, "path": str(path),
+                                   "weights_sha256": hashlib.sha256((path / "adapter_model.safetensors").read_bytes())
+                                   .hexdigest()})
+
+        async def restore_student(self):
+            if self.student_request is None:
+                return
+            if not await self.engine.remove_lora(self.request.lora_int_id):
+                raise ValueError("engine did not remove the teacher adapter")
+            if not await self.engine.add_lora(self.student_request):
+                raise ValueError("engine did not acknowledge the student adapter")
+            if not await self.engine.reset_prefix_cache():
+                raise ValueError("engine did not acknowledge prefix-cache invalidation")
+            self.request, self.student_request = self.student_request, None
+
     return Rollout
 
 
@@ -258,6 +302,8 @@ class Agent:
                     self.audit["rerender_checks"] += 1
                     self.audit["rerender_equal"] += int(first_prompt(self.tokenizer, messages, tools)
                                                         == chain["tokens"])
+                    if SF_FINAL:  # S-final F11: a chain whose fresh render differs is excluded from training
+                        chain["rerender_mismatch"] = first_prompt(self.tokenizer, messages, tools) != chain["tokens"]
         prefix = list(chain["tokens"])
         budget = min(self.reply_limit, self.context_limit - len(prefix))
         if budget < 1:
@@ -405,7 +451,11 @@ def student_sequence(chain):
 
 
 def teacher_sequence(tokenizer, chain, context):
-    """The student's episode with the teacher's first message and per-turn notes."""
+    """The student's episode with the teacher's first message and per-turn notes.
+
+    A note of a later turn is appended to that turn's last tool result (the default), or, when the context says
+    note_role "user" (SDPO closure round 6, design suffix U), given as its own user message after that turn's tool
+    results: inside the tool result the 4B teacher read a note-only fact as the tool's own output (21 Nov, S1PR)."""
     import copy
 
     first = copy.deepcopy(chain["messages0"])
@@ -427,10 +477,13 @@ def teacher_sequence(tokenizer, chain, context):
             ids += segment["ids"]
         elif segment["messages"] is not None and (turn + 1) in context["notes"]:
             messages = copy.deepcopy(segment["messages"])
-            target = max(i for i, m in enumerate(messages) if m["role"] in ("tool", "user"))
-            body = messages[target].get("content")
-            body = body if isinstance(body, str) else json.dumps(body)
-            messages[target]["content"] = body + "\n\n" + context["notes"][turn + 1]
+            if context.get("note_role") == "user":
+                messages.append({"role": "user", "content": context["notes"][turn + 1]})
+            else:
+                target = max(i for i, m in enumerate(messages) if m["role"] in ("tool", "user"))
+                body = messages[target].get("content")
+                body = body if isinstance(body, str) else json.dumps(body)
+                messages[target]["content"] = body + "\n\n" + context["notes"][turn + 1]
             ids += render_delta(tokenizer, messages)
         else:
             ids += segment["ids"]
@@ -478,6 +531,38 @@ def call_body_indices(tokenizer, student):
 
 def pick(sequence, keep, keys):
     return {**sequence, **{k: [sequence[k][i] for i in keep] for k in keys}}
+
+
+def reasoning_and_call_indices(tokenizer, student):
+    """Arms 2/3 (plan of 15 Nov, Ali's default 3: train reasoning and tool calls, not the visible text): indices into
+    the student's assistant tokens that are reasoning (through `</think>`) or tool calls (`<tool_call>` through
+    `</tool_call>`, both tags). Left out: visible free text, the newlines right after `</think>`, the end-of-turn
+    token. A reply without `</think>` is all reasoning (cut inside the thinking). Same classes as sdpo_a3's
+    token_classes ("decision" kept only when it opens a call)."""
+    think_close, opener, closer = (tokenizer.convert_tokens_to_ids(t) for t in ("</think>", "<tool_call>", "</tool_call>"))
+    if any(not isinstance(x, int) or x == tokenizer.unk_token_id for x in (think_close, opener, closer)):
+        raise ValueError("</think> and the tool-call tags must be single tokens")
+    newlines = set(tokenizer.encode("\n", add_special_tokens=False) + tokenizer.encode("\n\n", add_special_tokens=False))
+    keep, turn, state = [], None, None
+    for index, (token, t) in enumerate(zip(student["targets"], student["turns"])):
+        if t != turn:
+            turn, state = t, "reasoning"
+        if state == "reasoning":
+            keep.append(index)
+            if token == think_close:
+                state = "await_decision"
+            continue
+        if state == "await_decision":
+            if token in newlines:
+                continue
+            state = "call" if token == opener else "text"
+        elif token == opener:
+            state = "call"
+        if state == "call":
+            keep.append(index)
+            if token == closer:
+                state = "text"
+    return keep
 
 
 # ------------------------------------------------------------------ recipe R: the decision to act
@@ -591,6 +676,11 @@ def prepare_sequences(tokenizer, chain, context, loss_tokens):
     if loss_tokens == "calls+anchor+decision":
         found = decision_positions(tokenizer, student, context)
         decision = decision_sequence(student, teacher, found) if found else None
+    if loss_tokens == "reasoning+calls":
+        keep = reasoning_and_call_indices(tokenizer, student)
+        if not keep:
+            return "no_reasoning_or_call_tokens"
+        student, teacher = pick(student, keep, ("positions", "targets", "old", "turns")), pick(teacher, keep, ("positions", "targets"))
     if loss_tokens in ("calls", *ANCHORED_LOSSES):
         calls, teacher_calls = restrict_to_calls(tokenizer, student, teacher)
         if calls is None:
@@ -971,6 +1061,14 @@ class Runtime:
             parity_checks(self.model, self.tokenizer, self.out, decision=True)
         else:
             parity_checks(self.model, self.tokenizer, self.out)
+        if getattr(self.args, "r1_branches", False):
+            from sdpo_ab_branches import branch_parity_check
+
+            branch_parity_check(self.out, self.args.r1_opener_cap)
+        if getattr(self.args, "sf_final", False):  # S-final: the two-sided decision term against its float reference
+            from sdpo_final import parity_check as final_parity_check
+
+            final_parity_check(self.out, self.args.sf_cap, self.args.sf_floor)
         Rollout = make_rollout_class()
         context_limit, reply_limit = episode_limits(self.args)[1:3]
         self.rollout = await Rollout.build(self.args.model, self.model, self.tokenizer, self.out,
@@ -1228,6 +1326,10 @@ def collect_sampling(name):
     frozen EVALUATION_SAMPLING; "card": the Qwen3.5-4B model card's non-thinking general settings)."""
     from sdpo_frozen_environment import COLLECT_SAMPLINGS
 
+    if name == SF_TRAINING_SAMPLING:  # S-final F7: the training rollouts' sampling (temperature 1.0, top-p 1.0)
+        from sdpo_frozen_environment import ROLLOUT_SAMPLING
+
+        return dict(ROLLOUT_SAMPLING)
     if name not in COLLECT_SAMPLINGS:
         raise ValueError(f"unknown collect sampling {name!r}")
     return dict(COLLECT_SAMPLINGS[name])
@@ -1266,6 +1368,14 @@ def suffixed(text, suffix):
 def check_collect_options(args):
     """Correction b: --sampling card and --prompt-suffix-file apply to `--phase collect --protocol ours` only; anywhere
     else they would be silently ignored, so they are refused."""
+    if args.phase in ("a3-continue", "a4-signal", "classic-train", "signal-check", "design-audit",
+                      "online-train"):  # sdpo-weekend and SDPO v6: thinking on
+        if getattr(args, "thinking", "off") != "on" or getattr(args, "sampling", "protocol") != "card-thinking":
+            raise ValueError("--phase a3-continue/a4-signal need --thinking on --sampling card-thinking")
+        return
+    if getattr(args, "sf_final", False) and args.phase == "engine-train" and getattr(
+            args, "sampling", "protocol") == "protocol" and not getattr(args, "prompt_suffix_file", None):
+        return  # S-final: --thinking on|off follows Track G's result in training too (Phase 1 item 4)
     changed = (getattr(args, "sampling", "protocol") != "protocol" or getattr(args, "prompt_suffix_file", None)
                or getattr(args, "thinking", "off") != "off")
     if changed and (args.phase != "collect" or args.protocol != "ours"):
@@ -1692,6 +1802,10 @@ async def train_arm(rt, args, lr, folder):
     await rt.rollout.refresh()
     history, rng = [], random.Random(20261027)
     gate_result = None
+    branches = getattr(args, "r1_branches", False)  # R1 (D74): teacher takeover branches; off = R0 exactly
+    sf_on = getattr(args, "sf_final", False)  # S-final (Phase 1 item 9, sdpo_final): off = R0/R1 exactly
+    if sf_on:
+        import sdpo_final as sf
     safety = args.gate_mode == "safety"
     if safety:
         _, base_chains = reference_collection(args)
@@ -1704,6 +1818,11 @@ async def train_arm(rt, args, lr, folder):
         records, joined, outcomes, summary = await rt.collect(label, fit, getattr(args, "rollouts_per_task", 8),
                                                               ROLLOUT_SAMPLING["temperature"],
                                                               ROLLOUT_SAMPLING["top_p"])
+        if branches:  # the teacher's continuations need the rollout engine awake (before it sleeps for training)
+            branch_build = await r1_build_branches(rt, args, records, joined, label)
+            branch_steps = []
+        if sf_on:  # S-final stop branches (flip-required keep rule), before the engine sleeps for training
+            sf_branch_build = await sf.build_round_branches(rt, args, records, joined, label, outcomes)
         await rt.rollout.suspend_for_update()
         by_task = defaultdict(list)
         for record in records:
@@ -1715,6 +1834,11 @@ async def train_arm(rt, args, lr, folder):
         references = guard.references(list(records) + list(getattr(rt, "guard_records", []))) if guard else {}
         guard_results, saved, prepared, timings = [], [], {}, []
         for name in order:
+            if sf_on:  # S-final admission (F4, F5, F11) and the attempt's own decision points
+                prepared[name] = sf.prepare_task(rt, args, name, by_task[name], joined, build_context, contracts,
+                                                 placement, variant, saved, timings, admission,
+                                                 sf_branch_build["redundant"])
+                continue
             rows = []
             for record in by_task[name]:
                 chain = joined.get(record["id"])
@@ -1800,9 +1924,28 @@ async def train_arm(rt, args, lr, folder):
                 await rt.rollout.refresh()
                 return {"gate_c": gate_result, "history": history, "stopped": "guard_stop", "last_passing": batch - 1,
                         "guard": {k: verdict[k] for k in ("contexts", "failed", "failed_share")}}
+        if sf_on:  # S-final: mixed-task steps (F6); R0's per-task loop below then runs no step
+            sf_round = sf.run_round(rt, args, prepared, sf_branch_build, parameters, optimizer, rng, folder, batch,
+                                    label, outcomes, records, history)
+            steps, order = sf_round["steps"], []
+            if sf_round.get("stopped"):
+                write(rt.out / label / "admission.json", admission)
+                write(rt.out / label / "steps.json", steps)
+                await rt.rollout.refresh()
+                return sf_round["stopped"]
         decision_records = []
         for name in order:
             rows = prepared.get(name, [])
+            if branches:
+                points = branch_build["branches"].get(name, [])
+                if not rows and points:  # R1: a task whose attempts give R0 nothing still trains its branches
+                    if args.r1_branch_dry_run:
+                        optimizer.zero_grad(set_to_none=True)
+                        branch_steps.append(r1_dry_run_step(rt, args, name, 0, points, parameters, optimizer))
+                        continue
+                    steps.append(r1_branch_only_step(rt, args, name, points, parameters, optimizer))
+                    log(stage="step", folder=folder, batch=batch, **steps[-1])
+                    continue
             if not rows:
                 steps.append({"task": name, "rows": 0, "skipped": True})
                 continue
@@ -1829,6 +1972,11 @@ async def train_arm(rt, args, lr, folder):
                     torch.cuda.empty_cache()
                     admission.append({"episode_id": record["id"], "task": name, "admitted": False,
                                       "reason": "out_of_memory_excluded", "tokens": len(student["ids"])})
+            if branches:
+                if args.r1_branch_dry_run:  # D74 item 5: each term's gradient norm at the untrained adapter, no step
+                    branch_steps.append(r1_dry_run_step(rt, args, name, len(losses), points, parameters, optimizer))
+                    continue
+                branch_stats = r1_branch_backward(rt, args, points, args.r1_branch_weight)
             if not losses:
                 steps.append({"task": name, "rows": len(rows), "skipped": True, "oom": excluded})
                 continue
@@ -1848,9 +1996,21 @@ async def train_arm(rt, args, lr, folder):
                              if decided else {}),
                           "grad_norm": float(norm), "mean_importance_weight": sum(ratios) / max(1, len(ratios)),
                           "clipped_share": sum(r >= 2.0 for r in ratios) / max(1, len(ratios))})
+            if branches:
+                steps[-1].update(branch_stats)
             log(stage="step", folder=folder, batch=batch, **steps[-1])
         write(rt.out / label / "admission.json", admission)
         write(rt.out / label / "steps.json", steps)
+        if branches:
+            write_jsonl_gz(rt.out / label / "branches.jsonl.gz", branch_build["rows"])  # with the per-point loss stats
+            if args.r1_branch_dry_run:
+                from sdpo_ab_branches import weight_suggestion
+
+                reading = {"batch": batch, "steps": branch_steps, "suggestion": weight_suggestion(branch_steps)}
+                write(rt.out / folder / "branch-gradnorms.json", reading)
+                log(stage="r1_branch_dry_run", **reading["suggestion"])
+                await rt.rollout.refresh()
+                return {"gate_c": None, "history": history, "stopped": "r1_branch_dry_run", "dry_run": reading}
         if args.loss_tokens == "calls+anchor+decision":  # recipe R monitor: every decision point of the batch
             write(rt.out / label / "decision.json", {"summary": decision_summary(decision_records),
                                                      "episodes": decision_records})
@@ -1901,6 +2061,13 @@ async def train_arm(rt, args, lr, folder):
         checkpoint = rt.out / folder / f"checkpoint-{batch}"
         rt.model.save_pretrained(checkpoint, selected_adapters=["default"])
         await rt.rollout.refresh()
+        if sf_on:  # S-final: guard10 and the post-training round rules; a stop keeps checkpoint-(batch-1)
+            sf_stops = await sf.after_checkpoint(rt, args, folder, batch, label)
+            if sf_stops:
+                history.append({**entry, "sf_stop": sf_stops})
+                write(rt.out / folder / "history.json", history)
+                return {"gate_c": gate_result, "history": history, "stopped": "sf_stop", "last_passing": batch - 1,
+                        "sf_stop": sf_stops}
         if batch in args.eval_after:
             _, _, _, evaluation = await rt.collect(f"{folder}/eval-fit-{batch}", fit, 4,
                                                    EVALUATION_SAMPLING["temperature"], EVALUATION_SAMPLING["top_p"])
@@ -1908,6 +2075,167 @@ async def train_arm(rt, args, lr, folder):
         history.append(entry)
         write(rt.out / folder / "history.json", history)
     return {"gate_c": gate_result, "history": history, "stopped": None}
+
+
+# ------------------------------------------------------------------ R1 (plan D74): teacher takeover branches
+
+R1_BRANCH_FLAGS = ("r1_branches", "r1_branch_weight", "r1_opener_cap", "r1_branch_dry_run", "r1_point_kinds",
+                   "r1_branch_fix_hints")
+WEEKEND_DEFAULTS = {"a3_items": None, "a3_episodes": None, "a4_limit": 200,  # sdpo-weekend (plan v4 A3): off by default
+                    "classic_version": None, "classic_batch": 16, "classic_limit": 0,  # arms 2/3 (15 Nov)
+                    "classic_longest_first": False,
+                    # SDPO v6 (19 Nov): the design audit and the on-policy rounds, off unless their phase runs
+                    "online_rounds": 3, "online_design": None, "online_ema": 0.01, "online_decision_token": False,
+                    "online_call_text": "train",  # r3 (20 Nov): fix A, "skip" = free-text call values not trained
+                    "audit_failures": 200,
+                    "audit_successes": 100, "audit_designs": "V5,OUT,HINT", "audit_points": None}
+SF_DEFAULTS = {"sf_final": False, "sf_branch_weight": None, "sf_decision_weight": None, "sf_cap": 0.5, "sf_floor": 0.2,
+               "sf_dry_run": False, "sf_branch_share": 0.25, "sf_decision_share": 0.25, "sf_points_per_task": 2,
+               "sf_branch_candidates": 3, "sf_keep": 1, "sf_max_repeat": 5, "sf_guard_tasks": None,
+               "sf_guard_attempts": 8, "sf_guard_reference": None, "sf_guard_drop": 0.15, "sf_guard_loops_reference": None,
+               "sf_norm_probe_steps": 3, "sf_mask_values": True, "sf_no_round_stops": False}
+
+
+def sf_flags_touched(args):
+    """S-final: whether any --sf-* flag differs from its default (then sdpo_final.check_final_options runs)."""
+    return any(getattr(args, k, v) != v for k, v in SF_DEFAULTS.items())
+
+
+def check_branch_options(args):
+    """The R1 flags act only on engine-train with R0's loss (calls+anchor) and need their numbers stated."""
+    if not getattr(args, "r1_branches", False):
+        raise ValueError("--r1-branch-weight, --r1-opener-cap, --r1-branch-dry-run, --r1-point-kinds and "
+                         "--r1-branch-fix-hints need --r1-branches")
+    if args.phase != "engine-train" or args.loss_tokens != "calls+anchor" or args.arm is None:
+        raise ValueError("--r1-branches needs --phase engine-train --loss-tokens calls+anchor --arm (R0's loss)")
+    if args.r1_opener_cap is None or not 0.0 < args.r1_opener_cap <= 1.0:
+        raise ValueError("--r1-branches needs --r1-opener-cap in (0, 1]")
+    if args.r1_branch_dry_run:
+        if args.r1_branch_weight is not None:
+            raise ValueError("--r1-branch-dry-run measures at weight 1; it takes no --r1-branch-weight")
+    elif args.r1_branch_weight is None or args.r1_branch_weight <= 0.0:
+        raise ValueError("--r1-branches needs --r1-branch-weight > 0 (fixed before training from the dry run)")
+    from sdpo_ab_execution import world_date
+
+    if not world_date():
+        raise ValueError("--r1-branches replays attempts: pin the world date (SDPO_AB_WORLD_DATE)")
+
+
+async def r1_build_branches(rt, args, records, joined, label):
+    """Every mistake point of the batch (sdpo_ab_branches.build_branches): the EMA teacher served by the rollout
+    engine at temperature 1.0, top-p 1.0, the worlds rebuilt in one worker thread. Writes branch-build.json."""
+    import asyncio
+    import concurrent.futures
+    import datetime as dt
+
+    import sdpo_ab_world as world
+    from sdpo_ab_branches import BRANCH_SAMPLING, HARM, STOP, build_branches, summarize
+    from sdpo_ab_execution import world_date
+
+    by_task = defaultdict(list)
+    for record in records:
+        by_task[task_of(record)].append(record)
+    loop = asyncio.get_running_loop()
+    worker = concurrent.futures.ThreadPoolExecutor(1, thread_name_prefix="r1-world")
+    started = time.monotonic()
+
+    async def run_in_world(function, *arguments):
+        return await loop.run_in_executor(worker, function, *arguments)
+
+    async def generate(ids, max_tokens, seed):
+        ids, _logps, finish = await rt.rollout.sample(list(ids), max_tokens, seed=seed)
+        return ids, finish
+
+    def parse_for(chain):
+        def parse(text):
+            native, parser = tool_call_parser(rt.tokenizer, chain["messages0"], chain["tools"])
+            return parsed_calls(parser.extract_tool_calls(text, native))
+        return parse
+
+    saved = rt.rollout.temperature, rt.rollout.top_p, rt.rollout.extra_sampling
+    rt.rollout.temperature, rt.rollout.top_p = BRANCH_SAMPLING["temperature"], BRANCH_SAMPLING["top_p"]
+    rt.rollout.extra_sampling = {}
+    await rt.rollout.load_teacher(rt.model)
+    try:
+        result = await build_branches(
+            records, joined, tokenizer=rt.tokenizer, engine=rt.branch_engine, generate=generate, parse_for=parse_for,
+            world=world, day=dt.date.fromisoformat(world_date()), run_in_world=run_in_world,
+            siblings_of=lambda record: by_task[task_of(record)],
+            seed_for=lambda key: request_seed(f"{args.seed_salt}|r1-branch", key), log=log,
+            concurrency=args.concurrency, point_kinds=tuple(args.r1_point_kinds or (HARM, STOP)))
+    finally:
+        await rt.rollout.restore_student()
+        rt.rollout.temperature, rt.rollout.top_p, rt.rollout.extra_sampling = saved
+        worker.shutdown(wait=True)
+    summary = summarize(result["rows"])
+    write(rt.out / label / "branch-build.json", {"summary": summary, "counts": dict(result["counts"]),
+                                                  "elapsed_s": time.monotonic() - started,
+                                                  "engine_stats": dict(rt.branch_engine.stats)})
+    log(stage="r1_branches", label=label, elapsed=round(time.monotonic() - started), **dict(result["counts"]))
+    return result
+
+
+def r1_branch_backward(rt, args, points, weight):
+    """Backward of weight x the mean over the task's points of each point's loss (sdpo_ab_branches); each point's
+    stats (loss, the student's probability on the inserted tokens, opener readings) go to its branches.jsonl row."""
+    import torch
+    from sdpo_ab_branches import branch_point_loss
+
+    losses, oom = [], 0
+    for branch in points:
+        try:
+            loss, stats = branch_point_loss(rt.model, branch, args.r1_opener_cap)
+            (weight * loss / len(points)).backward()
+            losses.append(float(loss.detach()))
+            branch["row"].update(loss=losses[-1], **stats)
+        except torch.OutOfMemoryError:
+            oom += 1
+            torch.cuda.empty_cache()
+            branch["row"]["oom"] = True
+    rt.model.set_adapter("default")
+    return {"branch_points": len(points), "branch_oom": oom, "branch_weight": weight,
+            **({"branch_loss": sum(losses) / len(losses)} if losses else {})}
+
+
+def r1_grad_norm(parameters):
+    import torch
+
+    norms = [p.grad.detach().float().norm() for p in parameters if p.grad is not None]
+    return float(torch.stack(norms).norm()) if norms else 0.0
+
+
+def r1_dry_run_step(rt, args, name, rows, points, parameters, optimizer):
+    """D74 item 5: R0's term's gradient norm (its backward already done), then the branch term's alone (weight 1);
+    gradients cleared, no optimizer step."""
+    r0 = r1_grad_norm(parameters) if rows else None
+    optimizer.zero_grad(set_to_none=True)
+    stats = r1_branch_backward(rt, args, points, 1.0) if points else {}
+    branch = r1_grad_norm(parameters) if points else None
+    optimizer.zero_grad(set_to_none=True)
+    return {"task": name, "rows": rows, "r0_norm": r0, "branch_norm": branch, **stats}
+
+
+def r1_branch_only_step(rt, args, name, points, parameters, optimizer):
+    """A task whose attempts give R0's term nothing (no admitted row) but have branch points: R0's optimizer step
+    (clip 1.0, AdamW, teacher EMA 0.01) on the branch term alone."""
+    import torch
+    from peft import get_peft_model_state_dict, set_peft_model_state_dict
+
+    optimizer.zero_grad(set_to_none=True)
+    stats = r1_branch_backward(rt, args, points, args.r1_branch_weight)
+    if "branch_loss" not in stats:
+        return {"task": name, "rows": 0, "skipped": True, **stats}
+    norm = torch.nn.utils.clip_grad_norm_(parameters, 1.0)
+    if not torch.isfinite(norm):
+        raise ValueError("nonfinite gradient")
+    optimizer.step()
+    optimizer.zero_grad(set_to_none=True)
+    student_state = get_peft_model_state_dict(rt.model, adapter_name="default")
+    teacher_state = get_peft_model_state_dict(rt.model, adapter_name="sdpo_teacher")
+    set_peft_model_state_dict(rt.model, {k: v.lerp(student_state[k].to(v.device), 0.01)
+                                         for k, v in teacher_state.items()}, adapter_name="sdpo_teacher")
+    rt.model.set_adapter("default")
+    return {"task": name, "rows": 0, "branch_only": True, "grad_norm": float(norm), **stats}
 
 
 def publish_adapters(rt):
@@ -2813,6 +3141,18 @@ async def phase_engine_train(rt, args):
                                       fix_hints=args.engine_fix_hints, options=engine_options(args))
     log(stage="engine_options", values=args.engine_values, fix_hints=args.engine_fix_hints, engine=engine_version(),
         **engine_options(args))
+    if getattr(args, "r1_branches", False):  # R1 (D74): R0's engine settings + the final note, no solution
+        from sdpo_ab_branches import make_branch_engine
+
+        branch_hints = args.engine_fix_hints if args.r1_branch_fix_hints is None else args.r1_branch_fix_hints
+        rt.branch_engine = make_branch_engine(args.engine_values == "shown", branch_hints, engine_options(args))
+        log(stage="r1_branch_engine", fix_hints=branch_hints, point_kinds=args.r1_point_kinds or ["harm", "stop"])
+    if getattr(args, "sf_final", False):  # S-final: the branch teacher = R1's (R0's engine settings + the final note,
+        from sdpo_ab_branches import make_branch_engine  # no solution; hints as --engine-fix-hints)
+
+        rt.branch_engine = make_branch_engine(args.engine_values == "shown", args.engine_fix_hints, engine_options(args))
+        log(stage="sf_branch_engine", fix_hints=args.engine_fix_hints, cap=args.sf_cap,
+            points_per_task=args.sf_points_per_task, candidates=args.sf_branch_candidates, keep=args.sf_keep)
     fit = frozenset(json.loads(Path(args.fit).read_text())["task_names"])
     pool_sources = []
     for source in args.solution_pool_from or []:  # D47: successful attempts of an earlier run's batches
@@ -2827,6 +3167,14 @@ async def phase_engine_train(rt, args):
         write(rt.out / "solution-pool-sources.json", pool_sources)
     folder = f"engine-arm{args.arm}"
     result = await train_arm(rt, args, args.lr, folder)
+    if getattr(args, "r1_branch_dry_run", False):  # nothing trained, no checkpoint to carry
+        write(rt.out / "engine-train-result.json", {**result, "engine": engine_version(),
+                                                    "engine_options": engine_options(args)})
+        return
+    if getattr(args, "sf_dry_run", False):  # S-final dry run: gradient norms only, nothing trained
+        write(rt.out / "engine-train-result.json", {**result, "engine": engine_version(),
+                                                    "engine_options": engine_options(args)})
+        return
     last = max(h["batch"] for h in result["history"])
     shutil.copytree(rt.out / folder / f"checkpoint-{last}", rt.out / f"carried-checkpoint-engine-batch{last}")
     write(rt.out / "engine-train-result.json", {**result, "carried_batch": last, "engine": engine_version(),
@@ -3004,6 +3352,76 @@ async def phase_precheck(rt, args):
             torch.cuda.empty_cache()
             return None
 
+    if getattr(args, "precheck_mode", "registered") == "branches":  # R1's check before training (D74)
+        from sdpo_ab_branches import BRANCH_SAMPLING
+        from sdpo_ab_r1check import run_branch_check
+
+        rt.rollout.temperature, rt.rollout.top_p = BRANCH_SAMPLING["temperature"], BRANCH_SAMPLING["top_p"]
+
+        def score_inserted(branch):
+            """The student's (untrained adapter's) probability of every inserted token of a branch, on the
+            student's branch sequence; None when out of memory."""
+            student = branch["student"]
+            try:
+                with torch.no_grad():
+                    rt.model.eval()
+                    rt.model.set_adapter("default")
+                    hidden = inner_hidden(rt.model, list(student["ids"]), list(student["positions"]))
+                    head = lm_head(rt.model)
+                    targets = torch.tensor(student["targets"], device=hidden.device)
+                    logp = torch.cat([head(hidden[s:s + 1024]).float().log_softmax(-1).gather(
+                        -1, targets[s:s + 1024, None]).flatten() for s in range(0, len(student["targets"]), 1024)])
+            except torch.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                return None
+            openers = [float(logp[i].exp()) for i in branch["openers"]]
+            return {"tokens": len(student["targets"]), "logp_mean": float(logp.mean()),
+                    "p_mean": float(logp.exp().mean()), "logp_min": float(logp.min()), "opener_p": openers}
+
+        await run_branch_check(rt.precheck, tokenizer=rt.tokenizer, generate=generate, parse_for=parse_for,
+                               out=rt.out, suspend=rt.rollout.suspend_for_update, score_inserted=score_inserted,
+                               concurrency=args.concurrency, engine_version=engine_version(), log=log)
+        return
+    if getattr(args, "precheck_mode", "registered") == "refine":
+        from sdpo_ab_refine_check import TOPK, run_refine_check
+
+        def distill(student_ids, student_positions, teacher_ids, teacher_positions, targets):
+            """Per position: the loss's top-20 + tail term (alpha 1, no importance weight) between the student
+            adapter on the student's sequence and the teacher adapter on the teacher's, the teacher's and student's
+            log-probability of the target, and both top-1 tokens."""
+            from trl.experimental.sdpo.loss_utils import compute_topk_self_distillation_loss
+
+            try:
+                with torch.no_grad():
+                    rt.model.eval()
+                    rt.model.set_adapter("sdpo_teacher")
+                    ht = inner_hidden(rt.model, list(teacher_ids), list(teacher_positions))
+                    rt.model.set_adapter("default")
+                    hs = inner_hidden(rt.model, list(student_ids), list(student_positions))
+                    head = lm_head(rt.model)
+                    out = []
+                    for s in range(0, len(targets), 1024):
+                        sl, tl = head(hs[s:s + 1024]).float(), head(ht[s:s + 1024]).float()
+                        per = compute_topk_self_distillation_loss(sl, tl, distillation_topk=TOPK,
+                                                                  distillation_alpha=1.0, distillation_add_tail=True)
+                        target = torch.tensor(targets[s:s + 1024], device=sl.device)[:, None]
+                        ls, lt = sl.log_softmax(-1), tl.log_softmax(-1)
+                        for d, ps, pt, s1, t1 in zip(per.tolist(), ls.gather(-1, target).flatten().tolist(),
+                                                     lt.gather(-1, target).flatten().tolist(),
+                                                     sl.argmax(-1).tolist(), tl.argmax(-1).tolist()):
+                            out.append({"div": d, "logp_student": ps, "logp_teacher": pt, "top1_student": s1,
+                                        "top1_teacher": t1})
+                    return out
+            except torch.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                return None
+            finally:
+                rt.model.set_adapter("default")
+
+        await run_refine_check(rt.precheck, tokenizer=rt.tokenizer, generate=generate, parse_for=parse_for,
+                               distill=distill, suspend=rt.rollout.suspend_for_update, out=rt.out,
+                               concurrency=args.concurrency, engine_version=engine_version(), log=log)
+        return
     await run_precheck(rt.precheck, tokenizer=rt.tokenizer, generate=generate, parse_for=parse_for,
                        score_next=score_next, top1=top1, suspend=rt.rollout.suspend_for_update, out=rt.out,
                        concurrency=args.concurrency, engine_version=engine_version(), log=log)
@@ -3029,15 +3447,38 @@ async def main(args):
     pinned = pin_world_clock()
     check_collect_options(args)
     check_engine_options(args)
+    if any(getattr(args, k, None) not in (None, False) for k in R1_BRANCH_FLAGS):
+        check_branch_options(args)
+    if sf_flags_touched(args):  # S-final: any --sf-* flag given runs sdpo_final's option check
+        from sdpo_final import check_final_options
+
+        check_final_options(args)
+        global SF_FINAL
+        SF_FINAL = bool(args.sf_final)
     global THINKING
     THINKING = getattr(args, "thinking", "off") == "on"
     rt = Runtime(args)
     if args.phase == "precheck":  # before the model is loaded: inputs, recorded files, engine, replica imports
-        from sdpo_ab_precheck import preflight
+        if args.precheck_mode == "branches":
+            from sdpo_ab_r1check import preflight as branch_preflight
 
-        if not (args.precheck_sample and args.precheck_wordings):
-            raise ValueError("--phase precheck needs --precheck-sample and --precheck-wordings")
-        rt.precheck = preflight(args.precheck_sample, args.precheck_wordings, args.precheck_source, pinned)
+            if not args.precheck_sample or args.precheck_wordings or args.precheck_source:
+                raise ValueError("--precheck-mode branches needs --precheck-sample and takes no --precheck-wordings "
+                                 "or --precheck-source (the sources are the sample file's container paths)")
+            rt.precheck = branch_preflight(args.precheck_sample, None, pinned)
+        elif args.precheck_mode == "refine":
+            from sdpo_ab_refine_check import preflight as refine_preflight
+
+            if not args.precheck_sample or args.precheck_wordings or args.precheck_source:
+                raise ValueError("--precheck-mode refine needs --precheck-sample and takes no --precheck-wordings or "
+                                 "--precheck-source (the sources are the sample file's container paths)")
+            rt.precheck = refine_preflight(args.precheck_sample, None, pinned)
+        else:
+            from sdpo_ab_precheck import preflight
+
+            if not (args.precheck_sample and args.precheck_wordings):
+                raise ValueError("--phase precheck needs --precheck-sample and --precheck-wordings")
+            rt.precheck = preflight(args.precheck_sample, args.precheck_wordings, args.precheck_source, pinned)
     rt.out.mkdir(parents=True, exist_ok=True)
     write(rt.out / f"inputs-{args.phase}.json", {**{k: v for k, v in vars(args).items()}, "world_date": pinned,
                                                  "tz": os.environ.get("TZ"), **collect_inputs(args)})
@@ -3062,6 +3503,30 @@ async def main(args):
             await phase_engine_train(rt, args)
         elif args.phase == "precheck":
             await phase_precheck(rt, args)
+        elif args.phase == "a3-continue":  # sdpo-weekend (plan v4 A3): measurement only, nothing trains
+            from sdpo_a3 import phase_a3
+
+            await phase_a3(rt, args, sys.modules[__name__])  # this module: its THINKING is the one set above
+        elif args.phase == "a4-signal":  # sdpo-weekend (plan v4 A4): forward passes only
+            from sdpo_a3 import phase_a4
+
+            await phase_a4(rt, args, sys.modules[__name__])
+        elif args.phase == "signal-check":  # plan of 16 Nov, Step 2: forward passes only, nothing trains
+            from sdpo_a3 import phase_signal
+
+            await phase_signal(rt, args, sys.modules[__name__])
+        elif args.phase == "classic-train":  # sdpo-weekend (arms 2/3, 15 Nov): classic SDPO, one round
+            from sdpo_classic import phase_classic
+
+            await phase_classic(rt, args, sys.modules[__name__])
+        elif args.phase == "design-audit":  # SDPO v6 P1: forward passes and reflections only, nothing trains
+            from sdpo_online import phase_design_audit
+
+            await phase_design_audit(rt, args, sys.modules[__name__])
+        elif args.phase == "online-train":  # SDPO v6 P2/P3: on-policy rounds, EMA teacher
+            from sdpo_online import phase_online
+
+            await phase_online(rt, args, sys.modules[__name__])
         else:
             raise ValueError("unknown phase")
         write(rt.out / f"receipt-{args.phase}.json", {"completed": True, "elapsed_s": time.monotonic() - started,
@@ -3080,7 +3545,33 @@ async def main(args):
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", choices=("smoke", "collect", "controls", "gateb", "gateb-diagnostic", "arm", "d24",
-                                                 "handover", "engine-train", "precheck"), required=True)
+                                                 "handover", "engine-train", "precheck", "a3-continue",
+                                                 "a4-signal", "classic-train", "signal-check", "design-audit",
+                                                 "online-train"),
+                        required=True)
+    parser.add_argument("--a3-items", help="a3-continue: the CPU-audited items (item_id, episode_id, arm, turn, digest)")
+    parser.add_argument("--a3-episodes", help="a3-continue: the collect folder with episodes.jsonl.gz, chains.jsonl.gz")
+    parser.add_argument("--a4-limit", type=int, default=200, help="a4-signal: how many of the a3 items to measure")
+    parser.add_argument("--classic-version", choices=("N", "P", "V1", "V2", "V3-1", "V3-2", "V4-1", "V4-2", "V4-31", "V4-32", "V5"),
+                        help="classic-train (arms 2/3; Step 3 versions 17 Nov): the feedback version")
+    parser.add_argument("--classic-batch", type=int, default=16, help="classic-train: attempts per optimizer step")
+    # SDPO v6 (19 Nov; weekend/sdpo-v6/PLAN.md): the design audit (P1) and the on-policy rounds (P2/P3)
+    parser.add_argument("--online-rounds", type=int, default=3, help="online-train: on-policy rounds")
+    import sdpo_online as _online  # 22 Nov (round 14): the design list lives with the online code, so every measured design
+    # (the S1... family since round 5, S1FUHWNLGOJY in round 14) is accepted here too; it was never added to this list
+    parser.add_argument("--online-design", choices=_online.DESIGNS,
+                        help="online-train: the teacher design (sdpo_online.DESIGNS; W1-W4: r3 rewrites of V5)")
+    parser.add_argument("--online-call-text", choices=("train", "skip"), default="train",
+                        help="online-train (r3 fix A): skip = the values of free-text tool-call parameters are not trained")
+    parser.add_argument("--online-ema", type=float, default=0.01, help="online-train: EMA teacher rate per step")
+    parser.add_argument("--online-decision-token", action="store_true",
+                        help="online-train: also train each turn's first token after </think> (call or reply)")
+    parser.add_argument("--audit-failures", type=int, default=200, help="design-audit: failed attempts measured")
+    parser.add_argument("--audit-successes", type=int, default=100, help="design-audit: successful attempts measured")
+    parser.add_argument("--audit-designs", default="V5,OUT,HINT", help="design-audit: designs, comma-separated")
+    parser.add_argument("--audit-points", help="design-audit (r3, report-only): divergence points (episode_id, turn, correct_source) for the fair decision test")
+    parser.add_argument("--classic-limit", type=int, default=0, help="classic-train: memory proof on N attempts, nothing saved")
+    parser.add_argument("--classic-longest-first", action="store_true", help="classic-train: the longest attempts first")
     parser.add_argument("--model", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--label", default="collection")
@@ -3094,7 +3585,7 @@ def build_parser():
     parser.add_argument("--context-limit", type=int, default=65536,
                         help="tokens of context per episode, also vLLM max_model_len (D10: 65536; plan v4: 131072)")
     parser.add_argument("--rollout-timeout", type=int, default=3600, help="seconds per rollout (D10: 3600)")
-    parser.add_argument("--sampling", choices=("protocol", "card", "card-thinking"), default="protocol",
+    parser.add_argument("--sampling", choices=("protocol", "card", "card-thinking", SF_TRAINING_SAMPLING), default="protocol",
                         help="collect phase, protocol ours: the frozen evaluation sampling (temperature 0.6, top_p "
                              "0.95), or the Qwen3.5-4B model card's non-thinking general settings (temperature 0.7, "
                              "top_p 0.8, top_k 20, min_p 0.0, presence_penalty 1.5, repetition_penalty 1.0)")
@@ -3163,6 +3654,11 @@ def build_parser():
                         help="precheck: the final-note wordings file (/stage/precheck-wordings.json)")
     parser.add_argument("--precheck-source",
                         help="precheck: the recorded collection folder (default: the sample file's container path)")
+    parser.add_argument("--precheck-mode", choices=("registered", "refine", "branches"), default="registered",
+                        help="precheck: the two registered checks (default), the refinement check of the engine "
+                             "kinds content_at_call and value_location (sdpo_ab_refine_check), or R1's check before "
+                             "training of its branches (sdpo_ab_r1check, D74); the last two need only "
+                             "--precheck-sample")
     parser.add_argument("--solution-pool-from", nargs="*", default=[],
                         help="collection folders (episodes.jsonl.gz) whose successful attempts on --fit tasks seed the pool "
                              "(episodes of other tasks are skipped unread by the engine, counted per source)")
@@ -3170,7 +3666,7 @@ def build_parser():
     parser.add_argument("--only-transfer-tasks", nargs="*", help="smoke: restrict transfer evaluation to these tasks")
     parser.add_argument("--force-arms", action="store_true",
                         help="smoke only: train the requested arms even if they fail Gate A (recorded)")
-    parser.add_argument("--loss-tokens", choices=("all", "calls", "calls+anchor", "calls+anchor+decision"),
+    parser.add_argument("--loss-tokens", choices=("all", "calls", "calls+anchor", "calls+anchor+decision", "reasoning+calls"),
                         default="all",
                         help="d24 training: distil on every assistant token, only on tool-call bodies (D36), on "
                              "tool-call bodies with the other assistant tokens held at the untrained model (D38), "
@@ -3190,6 +3686,63 @@ def build_parser():
     parser.add_argument("--save-at", type=int, nargs="*", default=[],
                         help="handover phase: also keep the student adapter after these updates")
     parser.add_argument("--kv-cache-gib", type=int, default=16)
+    parser.add_argument("--r1-branches", action="store_true",
+                        help="engine-train (R1, plan D74): add teacher takeover branches at mistake points (a stop "
+                             "with benchmark work undone; a located harmful whole call) to R0's loss")
+    parser.add_argument("--r1-branch-weight", type=float,
+                        help="--r1-branches: the branch term's weight (fixed before training from the dry run)")
+    parser.add_argument("--r1-opener-cap", type=float,
+                        help="--r1-branches: the cap on the opener term's target P(<tool_call>) (0 < cap <= 1)")
+    parser.add_argument("--r1-point-kinds", nargs="+", choices=("stop", "harm"),
+                        help="--r1-branches: the mistake-point kinds that get branches (default both; R1 plan D95: stop)")
+    parser.add_argument("--r1-branch-fix-hints", type=fix_hint_kinds, metavar="KIND[,KIND...]",
+                        help="--r1-branches: the branch teacher's fix hints (default: --engine-fix-hints; R1 plan D95: "
+                             "call_fix, as the D91 branch check measured)")
+    parser.add_argument("--r1-branch-dry-run", action="store_true",
+                        help="--r1-branches: round 1 only; per optimizer step, the gradient norm of R0's term and of "
+                             "the branch term at the untrained adapter; nothing is trained or saved")
+    parser.add_argument("--sf-final", action="store_true",
+                        help="engine-train (S-final, Phase 1 item 9, sdpo_final): R0's loss plus the two-sided capped "
+                             "decision term, flip-required stop branches with trained stops, success stops, arm-A "
+                             "successes, runaway/incomplete/repeated-call drops, mixed-task steps, round monitors")
+    parser.add_argument("--sf-branch-weight", type=float, help="--sf-final: the branch body term's weight (from the dry run)")
+    parser.add_argument("--sf-decision-weight", type=float, help="--sf-final: the decision term's weight (from the dry run)")
+    parser.add_argument("--sf-cap", type=float, default=0.5,
+                        help="--sf-final: the constant target of an up push")
+    parser.add_argument("--sf-floor", type=float, default=0.2,
+                        help="--sf-final: the constant target of a down push")
+    parser.add_argument("--sf-dry-run", action="store_true",
+                        help="--sf-final: round 1 only; per step the gradient norm of R0's term, the branch body term "
+                             "and the decision term at the untrained adapter (weight 1); nothing trained or saved")
+    parser.add_argument("--sf-branch-share", type=float, default=0.25,
+                        help="--sf-dry-run: the branch body term's gradient norm as a share of R0's (weight proposal)")
+    parser.add_argument("--sf-decision-share", type=float, default=0.25,
+                        help="--sf-dry-run: the decision term's gradient norm as a share of R0's (weight proposal)")
+    parser.add_argument("--sf-points-per-task", type=int, default=2,
+                        help="--sf-final: at most this many points of each kind per task per round")
+    parser.add_argument("--sf-branch-candidates", type=int, default=3,
+                        help="--sf-final: stop-branch candidates continued per task (the first points-per-task with a "
+                             "kept call are trained)")
+    parser.add_argument("--sf-keep", type=int, default=1, help="--sf-final: at most this many kept calls per branch")
+    parser.add_argument("--sf-max-repeat", type=int, default=5,
+                        help="--sf-final: an attempt with one identical call (same name and arguments) made this many "
+                             "times is dropped (F5); the loop monitors use the same reading")
+    parser.add_argument("--sf-guard-tasks", help="--sf-final: guard task file (guard10.json) scored after every round")
+    parser.add_argument("--sf-guard-attempts", type=int, default=8, help="--sf-final: guard attempts per task")
+    parser.add_argument("--sf-guard-reference", type=float,
+                        help="--sf-final: the untrained guard task-mean success at the same settings (stop rule)")
+    parser.add_argument("--sf-guard-drop", type=float, default=0.15,
+                        help="--sf-final: stop when the guard mean falls below the reference by more than this")
+    parser.add_argument("--sf-guard-loops-reference", type=int,
+                        help="--sf-final: the untrained guard collection's loop attempts (turn limit or an identical call) "
+                             "at the same settings; the guard_loops stop rule reads it")
+    parser.add_argument("--sf-norm-probe-steps", type=int, default=3,
+                        help="--sf-final: on the first N steps of every training round, measure each term's gradient "
+                             "norm alone before the step (the mid-training distill/anchor/branch/decision split)")
+    parser.add_argument("--sf-mask-values", action=argparse.BooleanOptionalAction, default=True,
+                        help="--sf-final: leave the kept calls' parameter-value tokens out of the branch body term")
+    parser.add_argument("--sf-no-round-stops", action="store_true",
+                        help="--sf-final: record the round readings but never stop the run on them (smoke runs)")
     return parser
 
 

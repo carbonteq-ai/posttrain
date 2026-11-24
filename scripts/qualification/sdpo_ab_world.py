@@ -322,3 +322,73 @@ def grade(world: World) -> dict:
 
 def tools_of(world: World) -> list[dict]:
     return asyncio.run(tool_definitions(world.host))
+
+
+# ----------------------------------------------------------------------------- R1 branches (D74)
+# Added for R1's teacher takeover branches (sdpo_ab_branches). Nothing above changes: `rebuild` replays every recorded
+# call through one client session exactly as before; `rebuild_with_snapshots` does the same replay and also keeps the
+# world's state bytes just before chosen recorded calls, so a branch can start from the world before a harmful call
+# without replaying the attempt again.
+
+def _choose_world(record: dict, today: _dt.date):
+    name = task_name(record)
+    digest = record["traces"][0]["info"]["automationbench_capture"]["initial_digest"]
+    later = prepare(name, today)
+    first = prepare(name, today, fresh=True)
+    if later[1].action_initial_digest == digest:
+        return later, "later_rollout"
+    if first[1].action_initial_digest == digest:
+        return first, "first_rollout"
+    return later, "unmatched"
+
+
+async def _run_calls_with_snapshots(host: ToolHost, calls, before: set[int]):
+    """`run_calls`, keeping host.state_bytes just before each call whose index is in `before` (and after the last
+    call under index len(calls))."""
+    snapshots = {}
+    async with host.client() as client:
+        dispatch = {tool.name for tool in (await client.list_tools()).tools}
+        out = []
+        for index, (name, raw) in enumerate(calls):
+            if index in before:
+                snapshots[index] = host.state_bytes
+            out.append(await harness_call(client, dispatch, name, raw))
+    if len(calls) in before:
+        snapshots[len(calls)] = host.state_bytes
+    return out, snapshots
+
+
+def rebuild_with_snapshots(record: dict, today: _dt.date, before: set[int]) -> tuple[World, dict, dict]:
+    """`rebuild` (same variant choice, replay and verification report), plus {i: state bytes just before recorded
+    call i} for every i in `before` (i = number of answered recorded calls already made)."""
+    (task, state), variant = _choose_world(record, today)
+    host = ToolHost(task, state)
+    calls, unanswered = recorded_calls(record)
+    pairs = [(c["tool"], _arguments_text(c.get("arguments"))) for c in calls]
+    results, snapshots = asyncio.run(_run_calls_with_snapshots(host, pairs, set(before)))
+    got = score(task, host.state())
+    expected = recorded_score(record)
+    diffs = [i for i, ((content, _status), c) in enumerate(zip(results, calls)) if content != c["recorded_result"]]
+    report = {
+        "variant": variant, "calls_replayed": len(calls), "unanswered_calls": unanswered,
+        "replayed": {k: got[k] for k in ("partial_credit", "task_completed_correctly", "assertions_passed",
+                                         "assertions_scored", "assertions_excluded")},
+        "recorded": {k: expected[k] for k in ("partial_credit", "task_completed_correctly")},
+        "verified": (got["partial_credit"] == expected["partial_credit"]
+                     and got["task_completed_correctly"] == expected["task_completed_correctly"]),
+        "assertions_equal": got["assertion_results"] == expected["assertion_results"],
+        "result_text_diffs": diffs,
+        "assertion_results": got["assertion_results"],
+    }
+    return World(task, host, variant), report, snapshots
+
+
+def snapshot(world: World) -> bytes:
+    return world.host.state_bytes
+
+
+def fork(world: World, state_bytes: bytes | None = None) -> World:
+    """An independent world on the same task: a new tool host whose state is `state_bytes` (default: the world's
+    current state). Calls on the fork never touch the original."""
+    state = world.host.adapter.validate_json(state_bytes if state_bytes is not None else world.host.state_bytes)
+    return World(world.task, ToolHost(world.task, state), world.variant)

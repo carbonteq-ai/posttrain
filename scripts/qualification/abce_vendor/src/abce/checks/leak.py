@@ -38,8 +38,14 @@ def _template_text() -> list[str]:
              "not the value the task states", "a phrase the task states", "without", "on that line", "in one paragraph",
              "in that paragraph", "the attempt sent no", "the attempt created no", "this task forbids them",
              "they had to stay as they were", "is required", "or another effect the task allows", "named by",
-             "more like them", "one each", "failed:", "failed",
+             "more like them", "one each", "this task forbids sending to that recipient", "this task forbids sending to those recipients",
+             "not the", "itself", "themselves", "failed:", "failed",
              "The attempt updated", "The attempt added", "The attempt changed", "required;", "at least", "no such", "one is",
+             # engine-fix 7: the keep tail, the removal lines and the state words
+             "had to stay", "as it was", "its", "their", "had to be removed", "it was there at the start and still is",
+             "must not be there", "the attempt added it and it is still there", "it is there now", "must not have",
+             "at the start and still has it", "the attempt gave it that", "and it still has it", "now", "it had that",
+             "marked as read", "marked as a no-show", "is required to be",
              "Native checks that failed:", "Observed tool responses to this action:", "Every native check of this attempt passed."]
     fixed += list(plain.ADDRESS_LABELS.values()) + list(plain.CONTENT_LABELS.values())
     return sorted({normalize(f) for f in fixed if f and normalize(f)}, key=len, reverse=True)

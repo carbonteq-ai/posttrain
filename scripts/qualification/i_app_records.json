@@ -1,0 +1,259 @@
+{
+ "apps": {
+  "airtable": [
+   "bases"
+  ],
+  "asana": [],
+  "bamboohr": [],
+  "basecamp3": [],
+  "buffer": [
+   "channels",
+   "ideas",
+   "posts"
+  ],
+  "calendly": [
+   "availability_schedules",
+   "event_types",
+   "invitees",
+   "scheduled_events",
+   "users"
+  ],
+  "canva": [
+   "assets",
+   "designs",
+   "folders",
+   "jobs"
+  ],
+  "chatgpt": [
+   "assistants",
+   "completions",
+   "conversations",
+   "files",
+   "generated_images",
+   "messages",
+   "transcriptions",
+   "vector_stores"
+  ],
+  "confluence": [],
+  "docusign": [
+   "documents",
+   "envelopes",
+   "recipients",
+   "templates",
+   "workspaces"
+  ],
+  "facebook_conversions": [
+   "events"
+  ],
+  "facebook_lead_ads": [
+   "ads",
+   "leads",
+   "reports"
+  ],
+  "facebook_pages": [
+   "insights",
+   "pages",
+   "photos",
+   "posts",
+   "videos"
+  ],
+  "freshdesk": [
+   "companies",
+   "contacts",
+   "notes",
+   "tickets"
+  ],
+  "gmail": [
+   "attachments",
+   "drafts",
+   "labels",
+   "messages",
+   "threads"
+  ],
+  "google_ads": [
+   "campaigns",
+   "conversions",
+   "customer_lists",
+   "reports"
+  ],
+  "google_calendar": [
+   "calendars",
+   "events"
+  ],
+  "google_drive": [
+   "files",
+   "folders"
+  ],
+  "google_sheets": [
+   "rows",
+   "spreadsheets",
+   "worksheets"
+  ],
+  "gorgias": [
+   "customers",
+   "tickets"
+  ],
+  "helpcrunch": [
+   "customers"
+  ],
+  "helpscout": [
+   "conversations",
+   "customers",
+   "mailboxes",
+   "users"
+  ],
+  "hiver": [
+   "conversations",
+   "shared_mailboxes",
+   "users"
+  ],
+  "hubspot": [
+   "companies",
+   "contacts",
+   "deals",
+   "engagements",
+   "tickets"
+  ],
+  "instagram": [
+   "media"
+  ],
+  "intercom": [
+   "companies",
+   "contacts",
+   "conversations",
+   "notes",
+   "tickets"
+  ],
+  "jira": [
+   "issues",
+   "projects"
+  ],
+  "linkedin": [
+   "companies",
+   "connections",
+   "groups",
+   "invitations",
+   "jobs",
+   "messages",
+   "mutual_connections",
+   "posts",
+   "profiles"
+  ],
+  "linkedin_ads": [
+   "audiences",
+   "conversions",
+   "reports"
+  ],
+  "linkedin_conversions": [
+   "events"
+  ],
+  "linkedin_leadgen_forms": [],
+  "mailchimp": [
+   "audiences",
+   "campaigns",
+   "subscribers",
+   "tags"
+  ],
+  "monday": [],
+  "notion": [],
+  "pipefy": [
+   "cards"
+  ],
+  "quickbooks": [
+   "accounts",
+   "bills",
+   "customers",
+   "employees",
+   "estimates",
+   "invoices",
+   "items",
+   "payments",
+   "sales_receipts",
+   "vendors"
+  ],
+  "reamaze": [
+   "contacts",
+   "conversations"
+  ],
+  "recruitee": [],
+  "salesforce": [
+   "accounts",
+   "attachments",
+   "campaign_members",
+   "campaigns",
+   "case_comments",
+   "cases",
+   "contacts",
+   "documents",
+   "emails",
+   "events",
+   "folders",
+   "leads",
+   "notes",
+   "opportunities",
+   "tasks",
+   "users"
+  ],
+  "slack": [
+   "channels",
+   "dms",
+   "messages",
+   "users"
+  ],
+  "trello": [],
+  "twilio": [
+   "calls",
+   "sms_messages",
+   "whatsapp_messages"
+  ],
+  "twitter": [
+   "direct_messages",
+   "follows",
+   "likes",
+   "retweets",
+   "tweets",
+   "users"
+  ],
+  "wave": [
+   "customers",
+   "invoices",
+   "products",
+   "sales"
+  ],
+  "xero": [
+   "accounts",
+   "bank_transactions",
+   "bank_transfers",
+   "bills",
+   "contacts",
+   "credit_notes",
+   "employees",
+   "invoices",
+   "items",
+   "payments",
+   "purchase_orders",
+   "quotes"
+  ],
+  "zendesk": [
+   "groups",
+   "organizations",
+   "tickets",
+   "users"
+  ],
+  "zoho_desk": [
+   "accounts",
+   "contacts",
+   "departments",
+   "tickets"
+  ],
+  "zoom": [
+   "meetings",
+   "participants",
+   "recordings",
+   "registrants",
+   "users",
+   "webinars"
+  ]
+ },
+ "source": "/home/ali-awais-safdar/Post-Train/research/sdpo-work/env-fix-v11/environments/automationbench_v1/src (v1.1, 28146f9) automationbench.schema.world.WorldState"
+}
